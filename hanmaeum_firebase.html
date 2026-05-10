@@ -1,0 +1,1766 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <title>🏅 한마음 스포츠데이 — 인천영종고</title>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <!-- React + Babel -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #f5f5f5; padding-bottom: 30px; }
+
+    /* Firebase 설정 화면 */
+    .setup-wrap { min-height:100vh; display:flex; align-items:center; justify-content:center;
+      background:#f5f5f5; font-family:'Noto Sans KR',sans-serif; padding:20px; }
+    .setup-card { background:#fff; border-radius:20px; padding:28px 24px; max-width:440px; width:100%;
+      box-shadow:0 4px 20px rgba(0,0,0,.08); }
+    .setup-card h2 { font-size:20px; font-weight:900; color:#111827; margin-bottom:6px; }
+    .setup-card p  { font-size:13px; color:#6b7280; margin-bottom:20px; line-height:1.6; }
+    .setup-input { width:100%; border:1.5px solid #e5e7eb; border-radius:8px; padding:10px 12px;
+      font-size:13px; font-family:monospace; color:#111827; outline:none; margin-bottom:8px; }
+    .setup-input:focus { border-color:#3b82f6; }
+    .setup-btn { width:100%; padding:13px; background:#111827; color:#fff; border:none;
+      border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit; }
+    .step { background:#f9fafb; border-radius:10px; padding:14px 16px; margin-bottom:12px; }
+    .step-num { display:inline-flex; width:22px; height:22px; background:#111827; color:#fff;
+      border-radius:50%; align-items:center; justify-content:center; font-size:11px; font-weight:700;
+      margin-right:8px; flex-shrink:0; }
+    .step-title { font-weight:700; font-size:14px; color:#111827; margin-bottom:4px; display:flex; align-items:center; }
+    .step-desc { font-size:12px; color:#6b7280; line-height:1.6; padding-left:30px; }
+    .step-desc a { color:#3b82f6; }
+    .step-desc code { background:#e5e7eb; padding:1px 5px; border-radius:4px; font-size:11px; }
+  </style>
+</head>
+<body>
+
+<!-- Firebase 설정 UI (설정 전에 표시) -->
+<div id="setup-screen" class="setup-wrap">
+  <div class="setup-card">
+    <h2>🔥 Firebase 연결 설정</h2>
+    <p>처음 한 번만 설정하면 이후엔 바로 열립니다.<br/>설정값은 이 기기 브라우저에 저장됩니다.</p>
+
+    <div class="step">
+      <div class="step-title"><span class="step-num">1</span> Firebase 프로젝트 만들기</div>
+      <div class="step-desc">
+        <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> 접속<br/>
+        → "프로젝트 추가" → 이름 입력 → Google Analytics 비활성화 → 완료
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-title"><span class="step-num">2</span> Realtime Database 생성</div>
+      <div class="step-desc">
+        왼쪽 메뉴 → "빌드" → "Realtime Database" → "데이터베이스 만들기"<br/>
+        → 위치 <code>asia-southeast1</code> 선택 → "테스트 모드"로 시작 → 완료
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-title"><span class="step-num">3</span> 앱 등록 후 설정 코드 복사</div>
+      <div class="step-desc">
+        프로젝트 홈 → ⚙️ → "프로젝트 설정" → 하단 "내 앱" → 웹 앱 <code>&lt;/&gt;</code> 클릭<br/>
+        → 앱 등록 → <code>firebaseConfig = {{ ... }}</code> 안의 내용 전체 복사
+      </div>
+    </div>
+
+    <textarea id="cfg-input" class="setup-input" rows="9"
+      placeholder='{
+  "apiKey": "AIza...",
+  "authDomain": "your-app.firebaseapp.com",
+  "databaseURL": "https://your-app-default-rtdb.asia-southeast1.firebasedatabase.app",
+  "projectId": "your-app",
+  "storageBucket": "your-app.appspot.com",
+  "messagingSenderId": "123456789",
+  "appId": "1:123:web:abc..."
+}'></textarea>
+
+    <div id="cfg-error" style="color:#ef4444;font-size:12px;margin-bottom:8px;display:none;">
+      올바른 JSON 형식이 아닙니다. { } 안의 내용을 그대로 붙여넣어 주세요.
+    </div>
+
+    <button class="setup-btn" onclick="saveConfig()">🚀 연결 시작</button>
+
+    <div style="margin-top:14px;font-size:11px;color:#9ca3af;text-align:center;">
+      설정값은 브라우저 localStorage에만 저장됩니다
+    </div>
+  </div>
+</div>
+
+<!-- 앱 본체 -->
+<div id="root" style="display:none;"></div>
+
+<script>
+const CFG_KEY = "hanmaeum_firebase_cfg";
+
+// ★ Firebase 설정 (이미 내장됨)
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBcXlJ_PSGXW7M5E1fJ7IxomsiuSGHmCJI",
+  authDomain: "sports-day-0522.firebaseapp.com",
+  databaseURL: "https://sports-day-0522-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "sports-day-0522",
+  storageBucket: "sports-day-0522.firebasestorage.app",
+  messagingSenderId: "148824980072",
+  appId: "1:148824980072:web:4262dc8ece979099af99dd",
+  measurementId: "G-EX1K8JHQE7"
+};
+
+function initApp(cfg) {
+  if(!firebase.apps.length) firebase.initializeApp(cfg);
+  localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+  document.getElementById("setup-screen").style.display = "none";
+  document.getElementById("root").style.display = "block";
+  const root = ReactDOM.createRoot(document.getElementById("root"));
+  root.render(React.createElement(App));
+}
+
+window.addEventListener("load", () => {
+  // 설정이 내장되어 있으므로 바로 시작
+  initApp(FIREBASE_CONFIG);
+});
+
+window.resetFirebaseConfig = () => { localStorage.removeItem(CFG_KEY); location.reload(); };
+</script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ─── 팀 구성 ───
+const TEAM_MAP = {
+  A: ["1-1","1-8","2-4","2-10"],
+  B: ["1-5","1-6","2-5","2-8"],
+  C: ["1-2","1-4","2-2","2-7"],
+  D: ["1-3","1-9","2-1","2-3"],
+  E: ["1-7","1-10","2-6","2-9"],
+};
+const TEAM_NAMES = ["A","B","C","D","E"];
+const TEAM_COLORS = { A:"#ef4444", B:"#3b82f6", C:"#16a34a", D:"#f97316", E:"#8b5cf6" };
+const TEAM_BG    = { A:"#fef2f2", B:"#eff6ff", C:"#f0fdf4", D:"#fff7ed", E:"#f5f3ff" };
+const ALL_CLASSES = Object.values(TEAM_MAP).flat();
+const classToTeam = c => TEAM_NAMES.find(t => TEAM_MAP[t].includes(c)) || "?";
+
+// ─── 종목 배점 ───
+// 8자마라톤은 기록 입력 → 자동순위 방식 (대진표 없음)
+const TIME_TRIAL_SPORT = "8자마라톤";
+const TIME_TRIAL_PTS = [100,90,80,70,60,50,40,30,20,10];
+
+const SPORT_PTS = {
+  "태풍의눈":    [100,90,80,70,50,50,50,50,50,50],
+  "6인7각":     [100,90,80,80,50,50,50,30,30,30],
+  "줄다리기":    [100,90,80,80,50,50,50,30,30,30],
+  "장애물달리기": [100,90,80,70,50,50,50,30,30,30],
+  "계주":       [100,90,80,70,50,50,50,30,30,30],
+  "골때녀":     [100,70,50,50,30,30,30,30,10,10],
+};
+const SPORTS = Object.keys(SPORT_PTS);
+const ALL_SPORTS = [TIME_TRIAL_SPORT, ...SPORTS];
+
+// ─── 피지컬100 히트 구성 ───
+const P100_HEATS = {
+  h1:{ name:"히트 1", cls:["1-1","1-2","1-3","1-4","1-5"] },
+  h2:{ name:"히트 2", cls:["1-6","1-7","1-8","1-9","1-10"] },
+  h3:{ name:"히트 3", cls:["2-1","2-2","2-3","2-4","2-5"] },
+  h4:{ name:"히트 4", cls:["2-6","2-7","2-8","2-9","2-10"] }
+};
+const HKS = ["h1","h2","h3","h4"];
+
+const PHYS_EVENTS = [
+  { id:"run50",   label:"50M 달리기 조별 1위", pts:10, icon:"🏃" },
+  { id:"ropeWin", label:"줄다리기 승자",        pts:10, icon:"🪢" },
+  { id:"lastOne", label:"최후의 1인",           pts:30, icon:"👑" },
+];
+
+const CHEER_CATS = [
+  { id:"c", label:"창의성",   max:25 },
+  { id:"p", label:"완성도",   max:25 },
+  { id:"u", label:"단결력",   max:25 },
+  { id:"e", label:"응원열기", max:25 },
+];
+
+const SCHED_DEFAULT = [
+  { id:"s1", time:"08:30", title:"등교 및 입장",  emoji:"🚶", status:"upcoming" },
+  { id:"s2", time:"09:00", title:"입장식·개회식",  emoji:"🎉", status:"upcoming" },
+  { id:"s3", time:"09:30", title:"응원전",        emoji:"📣", status:"upcoming" },
+  { id:"s4", time:"10:00", title:"경기 1부",       emoji:"⚽", status:"upcoming" },
+  { id:"s5", time:"12:00", title:"점심시간",       emoji:"🍱", status:"upcoming" },
+  { id:"s6", time:"13:00", title:"경기 2부",       emoji:"🏃", status:"upcoming" },
+  { id:"s7", time:"15:30", title:"시상식·폐회식",  emoji:"🏆", status:"upcoming" },
+];
+
+// ─── 대진표 로직 ───
+function nextPow2(n) { let p=1; while(p<n) p*=2; return p; }
+
+function buildSeeds(participants) {
+  const size = nextPow2(participants.length);
+  const seeds = [...participants];
+  while(seeds.length < size) seeds.push("BYE");
+  return seeds;
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+
+function computeBracket(seeds, results={}) {
+  const rounds = [];
+  let current = [...seeds];
+  for(let r=0; current.length>1; r++) {
+    const matches = [];
+    for(let m=0; m<current.length/2; m++) {
+      const id = `r${r}m${m}`;
+      const home = current[m*2];
+      const away = current[m*2+1];
+      const isBye = home==="BYE"||away==="BYE";
+      let winner = null;
+      if(isBye) winner = home==="BYE"?away:home;
+      else winner = results[id]||null;
+      matches.push({id,round:r,slot:m,home,away,winner,isBye});
+    }
+    rounds.push(matches);
+    current = matches.map(m=>m.winner||"TBD");
+  }
+  return rounds;
+}
+
+function getRoundName(roundIdx, totalRounds) {
+  const fromEnd = totalRounds - roundIdx;
+  if(fromEnd===1) return "🏆 결승";
+  if(fromEnd===2) return "🥊 4강 (준결승)";
+  if(fromEnd===3) return "⚔️ 8강";
+  if(fromEnd===4) return "🔹 16강";
+  return `🔸 ${roundIdx+1}라운드`;
+}
+
+function getBracketRanks(rounds) {
+  if(!rounds.length) return {};
+  const ranks = {};
+  const total = rounds.length;
+  const finalMatch = rounds[total-1][0];
+  if(finalMatch?.winner && finalMatch.winner!=="TBD" && finalMatch.winner!=="BYE")
+    ranks[finalMatch.winner] = 1;
+  for(let r=rounds.length-1;r>=0;r--) {
+    const fromEnd = total-r;
+    const loserRank = fromEnd===1?2: fromEnd===2?3: fromEnd===3?5: fromEnd===4?8: 10;
+    for(const match of rounds[r]) {
+      if(match.isBye||!match.winner||match.winner==="TBD"||match.winner==="BYE") continue;
+      const loser = match.home===match.winner?match.away:match.home;
+      if(loser&&loser!=="BYE"&&loser!=="TBD") ranks[loser]=loserRank;
+    }
+  }
+  return ranks;
+}
+
+// ─── 스토리지 (Firebase Realtime Database) ───
+const SK = "hanmaeum_v5";
+const INIT = () => ({
+  schedule: SCHED_DEFAULT,
+  scores: {},
+  brackets: {},
+  phys: {},
+  cheer: {},
+  callout: null,
+  tracks: [],
+  seats: {},
+  timeTrial: {}, // { "8자마라톤": { "1-1": "1:23.4", ... } }
+  p100: {
+    roster:  {}, // cls → { m:["","","","",""], f:["","","","",""] }
+    r1:      { m:{}, f:{} }, // heatKey → { cls, name }
+    r2elim:  { m:[], f:[] }, // 탈락한 heatKey 배열
+    r3:      { m:{}, f:{} }  // { sf1, sf2, final } → heatKey
+  },
+  lu: 0,
+});
+
+function getDB() { return firebase.database().ref(SK); }
+
+function sv(data) {
+  const d = {...data, lu: Date.now()};
+  getDB().set(d).catch(e => console.error("Firebase 저장 오류:", e));
+}
+
+// ─── 종합 점수 계산 ───
+// 시간 파싱 (MM:SS.ms 또는 SS.ms 또는 초)
+function parseTime(t) {
+  if(!t||!t.trim()) return Infinity;
+  const s = t.trim().replace(",",".");
+  const parts = s.split(":");
+  if(parts.length===2) return parseFloat(parts[0])*60+parseFloat(parts[1]);
+  return parseFloat(s);
+}
+
+function getTimeTrialRanks(times) {
+  const entries = Object.entries(times)
+    .filter(([,t])=>parseTime(t)<Infinity)
+    .sort((a,b)=>parseTime(a[1])-parseTime(b[1]));
+  const ranks={};
+  entries.forEach(([cls],i)=>{ ranks[cls]=i+1; });
+  return ranks;
+}
+
+function calcScores(state) {
+  const classPts = {};
+  for(const cls of ALL_CLASSES) classPts[cls]=0;
+
+  // 8자마라톤: 기록 기반 순위
+  const ttTimes = state.timeTrial?.[TIME_TRIAL_SPORT]||{};
+  const ttRanks = getTimeTrialRanks(ttTimes);
+  for(const [cls,rank] of Object.entries(ttRanks))
+    classPts[cls]=(classPts[cls]||0)+(TIME_TRIAL_PTS[rank-1]||0);
+
+  for(const sp of SPORTS) {
+    const br = state.brackets[sp];
+    let rankMap = {};
+    if(br?.drawn) {
+      const rounds = computeBracket(br.seeds||[], br.results||{});
+      rankMap = getBracketRanks(rounds);
+    } else {
+      rankMap = state.scores[sp]||{};
+    }
+    for(const [cls,rank] of Object.entries(rankMap))
+      classPts[cls]=(classPts[cls]||0)+(SPORT_PTS[sp][rank-1]||0);
+  }
+
+  for(const ev of PHYS_EVENTS)
+    if(state.phys[ev.id]) classPts[state.phys[ev.id]]=(classPts[state.phys[ev.id]]||0)+ev.pts;
+
+  const cheerRanked = TEAM_NAMES
+    .map(t=>{const c=state.cheer[t]||{};return{t,s:(c.c||0)+(c.p||0)+(c.u||0)+(c.e||0)};})
+    .filter(x=>x.s>0).sort((a,b)=>b.s-a.s);
+  const cheerBonus={};
+  cheerRanked.forEach(({t},i)=>{cheerBonus[t]=SPORT_PTS["8자마라톤"][i]||0;});
+
+  const teamPts={};
+  for(const team of TEAM_NAMES)
+    teamPts[team]=TEAM_MAP[team].reduce((s,c)=>s+(classPts[c]||0),0)+(cheerBonus[team]||0);
+
+  return {classPts,teamPts};
+}
+
+function getRankGroups(pts) {
+  const groups=[]; let i=0;
+  while(i<pts.length){
+    const val=pts[i],start=i+1;
+    while(i<pts.length&&pts[i]===val)i++;
+    groups.push({rank:start,endRank:i,pts:val,label:start===i?`${start}위`:`${start}~${i}위`});
+  }
+  return groups;
+}
+
+// ─── Hook ───
+// 운영자: Firebase SDK 실시간 연결 (1개)
+// 뷰어(학생): REST API 폴링 (동시접속 제한 없음 → 600명 OK)
+function useStore(isOp) {
+  const [state,setState]=useState(INIT());
+  const [ready,setReady]=useState(false);
+  const [online,setOnline]=useState(true);
+  const luRef = useRef(0);
+
+  useEffect(()=>{
+    if(isOp) {
+      // ── 운영자: SDK 실시간 리스너 ──
+      const ref = getDB();
+      ref.on("value", snap => {
+        const data = snap.val();
+        if(data){ setState(()=>({...INIT(),...data})); luRef.current=data.lu||0; }
+        setReady(true);
+      }, err=>{ console.error(err); setReady(true); });
+      const connRef = firebase.database().ref(".info/connected");
+      connRef.on("value", snap=>setOnline(!!snap.val()));
+      return ()=>{ ref.off(); connRef.off(); };
+
+    } else {
+      // ── 뷰어: REST API 폴링 (WebSocket 연결 안 씀 → 인원 제한 없음) ──
+      let timer;
+      const POLL_MS = 5000; // 5초마다 갱신
+
+      async function fetchData() {
+        try {
+          const cfg = JSON.parse(localStorage.getItem("hanmaeum_firebase_cfg")||"{}");
+          if(!cfg.databaseURL) return;
+          const url = cfg.databaseURL.replace(/\/$/, "") + "/" + SK + ".json";
+          const res = await fetch(url);
+          if(!res.ok) throw new Error(res.status);
+          const data = await res.json();
+          if(data && data.lu > luRef.current){
+            luRef.current = data.lu;
+            setState(()=>({...INIT(),...data}));
+          }
+          setOnline(true);
+          setReady(true);
+        } catch(e){
+          setOnline(false);
+          setReady(true);
+        }
+        timer = setTimeout(fetchData, POLL_MS);
+      }
+
+      fetchData(); // 최초 즉시 실행
+      return ()=>clearTimeout(timer);
+    }
+  }, [isOp]);
+
+  const update=patch=>setState(s=>{
+    const n=typeof patch==="function"?patch(s):{...s,...patch};
+    sv(n);
+    return n;
+  });
+
+  return {state,update,ready,online};
+}
+
+// ─── 공통 컴포넌트 ───
+function TeamBadge({team,size=28}) {
+  return <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",
+    width:size,height:size,borderRadius:size*0.28,flexShrink:0,
+    background:TEAM_BG[team],color:TEAM_COLORS[team],fontWeight:900,fontSize:size*0.5}}>{team}</div>;
+}
+function Chip({children,color,bg}) {
+  return <span style={{fontSize:12,fontWeight:600,padding:"3px 9px",borderRadius:20,
+    background:bg||"#f3f4f6",color:color||"#374151"}}>{children}</span>;
+}
+
+// ══════════════════════════════════════════
+//  공통 CSS
+// ══════════════════════════════════════════
+const BASE_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:#f5f5f5;font-family:'Noto Sans KR',sans-serif}
+  .tab-bar{display:flex;overflow-x:auto;scrollbar-width:none;background:#fff;
+    border-bottom:1px solid #e5e7eb;position:sticky;top:0;z-index:10;padding:0 4px}
+  .tab-bar::-webkit-scrollbar{display:none}
+  .tb{flex:0 0 auto;padding:12px 15px;border:none;background:transparent;font-family:inherit;
+    font-size:13px;font-weight:500;color:#9ca3af;cursor:pointer;
+    border-bottom:2.5px solid transparent;white-space:nowrap;transition:all .15s}
+  .tb.on{color:#111827;font-weight:800;border-bottom-color:#111827}
+  .card{background:#fff;border-radius:14px;border:1px solid #e9eaec;padding:16px;
+    margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+  .card.hl{border-color:#111827;border-width:1.5px}
+  .sl{font-size:11px;font-weight:700;color:#9ca3af;letter-spacing:2px;margin-bottom:8px;margin-top:14px}
+  .rrow{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid #f3f4f6}
+  .rrow:last-child{border-bottom:none}
+  .pill{flex:0 0 auto;padding:7px 14px;border-radius:20px;border:1.5px solid #e5e7eb;
+    background:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;
+    white-space:nowrap;color:#6b7280;transition:all .15s}
+  .pill.on{background:#111827;color:#fff;border-color:#111827}
+  .obtn{padding:7px 13px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;
+    font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;color:#374151}
+  .obtn.on{background:#111827;color:#fff;border-color:#111827}
+  .obtn.primary{background:#111827;color:#fff;border-color:#111827;font-weight:700}
+  .obtn.danger{background:#ef4444;color:#fff;border-color:#ef4444}
+  .obtn.green{background:#16a34a;color:#fff;border-color:#16a34a}
+  .oinput{width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:10px 12px;
+    font-family:inherit;font-size:14px;color:#111827;outline:none}
+  .oinput:focus{border-color:#111827}
+  input[type=range]{accent-color:#111827}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+  .blink{animation:blink 1.5s infinite}
+  .match-card{background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;padding:12px;margin-bottom:8px}
+  .match-card.done{background:#f0fdf4;border-color:#bbf7d0}
+  .match-card.bye{background:#fafafa;opacity:.6}
+  .vs-row{display:flex;align-items:center;gap:8px}
+  .team-slot{flex:1;padding:9px 12px;border-radius:8px;border:1.5px solid #e5e7eb;
+    background:#fff;font-weight:700;font-size:14px;text-align:center;
+    cursor:pointer;transition:all .15s;font-family:inherit;color:#374151}
+  .team-slot.win{background:#111827;color:#fff;border-color:#111827}
+  .team-slot.bye-slot{background:#f3f4f6;color:#9ca3af;cursor:default;font-weight:400}
+  .team-slot.tbd{background:#f9fafb;color:#d1d5db;cursor:default}
+`;
+
+// ══════════════════════════════════════════
+//  VIEWER
+// ══════════════════════════════════════════
+function ViewerPage({state, onOpClick}) {
+  const [tab,setTab]=useState("now");
+  const {teamPts}=calcScores(state);
+  const ranked=TEAM_NAMES.map(t=>({team:t,pts:teamPts[t]||0})).sort((a,b)=>b.pts-a.pts);
+  const cur=state.schedule.find(s=>s.status==="current");
+  const next=state.schedule.find(s=>s.status==="upcoming");
+  const TABS=[{id:"now",l:"📌 현재"},{id:"sched",l:"📅 일정"},{id:"rank",l:"🏆 순위"},
+               {id:"sport",l:"🏅 종목"},{id:"cheer",l:"📣 응원전"},{id:"seat",l:"💺 좌석"}];
+  return (
+    <div style={{minHeight:"100vh",background:"#f5f5f5"}}>
+      <style>{BASE_CSS}</style>
+      {state.callout&&(
+        <div className="blink" style={{background:"#fff1f2",borderBottom:"2px solid #fecdd3",
+          padding:"13px 16px",display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:22}}>📢</span>
+          <div>
+            {state.callout.team&&<span style={{fontWeight:900,color:TEAM_COLORS[state.callout.team]||"#ef4444",marginRight:4}}>[{state.callout.team}팀]</span>}
+            <span style={{fontWeight:700,color:"#be123c",fontSize:15}}>{state.callout.msg}</span>
+          </div>
+        </div>
+      )}
+      <div style={{background:"#fff",borderBottom:"1px solid #e9eaec",padding:"14px 16px 10px",
+        display:"flex",alignItems:"center"}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:11,color:"#9ca3af",fontWeight:600,letterSpacing:2,marginBottom:4}}>인천영종고등학교</div>
+          <div style={{fontSize:23,fontWeight:900,color:"#111827"}}>🏅 한마음 스포츠데이</div>
+        </div>
+        <button onClick={onOpClick} title="운영자 모드" style={{width:36,height:36,borderRadius:10,border:"1.5px solid #e5e7eb",
+          background:"#f9fafb",cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",
+          justifyContent:"center",flexShrink:0}}>⚙️</button>
+      </div>
+      <div className="tab-bar">{TABS.map(t=><button key={t.id} className={`tb${tab===t.id?" on":""}`} onClick={()=>setTab(t.id)}>{t.l}</button>)}</div>
+      <div style={{padding:14}}>
+        {tab==="now"   &&<VNow cur={cur} next={next} ranked={ranked}/>}
+        {tab==="sched" &&<VSched state={state}/>}
+        {tab==="rank"  &&<VRank ranked={ranked} state={state}/>}
+        {tab==="sport" &&<VSport state={state}/>}
+        {tab==="cheer" &&<VCheer state={state}/>}
+        {tab==="seat"  &&<VSeat state={state}/>}
+      </div>
+    </div>
+  );
+}
+
+function VNow({cur,next,ranked}) {
+  return(<>
+    <div className="sl">현재 진행</div>
+    {cur?(<div className="card hl"><div style={{display:"flex",alignItems:"center",gap:14}}>
+      <span style={{fontSize:36}}>{cur.emoji}</span>
+      <div style={{flex:1}}><div style={{fontSize:21,fontWeight:900,color:"#111827"}}>{cur.title}</div>
+        <div style={{fontSize:14,color:"#6b7280",marginTop:2}}>{cur.time}</div></div>
+      <div className="blink" style={{width:10,height:10,borderRadius:"50%",background:"#ef4444",flexShrink:0}}/></div></div>)
+    :(<div className="card" style={{color:"#9ca3af",textAlign:"center",padding:28}}>진행 중인 일정 없음</div>)}
+    {next&&(<><div className="sl" style={{marginTop:16}}>다음 순서</div>
+      <div className="card"><div style={{display:"flex",alignItems:"center",gap:12}}>
+        <span style={{fontSize:26,opacity:.55}}>{next.emoji}</span>
+        <div><div style={{fontSize:16,fontWeight:700,color:"#374151"}}>{next.title}</div>
+          <div style={{fontSize:13,color:"#9ca3af"}}>{next.time}</div></div></div></div></>)}
+    <div className="sl" style={{marginTop:16}}>팀 종합순위</div>
+    <div className="card">{ranked.map((r,i)=>(<div key={r.team} className="rrow">
+      <span style={{fontSize:22,minWidth:36,textAlign:"center"}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}위`}</span>
+      <TeamBadge team={r.team} size={32}/>
+      <span style={{flex:1,fontWeight:700,fontSize:17,color:"#111827"}}>{r.team}팀</span>
+      <span style={{fontWeight:900,fontSize:20,color:TEAM_COLORS[r.team]}}>{r.pts.toLocaleString()}<span style={{fontSize:12,fontWeight:400,color:"#9ca3af"}}> 점</span></span>
+    </div>))}</div>
+  </>);
+}
+
+function VSched({state}) {
+  return(<><div className="sl">오늘 일정</div>
+    <div className="card" style={{padding:"8px 16px"}}>
+      {state.schedule.map(s=>{
+        const done=s.status==="done",cur=s.status==="current";
+        return(<div key={s.id} style={{display:"flex",gap:14,alignItems:"flex-start",padding:"14px 0",borderBottom:"1px solid #f3f4f6"}}>
+          <div style={{minWidth:52,fontSize:14,fontWeight:700,color:cur?"#111827":done?"#d1d5db":"#6b7280",paddingTop:2}}>{s.time}</div>
+          <div style={{width:10,height:10,borderRadius:"50%",flexShrink:0,marginTop:5,
+            background:cur?"#111827":done?"#d1d5db":"#e5e7eb",boxShadow:cur?"0 0 0 4px #f3f4f6":undefined}}/>
+          <div style={{flex:1}}>
+            <div style={{fontSize:17,fontWeight:cur?900:done?400:600,color:cur?"#111827":done?"#c4c4c4":"#374151",
+              display:"flex",alignItems:"center",gap:8}}>
+              <span>{s.emoji}</span><span>{s.title}</span>
+              {cur&&<span style={{fontSize:11,background:"#111827",color:"#fff",borderRadius:6,padding:"2px 7px",fontWeight:700,letterSpacing:1}}>NOW</span>}
+            </div>
+          </div>
+        </div>);
+      })}
+    </div></>);
+}
+
+function VRank({ranked,state}) {
+  const {classPts}=calcScores(state);
+  const [detail,setDetail]=useState(null);
+  return(<><div className="sl">팀 종합순위</div>
+    {ranked.map((r,i)=>(
+      <div key={r.team} className="card" style={{borderLeft:`4px solid ${TEAM_COLORS[r.team]}`,cursor:"pointer"}}
+        onClick={()=>setDetail(detail===r.team?null:r.team)}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <span style={{fontSize:24,minWidth:34,textAlign:"center"}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}위`}</span>
+          <TeamBadge team={r.team} size={38}/>
+          <div style={{flex:1}}>
+            <div style={{fontSize:19,fontWeight:900,color:"#111827"}}>{r.team}팀</div>
+            <div style={{fontSize:12,color:"#9ca3af"}}>{TEAM_MAP[r.team].join("반 ")}반</div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:22,fontWeight:900,color:TEAM_COLORS[r.team]}}>{r.pts.toLocaleString()}</div>
+            <div style={{fontSize:11,color:"#9ca3af"}}>점 {detail===r.team?"▴":"▾"}</div>
+          </div>
+        </div>
+        {detail===r.team&&(<div style={{marginTop:12,paddingTop:12,borderTop:"1px solid #f3f4f6"}}>
+          <div style={{fontSize:12,color:"#9ca3af",marginBottom:8}}>학급별 점수</div>
+          {TEAM_MAP[r.team].map(cls=>(<div key={cls} style={{display:"flex",justifyContent:"space-between",
+            padding:"7px 0",borderBottom:"1px solid #f9fafb",alignItems:"center"}}>
+            <span style={{fontSize:15,fontWeight:600,color:"#374151"}}>{cls}반</span>
+            <span style={{fontSize:15,fontWeight:800,color:TEAM_COLORS[r.team]}}>{(classPts[cls]||0).toLocaleString()}점</span>
+          </div>))}
+        </div>)}
+      </div>
+    ))}
+  </>);
+}
+
+// ─── 챔피언스리그식 대진표 트리 ───
+const MATCH_H = 68;   // 매치 박스 높이
+const TEAM_H  = 30;   // 팀 행 높이
+const ROUND_W = 148;  // 라운드 컬럼 폭
+const CONN_W  = 42;   // 커넥터 폭
+const LABEL_H = 26;   // 라운드 레이블 높이
+
+function BracketTeamRow({ cls, isWinner, onClick, isBye, isTbd }) {
+  const team = (!isBye && !isTbd && cls) ? classToTeam(cls) : null;
+  const bg   = isWinner && team ? TEAM_BG[team]   : isWinner ? "#f0fdf4" : "#fff";
+  const bc   = isWinner && team ? TEAM_COLORS[team]: isWinner ? "#86efac" : "#e5e7eb";
+  const col  = isBye||isTbd ? "#d1d5db" : isWinner ? (team?TEAM_COLORS[team]:"#16a34a") : "#374151";
+  return (
+    <div onClick={onClick} style={{height:TEAM_H,display:"flex",alignItems:"center",
+      gap:5,padding:"0 7px",background:bg,borderBottom:`1px solid ${bc}`,
+      cursor:onClick?"pointer":"default",userSelect:"none"}}>
+      {team&&<div style={{width:6,height:6,borderRadius:"50%",background:TEAM_COLORS[team],flexShrink:0}}/>}
+      <span style={{fontSize:12,fontWeight:isWinner?800:500,color:col,flex:1,overflow:"hidden",
+        textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+        {isBye?"BYE":isTbd?"TBD":`${cls}반`}
+      </span>
+      {isWinner&&!isBye&&!isTbd&&<span style={{fontSize:10,color:"#16a34a",flexShrink:0}}>✓</span>}
+    </div>
+  );
+}
+
+function BracketTree({ seeds, results, onResult, readOnly }) {
+  const allRounds = computeBracket(seeds, results||{});
+  if(!allRounds.length) return null;
+
+  // 각 라운드의 매치 수
+  const roundCounts = allRounds.map(r=>r.length);
+  const maxMatches  = roundCounts[0]; // 가장 많은 매치 (첫 라운드)
+  const totalH = maxMatches * MATCH_H + LABEL_H;
+  const totalW = allRounds.length * (ROUND_W + CONN_W);
+
+  // 매치 중심 Y 좌표
+  function cy(ri, mi) {
+    const cnt  = roundCounts[ri];
+    const slot = (totalH - LABEL_H) / cnt;
+    return LABEL_H + mi * slot + slot / 2;
+  }
+
+  // 라운드 레이블
+  const ROUND_LABELS = allRounds.map((_,ri)=>getRoundName(ri,allRounds.length));
+
+  // SVG 커넥터 라인
+  const lines = [];
+  for(let ri=0; ri<allRounds.length-1; ri++) {
+    for(let mi=0; mi<allRounds[ri].length; mi++) {
+      const match = allRounds[ri][mi];
+      const nextMi = Math.floor(mi/2);
+      const x1 = ri*(ROUND_W+CONN_W)+ROUND_W;
+      const y1 = cy(ri,mi);
+      const x2 = (ri+1)*(ROUND_W+CONN_W);
+      const y2 = cy(ri+1,nextMi);
+      const xm = x1+CONN_W/2;
+      const won = match.winner&&match.winner!=="TBD"&&match.winner!=="BYE";
+      const isBothBye = match.home==="BYE"&&match.away==="BYE";
+      if(isBothBye) continue;
+      lines.push(
+        <path key={`l${ri}-${mi}`}
+          d={`M${x1},${y1} H${xm} V${y2} H${x2}`}
+          fill="none"
+          stroke={won?"#16a34a":"#e5e7eb"}
+          strokeWidth={won?2:1.5}
+        />
+      );
+    }
+  }
+
+  return (
+    <div style={{overflowX:"auto",overflowY:"auto",maxHeight:"75vh",
+      border:"1px solid #e9eaec",borderRadius:12,background:"#fff"}}>
+      <div style={{position:"relative",width:totalW,height:totalH,minWidth:totalW}}>
+        {/* 라운드 레이블 */}
+        {allRounds.map((_,ri)=>(
+          <div key={`lbl${ri}`} style={{position:"absolute",left:ri*(ROUND_W+CONN_W),
+            top:0,width:ROUND_W,height:LABEL_H,display:"flex",alignItems:"center",
+            justifyContent:"center",fontSize:11,fontWeight:700,color:"#374151",
+            background:"#f9fafb",borderRight:"1px solid #e9eaec",borderBottom:"1px solid #e9eaec"}}>
+            {ROUND_LABELS[ri]}
+          </div>
+        ))}
+
+        {/* SVG 커넥터 */}
+        <svg style={{position:"absolute",top:0,left:0,width:totalW,height:totalH,
+          pointerEvents:"none",overflow:"visible"}}>
+          {lines}
+        </svg>
+
+        {/* 매치 박스 */}
+        {allRounds.map((matches,ri)=>
+          matches.map((match,mi)=>{
+            const isBothBye = match.home==="BYE"&&match.away==="BYE";
+            if(isBothBye) return null;
+
+            const homeIsBye = match.home==="BYE";
+            const awayIsBye = match.away==="BYE";
+            const homeIsTbd = match.home==="TBD";
+            const awayIsTbd = match.away==="TBD";
+            const isAuto    = homeIsBye||awayIsBye;
+            const top = cy(ri,mi)-MATCH_H/2;
+            const left= ri*(ROUND_W+CONN_W);
+            const hw  = isWinner=>match.winner===match.home&&isWinner;
+
+            const handleClick=(who)=>{
+              if(readOnly||isAuto||homeIsTbd||awayIsTbd) return;
+              if(onResult) onResult(match.id, match.winner===who ? null : who);
+            };
+
+            return (
+              <div key={match.id} style={{position:"absolute",left,top,width:ROUND_W,
+                border:"1px solid #e5e7eb",borderRadius:7,overflow:"hidden",
+                boxShadow:"0 1px 3px rgba(0,0,0,.07)",background:"#fff",zIndex:1}}>
+                <BracketTeamRow
+                  cls={match.home} isBye={homeIsBye} isTbd={homeIsTbd}
+                  isWinner={match.winner===match.home&&!homeIsBye}
+                  onClick={()=>handleClick(match.home)}/>
+                <div style={{height:1,background:"#e5e7eb"}}/>
+                <BracketTeamRow
+                  cls={match.away} isBye={awayIsBye} isTbd={awayIsTbd}
+                  isWinner={match.winner===match.away&&!awayIsBye}
+                  onClick={()=>handleClick(match.away)}/>
+                {isAuto&&(
+                  <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",
+                    justifyContent:"center",background:"rgba(249,250,251,.85)",
+                    fontSize:10,color:"#9ca3af",fontWeight:600,letterSpacing:1}}>
+                    AUTO ▶
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+function VSport({state}) {
+  const [sel,setSel]=useState(TIME_TRIAL_SPORT);
+  const [subTab,setSubTab]=useState("bracket");
+  const allTabs=[TIME_TRIAL_SPORT,...SPORTS,"피지컬100"];
+
+  useEffect(()=>{
+    const br=state.brackets[sel];
+    setSubTab(br?.drawn?"bracket":"manual");
+  },[sel]);
+
+  // ── 8자마라톤: 기록 기반 뷰 ──
+  if(sel===TIME_TRIAL_SPORT) {
+    const times = state.timeTrial?.[TIME_TRIAL_SPORT]||{};
+    const ranks = getTimeTrialRanks(times);
+    const sorted = Object.entries(times)
+      .filter(([,t])=>parseTime(t)<Infinity)
+      .sort((a,b)=>parseTime(a[1])-parseTime(b[1]));
+    return (<>
+      <div style={{display:"flex",overflowX:"auto",gap:6,paddingBottom:12,scrollbarWidth:"none"}}>
+        {allTabs.map(s=><button key={s} onClick={()=>setSel(s)} className={`pill${sel===s?" on":""}`}>{s}</button>)}
+      </div>
+      <div className="sl">8자마라톤 기록 순위</div>
+      {sorted.length===0
+        ? <div className="card" style={{color:"#9ca3af",textAlign:"center",padding:40}}>기록 미입력</div>
+        : <>
+          {/* 팀별 합산 */}
+          {(()=>{
+            const teamSum={};
+            for(const [cls,rank] of Object.entries(ranks)){
+              const team=classToTeam(cls);
+              teamSum[team]=(teamSum[team]||0)+(TIME_TRIAL_PTS[rank-1]||0);
+            }
+            return(<div className="card" style={{marginBottom:12}}>
+              {TEAM_NAMES.filter(t=>teamSum[t]).sort((a,b)=>(teamSum[b]||0)-(teamSum[a]||0)).map(t=>(
+                <div key={t} className="rrow"><TeamBadge team={t} size={28}/>
+                  <span style={{flex:1,fontWeight:700,color:"#111827"}}>{t}팀</span>
+                  <span style={{fontWeight:900,color:TEAM_COLORS[t],fontSize:17}}>{teamSum[t]}점</span>
+                </div>
+              ))}
+            </div>);
+          })()}
+          {/* 학급별 기록 */}
+          <div className="sl">학급별 기록</div>
+          {["1학년","2학년"].map(grade=>{
+            const cls=sorted.filter(([c])=>c.startsWith(grade==="1학년"?"1-":"2-"));
+            if(!cls.length) return null;
+            return(<div key={grade} className="card" style={{marginBottom:10}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#6b7280",marginBottom:8}}>{grade}</div>
+              {cls.map(([c,t],i)=>{
+                const team=classToTeam(c);
+                return(<div key={c} className="rrow">
+                  <span style={{fontSize:16,minWidth:32,textAlign:"center"}}>
+                    {i===0?"🥇":i===1?"🥈":i===2?"🥉":`${ranks[c]}위`}
+                  </span>
+                  <TeamBadge team={team} size={22}/>
+                  <span style={{flex:1,fontWeight:600,color:"#374151"}}>{c}반</span>
+                  <span style={{fontWeight:700,color:"#6b7280",fontSize:14}}>{t}</span>
+                  <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{TIME_TRIAL_PTS[ranks[c]-1]}점</Chip>
+                </div>);
+              })}
+            </div>);
+          })}
+        </>}
+    </>);
+  }
+
+  return(<>
+    <div style={{display:"flex",overflowX:"auto",gap:6,paddingBottom:12,scrollbarWidth:"none"}}>
+      {allTabs.map(s=><button key={s} onClick={()=>setSel(s)} className={`pill${sel===s?" on":""}`}>{s}</button>)}
+    </div>
+    {sel!=="피지컬100"?(()=>{
+      const br=state.brackets[sel];
+      const sr=state.scores[sel]||{};
+      const groups=getRankGroups(SPORT_PTS[sel]);
+      const hasBracket=br?.drawn;
+      const hasManual=Object.keys(sr).length>0;
+
+      let rankMap={};
+      if(hasBracket){const rounds=computeBracket(br.seeds||[],br.results||{});rankMap=getBracketRanks(rounds);}
+      else rankMap=sr;
+      const teamSum={};
+      for(const [cls,rank] of Object.entries(rankMap)){
+        const team=classToTeam(cls);
+        teamSum[team]=(teamSum[team]||0)+(SPORT_PTS[sel][rank-1]||0);
+      }
+
+      return(<>
+        {(hasBracket||hasManual)&&(
+          <div style={{display:"flex",gap:6,marginBottom:12}}>
+            {hasBracket&&<button onClick={()=>setSubTab("bracket")} className={`obtn${subTab==="bracket"?" on":""}`}>🗓 대진표</button>}
+            {hasManual&&<button onClick={()=>setSubTab("manual")} className={`obtn${subTab==="manual"?" on":""}`}>📋 순위표</button>}
+          </div>
+        )}
+        {Object.keys(teamSum).length>0&&(<>
+          <div className="sl">팀별 합산</div>
+          <div className="card" style={{marginBottom:12}}>
+            {TEAM_NAMES.filter(t=>teamSum[t]).sort((a,b)=>(teamSum[b]||0)-(teamSum[a]||0)).map(t=>(
+              <div key={t} className="rrow"><TeamBadge team={t} size={28}/>
+                <span style={{flex:1,fontWeight:700,color:"#111827"}}>{t}팀</span>
+                <span style={{fontWeight:900,color:TEAM_COLORS[t],fontSize:17}}>{teamSum[t]}점</span></div>
+            ))}
+          </div>
+        </>)}
+        {hasBracket&&subTab==="bracket"&&(<>
+          <div className="sl">대진표</div>
+          <BracketTree seeds={br.seeds||[]} results={br.results||{}} readOnly={true}/>
+        </>)}
+        {(!hasBracket||subTab==="manual")&&hasManual&&(<>
+          <div className="sl">학급별 결과</div>
+          <div className="card">
+            {ALL_CLASSES.filter(c=>sr[c]).map(c=>sr[c]&&({cls:c,team:classToTeam(c),rank:sr[c],pts:SPORT_PTS[sel][sr[c]-1]||0}))
+              .filter(Boolean).sort((a,b)=>a.rank-b.rank).map(r=>{
+              const g=groups.find(g=>r.rank>=g.rank&&r.rank<=g.endRank);
+              return(<div key={r.cls} className="rrow">
+                <span style={{fontSize:14,fontWeight:700,minWidth:44,color:"#374151"}}>{g?.label}</span>
+                <TeamBadge team={r.team} size={22}/>
+                <span style={{flex:1,fontSize:15,fontWeight:600,color:"#374151"}}>{r.cls}반</span>
+                <Chip color={TEAM_COLORS[r.team]} bg={TEAM_BG[r.team]}>{r.pts}점</Chip>
+              </div>);
+            })}
+          </div>
+        </>)}
+        {!hasBracket&&!hasManual&&(
+          <div className="card" style={{color:"#9ca3af",textAlign:"center",padding:40}}>결과 미입력</div>
+        )}
+      </>);
+    })():(
+      <>{PHYS_EVENTS.map(ev=>(<div key={ev.id} className="card">
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:26}}>{ev.icon}</span>
+          <div style={{flex:1}}><div style={{fontWeight:700,fontSize:15,color:"#111827"}}>{ev.label}</div>
+            <div style={{fontSize:12,color:"#9ca3af"}}>+{ev.pts}점</div></div>
+        </div>
+        {state.phys[ev.id]?(
+          <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 12px",background:"#f9fafb",borderRadius:10}}>
+            <TeamBadge team={classToTeam(state.phys[ev.id])} size={24}/>
+            <span style={{fontWeight:700,color:"#111827"}}>{state.phys[ev.id]}반</span>
+            <span style={{fontSize:12,color:"#9ca3af"}}>({classToTeam(state.phys[ev.id])}팀)</span>
+          </div>
+        ):(<div style={{fontSize:13,color:"#d1d5db"}}>미입력</div>)}
+      </div>))}</>
+    )}
+  </>);
+}
+
+
+function VCheer({state}) {
+  const ranked=TEAM_NAMES.map(t=>{const c=state.cheer[t]||{};return{team:t,total:(c.c||0)+(c.p||0)+(c.u||0)+(c.e||0),d:c};})
+    .filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
+  if(!ranked.length) return <div className="card" style={{color:"#9ca3af",textAlign:"center",padding:40}}>채점 미완료</div>;
+  return(<><div className="sl">응원전 순위</div>
+    {ranked.map((r,i)=>(<div key={r.team} className="card" style={{borderLeft:`4px solid ${TEAM_COLORS[r.team]}`}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+        <span style={{fontSize:22}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}위`}</span>
+        <TeamBadge team={r.team} size={34}/>
+        <span style={{flex:1,fontWeight:900,fontSize:18}}>{r.team}팀</span>
+        <span style={{fontWeight:900,fontSize:22,color:TEAM_COLORS[r.team]}}>{r.total}<span style={{fontSize:13,color:"#9ca3af"}}>/100</span></span>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+        {CHEER_CATS.map(c=>(<div key={c.id} style={{background:"#f9fafb",borderRadius:9,padding:"8px 11px"}}>
+          <div style={{fontSize:11,color:"#9ca3af",marginBottom:2}}>{c.label}</div>
+          <div style={{fontWeight:800,color:TEAM_COLORS[r.team],fontSize:17}}>{r.d[c.id]||0}<span style={{fontSize:11,color:"#9ca3af"}}>/25</span></div>
+        </div>))}
+      </div>
+    </div>))}
+  </>);
+}
+
+function VSeat({state}) {
+  return(<><div className="sl">팀별 좌석 배치</div>
+    {TEAM_NAMES.map(team=>(<div key={team} className="card" style={{borderLeft:`4px solid ${TEAM_COLORS[team]}`}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+        <TeamBadge team={team} size={32}/><span style={{fontWeight:900,fontSize:17}}>{team}팀</span>
+      </div>
+      {TEAM_MAP[team].map(cls=>(<div key={cls} style={{display:"flex",alignItems:"center",gap:10,
+        padding:"8px 0",borderBottom:"1px solid #f3f4f6"}}>
+        <span style={{fontWeight:700,color:"#374151",minWidth:44,fontSize:14}}>{cls}반</span>
+        <span style={{flex:1,color:state.seats[cls]?.zone?"#374151":"#d1d5db",fontSize:14}}>{state.seats[cls]?.zone||"미배치"}</span>
+        {state.seats[cls]?.note&&<span style={{fontSize:12,color:"#9ca3af"}}>{state.seats[cls].note}</span>}
+      </div>))}
+    </div>))}
+  </>);
+}
+
+
+// ════════════════════════════════════════════════════════
+//  피지컬100 컴포넌트
+// ════════════════════════════════════════════════════════
+function useP100(state, update) {
+  const p        = state.p100 || {};
+  const roster   = p.roster   || {};
+  const r1       = p.r1       || { m:{}, f:{} };
+  const r2elim   = p.r2elim   || { m:[], f:[] };
+  const r3       = p.r3       || { m:{}, f:{} };
+
+  const upd = patch => update(s => ({ ...s, p100:{ ...(s.p100||{}), ...patch } }));
+
+  const getRunner = (cls, gk, idx=0) =>
+    roster[cls]?.[gk]?.[idx]?.trim() || `${cls}반 ${idx+1}번`;
+
+  const setRoster = (cls, gk, idx, val) => {
+    const cur = [...(roster[cls]?.[gk] || ["","","","",""])];
+    cur[idx] = val;
+    upd({ roster: { ...roster, [cls]:{ ...(roster[cls]||{}), [gk]:cur } } });
+  };
+
+  const setR1Winner = (gk, hk, winner) =>
+    upd({ r1:{ ...r1, [gk]:{ ...(r1[gk]||{}), [hk]:winner } } });
+
+  const toggleElim = (gk, hk) => {
+    const cur  = r2elim[gk]||[];
+    const next = cur.includes(hk) ? cur.filter(x=>x!==hk) : [...cur, hk];
+    upd({ r2elim:{ ...r2elim, [gk]:next } });
+  };
+
+  const setR3 = (gk, mk, hk) =>
+    upd({ r3:{ ...r3, [gk]:{ ...(r3[gk]||{}), [mk]:hk } } });
+
+  const survivors = gk => HKS
+    .filter(hk => r1[gk]?.[hk] && !(r2elim[gk]||[]).includes(hk))
+    .map(hk => ({ hk, ...r1[gk][hk] }));
+
+  return { roster, r1, r2elim, r3, getRunner, setRoster, setR1Winner, toggleElim, setR3, survivors };
+}
+
+function P100Roster({ p, gk, setGk }) {
+  return (
+    <div>
+      <div style={{display:"flex",gap:8,marginBottom:12}}>
+        {[{k:"m",l:"🏃‍♂️ 남자"},{k:"f",l:"🏃‍♀️ 여자"}].map(g=>(
+          <button key={g.k} onClick={()=>setGk(g.k)} className={`obtn${gk===g.k?" on":""}`} style={{flex:1}}>{g.l}</button>
+        ))}
+      </div>
+      <div style={{fontSize:12,color:"#9ca3af",marginBottom:10}}>각 반 5명 이름 입력 — 순서 = 출전 순서 (1번이 1차전 출전)</div>
+      {ALL_CLASSES.map(cls=>{
+        const team=classToTeam(cls);
+        return(
+          <div key={cls} className="card" style={{marginBottom:8,padding:"10px 14px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+              <TeamBadge team={team} size={22}/>
+              <span style={{fontWeight:700,color:"#111827"}}>{cls}반</span>
+            </div>
+            <div style={{display:"flex",gap:5}}>
+              {[0,1,2,3,4].map(idx=>(
+                <input key={idx} value={p.roster[cls]?.[gk]?.[idx]||""}
+                  onChange={e=>p.setRoster(cls,gk,idx,e.target.value)}
+                  placeholder={`${idx+1}번`} className="oinput"
+                  style={{flex:1,padding:"7px 4px",fontSize:12,textAlign:"center",minWidth:0}}/>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function P100Round1({ p, gk }) {
+  const gLabel = gk==="m"?"남자":"여자";
+  const doneCount = HKS.filter(hk=>p.r1[gk]?.[hk]).length;
+  return (
+    <div>
+      <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:10,
+        padding:"10px 14px",marginBottom:12,fontSize:13,color:"#1d4ed8"}}>
+        🏃 {gLabel} 50m 달리기 1차전 ({doneCount}/4 히트 완료)<br/>
+        <span style={{fontSize:11}}>각 히트 1위를 탭하세요 → 2차전 자동 배치</span>
+      </div>
+      {HKS.map(hk=>{
+        const heat=P100_HEATS[hk];
+        const winner=p.r1[gk]?.[hk];
+        return(
+          <div key={hk} className="card" style={{marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+              <span style={{fontWeight:800,fontSize:15,color:"#111827",flex:1}}>{heat.name}</span>
+              {winner&&<span style={{fontSize:12,color:"#16a34a",fontWeight:700}}>🥇 {winner.name} ({winner.cls}반)</span>}
+            </div>
+            {heat.cls.map((cls,lane)=>{
+              const name=p.getRunner(cls,gk,0);
+              const isW=winner?.cls===cls;
+              const team=classToTeam(cls);
+              return(
+                <button key={cls} onClick={()=>p.setR1Winner(gk,hk,isW?null:{cls,name})}
+                  style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",
+                    borderRadius:8,border:`1.5px solid ${isW?TEAM_COLORS[team]:"#e5e7eb"}`,
+                    background:isW?TEAM_BG[team]:"#fff",cursor:"pointer",fontFamily:"inherit",
+                    textAlign:"left",width:"100%",marginBottom:5}}>
+                  <span style={{fontSize:12,fontWeight:700,color:"#9ca3af",minWidth:44,flexShrink:0}}>{lane+1}레인</span>
+                  <TeamBadge team={team} size={22}/>
+                  <span style={{flex:1,fontWeight:isW?800:500,fontSize:14,
+                    color:isW?TEAM_COLORS[team]:"#374151"}}>{cls}반 · {name}</span>
+                  {isW&&<span style={{fontSize:18}}>🥇</span>}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function P100Round2({ p, gk }) {
+  const gLabel=gk==="m"?"남자":"여자";
+  const r1Winners=HKS.map(hk=>p.r1[gk]?.[hk]?{hk,...p.r1[gk][hk]}:null).filter(Boolean);
+  if(r1Winners.length<4) return(
+    <div className="card" style={{color:"#9ca3af",textAlign:"center",padding:40}}>
+      1차전 4개 히트를 먼저 완료해주세요<br/>
+      <span style={{fontSize:12}}>({r1Winners.length}/4 완료)</span>
+    </div>
+  );
+  const sLen=p.survivors(gk).length;
+  return(
+    <div>
+      <div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:10,
+        padding:"10px 14px",marginBottom:12,fontSize:13,color:"#c2410c"}}>
+        💪 {gLabel} 2차전 버피테스트 + 허들<br/>
+        <span style={{fontSize:11}}>탈락자를 탭하세요 (다시 탭하면 복구) · 현재 {sLen}명 생존</span>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {r1Winners.map(({hk,...w})=>{
+          const isElim=(p.r2elim[gk]||[]).includes(hk);
+          const team=classToTeam(w.cls);
+          return(
+            <button key={hk} onClick={()=>p.toggleElim(gk,hk)}
+              style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",
+                borderRadius:12,border:`2px solid ${isElim?"#fecdd3":TEAM_COLORS[team]}`,
+                background:isElim?"#fef2f2":TEAM_BG[team],cursor:"pointer",fontFamily:"inherit",
+                textAlign:"left",opacity:isElim?.55:1,transition:"all .2s"}}>
+              <span style={{fontSize:26}}>{isElim?"❌":"✅"}</span>
+              <TeamBadge team={team} size={34}/>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:800,fontSize:16,
+                  color:isElim?"#9ca3af":TEAM_COLORS[team],
+                  textDecoration:isElim?"line-through":"none"}}>{w.name}</div>
+                <div style={{fontSize:12,color:"#9ca3af"}}>{w.cls}반 · {P100_HEATS[hk].name} 1위</div>
+              </div>
+              <span style={{fontSize:13,fontWeight:800,
+                color:isElim?"#ef4444":"#16a34a",flexShrink:0}}>
+                {isElim?"탈 락":"생 존"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {sLen>0&&(
+        <div style={{marginTop:14,padding:"12px 14px",background:"#f0fdf4",borderRadius:10,
+          border:"1px solid #bbf7d0"}}>
+          <span style={{fontWeight:700,fontSize:13,color:"#15803d"}}>3차전 진출 ({sLen}명): </span>
+          {p.survivors(gk).map(s=>{
+            const t=classToTeam(s.cls);
+            return(<span key={s.hk} style={{display:"inline-flex",alignItems:"center",gap:4,
+              margin:"3px",padding:"3px 10px",borderRadius:20,
+              background:TEAM_BG[t],color:TEAM_COLORS[t],fontWeight:700,fontSize:13}}>
+              {s.name} ({s.cls}반)
+            </span>);
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function P100Round3({ p, gk }) {
+  const gLabel=gk==="m"?"남자":"여자";
+  const sv=p.survivors(gk);
+  if(sv.length<2) return(
+    <div className="card" style={{color:"#9ca3af",textAlign:"center",padding:40}}>
+      2차전 후 2명 이상 생존 시 사용 가능<br/>
+      <span style={{fontSize:12}}>(현재 {sv.length}명 생존)</span>
+    </div>
+  );
+  const r3g=p.r3[gk]||{};
+  const [a,b,c,d]=[sv[0],sv[1]||null,sv[2]||null,sv[3]||null];
+  const sf1w=r3g.sf1?sv.find(s=>s.hk===r3g.sf1):null;
+  const sf2w=r3g.sf2?sv.find(s=>s.hk===r3g.sf2):null;
+  const finW=r3g.final?sv.find(s=>s.hk===r3g.final):null;
+
+  function VsCard({title,desc,pa,pb,winHk,onPick}){
+    if(!pa) return null;
+    const ta=classToTeam(pa.cls), tb=pb?classToTeam(pb.cls):null;
+    const Slot=({pl,tc})=>{
+      if(!pl) return(
+        <div style={{flex:1,padding:"14px 8px",borderRadius:10,border:"2px dashed #e5e7eb",
+          textAlign:"center",color:"#d1d5db",fontSize:13}}>TBD</div>
+      );
+      const isW=pl.hk===winHk;
+      return(
+        <button onClick={()=>onPick(isW?null:pl.hk)}
+          style={{flex:1,padding:"12px 8px",borderRadius:10,
+            border:`2px solid ${isW?TEAM_COLORS[tc]:"#e5e7eb"}`,
+            background:isW?TEAM_BG[tc]:"#fff",cursor:"pointer",fontFamily:"inherit",
+            textAlign:"center",transition:"all .2s"}}>
+          <TeamBadge team={tc} size={30}/>
+          <div style={{fontWeight:800,fontSize:15,color:isW?TEAM_COLORS[tc]:"#374151",marginTop:6}}>{pl.name}</div>
+          <div style={{fontSize:11,color:"#9ca3af",marginTop:2}}>{pl.cls}반</div>
+          {isW&&<div style={{fontSize:20,marginTop:6}}>🏆</div>}
+        </button>
+      );
+    };
+    return(
+      <div className="card" style={{marginBottom:10}}>
+        <div style={{fontWeight:800,fontSize:15,color:"#111827",marginBottom:2}}>{title}</div>
+        <div style={{fontSize:12,color:"#9ca3af",marginBottom:12}}>{desc}</div>
+        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+          <Slot pl={pa} tc={ta}/>
+          <span style={{fontSize:20,fontWeight:900,color:"#9ca3af",flexShrink:0}}>VS</span>
+          <Slot pl={pb} tc={tb}/>
+        </div>
+      </div>
+    );
+  }
+
+  return(
+    <div>
+      <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:10,
+        padding:"10px 14px",marginBottom:12,fontSize:13,color:"#15803d"}}>
+        ⚽ {gLabel} 3차전 축구 토너먼트<br/>
+        <span style={{fontSize:11}}>선수 2명 · 공 2개 · 먼저 골 넣는 선수 승리 → 탭으로 승자 선택</span>
+      </div>
+      <VsCard title="⚔️ 준결승 1" desc="⚽ 동시 출발 · 먼저 골 넣으면 승리" pa={a} pb={b} winHk={r3g.sf1}
+        onPick={hk=>p.setR3(gk,"sf1",hk)}/>
+      {sv.length>=3&&(
+        <VsCard title="⚔️ 준결승 2" desc="⚽ 동시 출발 · 먼저 골 넣으면 승리" pa={c} pb={d} winHk={r3g.sf2}
+          onPick={hk=>p.setR3(gk,"sf2",hk)}/>
+      )}
+      {sf1w&&(sv.length<3||sf2w)&&(
+        <VsCard title="🏆 결승" desc="⚽ 최후의 1인 결정전" pa={sf1w} pb={sv.length>=3?sf2w:null}
+          winHk={r3g.final} onPick={hk=>p.setR3(gk,"final",hk)}/>
+      )}
+      {finW&&(
+        <div style={{background:"linear-gradient(135deg,#fbbf24,#f59e0b)",borderRadius:16,
+          padding:"24px 16px",textAlign:"center",marginTop:8,boxShadow:"0 4px 20px rgba(251,191,36,.4)"}}>
+          <div style={{fontSize:40,marginBottom:8}}>🏆</div>
+          <div style={{fontSize:13,color:"#78350f",fontWeight:700,marginBottom:4}}>{gLabel} 피지컬100 최종 우승!</div>
+          <div style={{fontSize:26,fontWeight:900,color:"#1c1917"}}>{finW.name}</div>
+          <div style={{fontSize:14,color:"#78350f",marginTop:4}}>{finW.cls}반 ({classToTeam(finW.cls)}팀)</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OPhysical100({ state, update }) {
+  const [sub,setSub]=useState("r1");
+  const [gk,setGk]=useState("m");
+  const p=useP100(state,update);
+  const SUBTABS=[
+    {id:"roster",l:"📋 명단입력"},
+    {id:"r1",    l:"① 50m달리기"},
+    {id:"r2",    l:"② 버피+허들"},
+    {id:"r3",    l:"③ 축구결승"},
+  ];
+  const r1Done=gk=>HKS.filter(hk=>p.r1[gk]?.[hk]).length;
+  return(
+    <div>
+      <div style={{display:"flex",gap:5,marginBottom:12,overflowX:"auto",scrollbarWidth:"none"}}>
+        {SUBTABS.map(t=>(
+          <button key={t.id} onClick={()=>setSub(t.id)}
+            className={`obtn${sub===t.id?" on":""}`}
+            style={{flex:"0 0 auto",fontSize:12,padding:"8px 14px",whiteSpace:"nowrap"}}>
+            {t.l}
+          </button>
+        ))}
+      </div>
+      {sub!=="roster"&&(
+        <div style={{display:"flex",gap:8,marginBottom:12}}>
+          {[{k:"m",l:"🏃‍♂️ 남자"},{k:"f",l:"🏃‍♀️ 여자"}].map(g=>(
+            <button key={g.k} onClick={()=>setGk(g.k)}
+              className={`obtn${gk===g.k?" on":""}`}
+              style={{flex:1,padding:"10px 0",fontWeight:700,position:"relative"}}>
+              {g.l}
+              {r1Done(g.k)===4&&<span style={{position:"absolute",top:-4,right:-4,
+                width:16,height:16,borderRadius:"50%",background:"#16a34a",
+                color:"#fff",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center",
+                border:"2px solid #f5f5f5"}}>✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+      {sub==="roster"&&<P100Roster p={p} gk={gk} setGk={setGk}/>}
+      {sub==="r1"    &&<P100Round1 p={p} gk={gk}/>}
+      {sub==="r2"    &&<P100Round2 p={p} gk={gk}/>}
+      {sub==="r3"    &&<P100Round3 p={p} gk={gk}/>}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+//  OPERATOR
+// ══════════════════════════════════════════
+function OperatorPage({state,update,onLogout}) {
+  const [tab,setTab]=useState("bracket");
+  const audioRef=useRef(null);
+  const [playingId,setPlayingId]=useState(null);
+  const playTrack=track=>{
+    if(!audioRef.current)audioRef.current=new Audio();
+    if(playingId===track.id){audioRef.current.pause();setPlayingId(null);}
+    else{audioRef.current.src=track.url;audioRef.current.play().catch(()=>{});setPlayingId(track.id);}
+  };
+  const TABS=[{id:"p100",l:"🏋️ 피지컬100"},{id:"timetrial",l:"⏱ 8자마라톤"},{id:"bracket",l:"🗓 대진표"},{id:"score",l:"🏅 점수"},{id:"phys",l:"💪 피지컬"},
+              {id:"cheer",l:"📣 응원전"},{id:"sched",l:"📅 일정"},{id:"call",l:"📢 공지"},
+              {id:"music",l:"🎵 음악"},{id:"seat",l:"💺 좌석"}];
+  return(
+    <div style={{minHeight:"100vh",background:"#f5f5f5"}}>
+      <style>{BASE_CSS}</style>
+      <div style={{background:"#111827",padding:"13px 16px",display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:20}}>⚙️</span>
+        <span style={{fontWeight:900,fontSize:17,color:"#fff"}}>운영자 모드</span>
+        <button onClick={onLogout} style={{marginLeft:"auto",padding:"5px 12px",borderRadius:7,
+          border:"1px solid #374151",background:"transparent",color:"#9ca3af",
+          fontFamily:"inherit",fontSize:12,cursor:"pointer"}}>로그아웃</button>
+      </div>
+      <div className="tab-bar">{TABS.map(t=><button key={t.id} className={`tb${tab===t.id?" on":""}`} onClick={()=>setTab(t.id)}>{t.l}</button>)}</div>
+      <div style={{padding:14}}>
+        {tab==="p100"     &&<OPhysical100 state={state} update={update}/>}
+        {tab==="timetrial"&&<OTimeTrial state={state} update={update}/>}
+        {tab==="bracket"&&<OBracket state={state} update={update}/>}
+        {tab==="score"  &&<OScore   state={state} update={update}/>}
+        {tab==="phys"   &&<OPhys    state={state} update={update}/>}
+        {tab==="cheer"  &&<OCheer   state={state} update={update}/>}
+        {tab==="sched"  &&<OSched   state={state} update={update}/>}
+        {tab==="call"   &&<OCall    state={state} update={update}/>}
+        {tab==="music"  &&<OMusic   state={state} update={update} playTrack={playTrack} playingId={playingId}/>}
+        {tab==="seat"   &&<OSeat    state={state} update={update}/>}
+      </div>
+    </div>
+  );
+}
+
+// ─── 대진표 관리 (운영자) ───
+// ─── 8자마라톤 기록 입력 (운영자) ───
+function OTimeTrial({state,update}) {
+  const times = state.timeTrial?.[TIME_TRIAL_SPORT]||{};
+  const ranks = getTimeTrialRanks(times);
+
+  const setTime=(cls,val)=>update(s=>({...s,
+    timeTrial:{...s.timeTrial,[TIME_TRIAL_SPORT]:{...(s.timeTrial?.[TIME_TRIAL_SPORT]||{}),[cls]:val}}
+  }));
+
+  const sorted=[...ALL_CLASSES].sort((a,b)=>{
+    const ra=ranks[a]||999, rb=ranks[b]||999;
+    return ra-rb;
+  });
+
+  return(<>
+    <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:10,
+      padding:"10px 14px",marginBottom:12,fontSize:13,color:"#1d4ed8"}}>
+      ⏱ 시간 형식: <strong>분:초.소수</strong> (예: 1:23.4) 또는 초 (예: 83.4)<br/>
+      입력 즉시 자동으로 순위 및 종합점수에 반영됩니다.
+    </div>
+    {["1학년","2학년"].map(grade=>{
+      const gradeClasses=ALL_CLASSES.filter(c=>c.startsWith(grade==="1학년"?"1-":"2-"))
+        .sort((a,b)=>(ranks[a]||999)-(ranks[b]||999));
+      return(<div key={grade}>
+        <div style={{display:"flex",alignItems:"center",gap:8,margin:"14px 0 8px"}}>
+          <span style={{fontWeight:800,fontSize:15,color:"#111827"}}>{grade}</span>
+          <span style={{fontSize:12,color:"#9ca3af"}}>({gradeClasses.filter(c=>times[c]).length}/{gradeClasses.length}반 입력완료)</span>
+        </div>
+        {gradeClasses.map(cls=>{
+          const team=classToTeam(cls);
+          const rank=ranks[cls];
+          const t=times[cls]||"";
+          const pt=rank?TIME_TRIAL_PTS[rank-1]:null;
+          return(<div key={cls} className="card" style={{marginBottom:6,padding:"10px 14px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+              <TeamBadge team={team} size={22}/>
+              <span style={{fontWeight:700,color:"#111827",flex:1}}>{cls}반</span>
+              {rank&&<span style={{fontSize:13,color:"#6b7280"}}>{rank}위</span>}
+              {pt!==null&&<Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{pt}점</Chip>}
+            </div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <input
+                value={t}
+                onChange={e=>setTime(cls,e.target.value)}
+                placeholder="예) 1:23.4"
+                className="oinput"
+                style={{flex:1,fontFamily:"monospace",fontSize:15}}
+              />
+              {t&&<button onClick={()=>setTime(cls,"")}
+                style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",
+                  fontSize:18,padding:"0 4px",flexShrink:0}}>✕</button>}
+            </div>
+          </div>);
+        })}
+      </div>);
+    })}
+    {Object.keys(times).length>0&&(<>
+      <div className="sl" style={{marginTop:16}}>전체 순위 미리보기</div>
+      <div className="card">
+        {[...ALL_CLASSES].filter(c=>ranks[c]).sort((a,b)=>ranks[a]-ranks[b]).map(cls=>{
+          const team=classToTeam(cls);
+          return(<div key={cls} className="rrow">
+            <span style={{fontSize:16,minWidth:32,textAlign:"center"}}>
+              {ranks[cls]===1?"🥇":ranks[cls]===2?"🥈":ranks[cls]===3?"🥉":`${ranks[cls]}위`}
+            </span>
+            <TeamBadge team={team} size={22}/>
+            <span style={{flex:1,fontWeight:600,color:"#374151"}}>{cls}반</span>
+            <span style={{fontSize:13,color:"#6b7280",marginRight:6,fontFamily:"monospace"}}>{times[cls]}</span>
+            <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{TIME_TRIAL_PTS[ranks[cls]-1]}점</Chip>
+          </div>);
+        })}
+      </div>
+    </>)}
+  </>);
+}
+
+function OBracket({state,update}) {
+  const [sel,setSel]=useState(SPORTS[0]);
+  const br=state.brackets[sel]||{};
+  const [selected,setSelected]=useState(ALL_CLASSES);
+  const [openRound,setOpenRound]=useState(null);
+
+  useEffect(()=>{
+    setOpenRound(null);
+    if(!(state.brackets[sel]?.drawn)) setSelected(ALL_CLASSES);
+  },[sel]);
+
+  const doDraw=()=>{
+    const shuffled=shuffle(selected);
+    const seeds=buildSeeds(shuffled);
+    update(s=>({...s,brackets:{...s.brackets,[sel]:{drawn:true,seeds,results:{}}}}));
+    setOpenRound(0);
+  };
+
+  const resetBracket=()=>{
+    update(s=>({...s,brackets:{...s.brackets,[sel]:{drawn:false,seeds:[],results:{}}}}));
+    setSelected(ALL_CLASSES);
+  };
+
+  const setResult=(matchId,winner)=>{
+    update(s=>{
+      const cur=s.brackets[sel]||{};
+      return{...s,brackets:{...s.brackets,[sel]:{...cur,results:{...(cur.results||{}),[matchId]:winner}}}};
+    });
+  };
+
+  const rounds=br.drawn?computeBracket(br.seeds||[],br.results||{}):[];
+
+  return(<>
+    {/* 종목 선택 (8자마라톤 제외) */}
+    <div style={{display:"flex",overflowX:"auto",gap:6,paddingBottom:12,scrollbarWidth:"none"}}>
+      {SPORTS.map(s=>{
+        const hasBr=state.brackets[s]?.drawn;
+        return(<button key={s} onClick={()=>setSel(s)} className={`pill${sel===s?" on":""}`}
+          style={{position:"relative"}}>
+          {s}
+          {hasBr&&<span style={{position:"absolute",top:-3,right:-3,width:8,height:8,
+            borderRadius:"50%",background:"#16a34a",border:"2px solid #f5f5f5"}}/>}
+        </button>);
+      })}
+    </div>
+
+    {!br.drawn ? (
+      <div className="card">
+        <div style={{fontWeight:800,fontSize:16,color:"#111827",marginBottom:4}}>{sel} 대진 추첨</div>
+        <div style={{fontSize:13,color:"#9ca3af",marginBottom:14}}>참가 학급을 선택하고 추첨하세요</div>
+        <div style={{fontSize:12,color:"#374151",fontWeight:700,marginBottom:8}}>
+          참가 학급 ({selected.length}개)
+        </div>
+        {TEAM_NAMES.map(team=>(
+          <div key={team} style={{marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+              <TeamBadge team={team} size={20}/>
+              <span style={{fontSize:12,fontWeight:700,color:TEAM_COLORS[team]}}>{team}팀</span>
+              <button onClick={()=>{
+                const tc=TEAM_MAP[team];
+                const allIn=tc.every(c=>selected.includes(c));
+                if(allIn) setSelected(s=>s.filter(c=>!tc.includes(c)));
+                else setSelected(s=>[...new Set([...s,...tc])]);
+              }} style={{fontSize:11,padding:"2px 7px",borderRadius:5,border:"1px solid #e5e7eb",
+                background:"#f9fafb",cursor:"pointer",fontFamily:"inherit",color:"#6b7280"}}>
+                {TEAM_MAP[team].every(c=>selected.includes(c))?"전체해제":"전체선택"}
+              </button>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+              {TEAM_MAP[team].map(cls=>{
+                const on=selected.includes(cls);
+                return(<button key={cls} onClick={()=>setSelected(s=>on?s.filter(c=>c!==cls):[...s,cls])}
+                  style={{padding:"6px 11px",borderRadius:8,border:`1.5px solid ${on?TEAM_COLORS[team]:"#e5e7eb"}`,
+                    background:on?TEAM_BG[team]:"#fff",color:on?TEAM_COLORS[team]:"#9ca3af",
+                    fontWeight:on?700:400,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+                  {cls}반
+                </button>);
+              })}
+            </div>
+          </div>
+        ))}
+        <div style={{borderTop:"1px solid #f3f4f6",paddingTop:14,marginTop:4}}>
+          <div style={{fontSize:12,color:"#9ca3af",marginBottom:10}}>
+            {selected.length}개 학급 → {nextPow2(selected.length)}강 대진표 (BYE {nextPow2(selected.length)-selected.length}개)
+          </div>
+          <button onClick={doDraw} className="obtn primary" disabled={selected.length<2}
+            style={{width:"100%",padding:13,fontSize:16,opacity:selected.length<2?.5:1}}>
+            🎲 추첨 시작!
+          </button>
+        </div>
+      </div>
+    ) : (
+      <div>
+        <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center"}}>
+          <div style={{flex:1,fontSize:14,fontWeight:700,color:"#111827"}}>
+            {sel} · {br.seeds?.filter(s=>s!=="BYE").length}팀 대진표
+          </div>
+          <button onClick={resetBracket} className="obtn danger" style={{fontSize:12,padding:"6px 12px"}}>
+            🔄 재추첨
+          </button>
+        </div>
+
+        {/* ★ 챔피언스리그식 트리 대진표 (클릭으로 결과 입력) */}
+        <div style={{fontSize:12,color:"#9ca3af",marginBottom:8,textAlign:"center"}}>
+          팀 이름 탭 → 승자 선택 / 다시 탭 → 취소
+        </div>
+        <BracketTree
+          seeds={br.seeds||[]}
+          results={br.results||{}}
+          onResult={setResult}
+          readOnly={false}
+        />
+
+        {/* 현재 점수 반영 */}
+        {(()=>{
+          const ranks=getBracketRanks(rounds);
+          const entries=Object.entries(ranks);
+          if(!entries.length) return null;
+          return(<>
+            <div className="sl" style={{marginTop:14}}>현재 점수 반영 현황</div>
+            <div className="card">
+              {entries.sort((a,b)=>a[1]-b[1]).map(([cls,rank])=>{
+                const team=classToTeam(cls);
+                const pts=SPORT_PTS[sel][rank-1]||0;
+                return(<div key={cls} className="rrow">
+                  <TeamBadge team={team} size={22}/>
+                  <span style={{flex:1,fontWeight:600,color:"#374151"}}>{cls}반</span>
+                  <span style={{fontSize:13,color:"#6b7280",marginRight:8}}>{rank}위</span>
+                  <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{pts}점</Chip>
+                </div>);
+              })}
+            </div>
+          </>);
+        })()}
+      </div>
+    )}
+  </>);
+}
+
+
+// ─── 직접 점수 입력 (대진표 없을 때) ───
+function OScore({state,update}) {
+  const [sel,setSel]=useState(SPORTS[0]);
+  const srank=state.scores[sel]||{};
+  const groups=getRankGroups(SPORT_PTS[sel]);
+  const hasBracket=state.brackets[sel]?.drawn;
+
+  const setRank=(cls,rank)=>update(s=>{
+    const nr={...(s.scores[sel]||{})};
+    for(const [c,r] of Object.entries(nr))if(r===rank&&c!==cls)delete nr[c];
+    if(nr[cls]===rank)delete nr[cls];else nr[cls]=rank;
+    return{...s,scores:{...s.scores,[sel]:nr}};
+  });
+
+  return(<>
+    <div style={{display:"flex",overflowX:"auto",gap:6,paddingBottom:12,scrollbarWidth:"none"}}>
+      {SPORTS.map(s=><button key={s} onClick={()=>setSel(s)} className={`pill${sel===s?" on":""}`}>{s}</button>)}
+    </div>
+    {hasBracket&&(
+      <div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:10,padding:"10px 14px",marginBottom:12,
+        fontSize:13,color:"#9a3412"}}>
+        ⚠️ 이 종목은 대진표가 활성화되어 있어요. 점수는 대진표 결과로 자동 계산됩니다.
+      </div>
+    )}
+    {TEAM_NAMES.map(team=>(<div key={team}>
+      <div style={{display:"flex",alignItems:"center",gap:8,margin:"12px 0 6px"}}>
+        <TeamBadge team={team} size={22}/>
+        <span style={{fontWeight:700,fontSize:14,color:TEAM_COLORS[team]}}>{team}팀</span>
+      </div>
+      {TEAM_MAP[team].map(cls=>{
+        const curRank=srank[cls];
+        const curGroup=groups.find(g=>curRank>=g.rank&&curRank<=g.endRank);
+        return(<div key={cls} className="card" style={{opacity:hasBracket?.6:1}}>
+          <div style={{display:"flex",alignItems:"center",marginBottom:8}}>
+            <span style={{fontWeight:700,color:"#111827",flex:1}}>{cls}반</span>
+            {curGroup&&<Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{curGroup.label} {curGroup.pts}점</Chip>}
+          </div>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+            {groups.map(g=>{const on=curRank>=g.rank&&curRank<=g.endRank;
+              return(<button key={g.rank} onClick={()=>!hasBracket&&setRank(cls,g.rank)}
+                className={`obtn${on?" on":""}`} style={{fontSize:12,padding:"5px 10px",
+                  cursor:hasBracket?"not-allowed":"pointer",opacity:hasBracket?.7:1}}>
+                {g.label}
+              </button>);})}
+          </div>
+        </div>);
+      })}
+    </div>))}
+  </>);
+}
+
+function OPhys({state,update}) {
+  return(<>{PHYS_EVENTS.map(ev=>(<div key={ev.id} className="card">
+    <div style={{marginBottom:12}}>
+      <div style={{fontWeight:800,fontSize:16,color:"#111827"}}>{ev.icon} {ev.label}</div>
+      <div style={{fontSize:12,color:"#9ca3af"}}>+{ev.pts}점</div>
+    </div>
+    {TEAM_NAMES.map(team=>(<div key={team} style={{marginBottom:10}}>
+      <div style={{fontSize:12,color:"#9ca3af",marginBottom:5,display:"flex",alignItems:"center",gap:5}}>
+        <TeamBadge team={team} size={16}/> {team}팀
+      </div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+        {TEAM_MAP[team].map(cls=>{const active=state.phys[ev.id]===cls;
+          return(<button key={cls} onClick={()=>update(s=>({...s,phys:{...s.phys,[ev.id]:active?null:cls}}))}
+            className={`obtn${active?" on":""}`} style={{fontSize:13}}>{cls}반</button>);})}
+      </div>
+    </div>))}
+  </div>))}</>);
+}
+
+function OCheer({state,update}) {
+  const [sel,setSel]=useState("A");
+  const cd=state.cheer[sel]||{};
+  const total=CHEER_CATS.reduce((s,c)=>s+(cd[c.id]||0),0);
+  const setScore=(cat,val)=>update(s=>({...s,cheer:{...s.cheer,[sel]:{...(s.cheer[sel]||{}),[cat]:Math.max(0,Math.min(25,Number(val)))}}}));
+  return(<>
+    <div style={{display:"flex",gap:6,marginBottom:14}}>
+      {TEAM_NAMES.map(t=>(<button key={t} onClick={()=>setSel(t)} className={`obtn${sel===t?" on":""}`}
+        style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:5,padding:"10px 0"}}>
+        <TeamBadge team={t} size={28}/><span style={{fontSize:12}}>{t}팀</span>
+      </button>))}
+    </div>
+    <div className="card">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <TeamBadge team={sel} size={36}/>
+          <span style={{fontWeight:900,fontSize:20,color:"#111827"}}>{sel}팀</span>
+        </div>
+        <span style={{fontWeight:900,fontSize:28,color:TEAM_COLORS[sel]}}>{total}<span style={{fontSize:15,color:"#9ca3af"}}>/100</span></span>
+      </div>
+      {CHEER_CATS.map(c=>(<div key={c.id} style={{marginBottom:18}}>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:7}}>
+          <span style={{fontWeight:700,color:"#374151"}}>{c.label}</span>
+          <span style={{fontWeight:800,color:TEAM_COLORS[sel]}}>{cd[c.id]||0}/25</span>
+        </div>
+        <input type="range" min="0" max="25" value={cd[c.id]||0} onChange={e=>setScore(c.id,e.target.value)} style={{width:"100%",marginBottom:7}}/>
+        <div style={{display:"flex",gap:4}}>
+          {[0,5,10,15,20,25].map(v=>(<button key={v} onClick={()=>setScore(c.id,v)}
+            className={`obtn${(cd[c.id]||0)===v?" on":""}`} style={{flex:1,padding:"5px 0",fontSize:12}}>{v}</button>))}
+        </div>
+      </div>))}
+    </div>
+  </>);
+}
+
+function OSched({state,update}) {
+  const setStatus=(id,status)=>update(s=>({...s,schedule:s.schedule.map(i=>i.id===id?{...i,status}:i)}));
+  return(<>{state.schedule.map(s=>(<div key={s.id} className="card">
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+      <span style={{fontSize:22}}>{s.emoji}</span>
+      <div style={{flex:1}}><div style={{fontWeight:700,color:"#111827"}}>{s.title}</div>
+        <div style={{fontSize:13,color:"#9ca3af"}}>{s.time}</div></div>
+    </div>
+    <div style={{display:"flex",gap:6}}>
+      {[{v:"done",l:"✅ 완료",c:"#16a34a"},{v:"current",l:"🔴 진행중",c:"#111827"},{v:"upcoming",l:"⏳ 예정",c:"#9ca3af"}].map(o=>(
+        <button key={o.v} onClick={()=>setStatus(s.id,o.v)} style={{flex:1,padding:"8px 0",border:"1.5px solid",
+          borderRadius:8,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,
+          borderColor:s.status===o.v?o.c:"#e5e7eb",background:s.status===o.v?o.c:"#fff",
+          color:s.status===o.v?"#fff":"#9ca3af"}}>{o.l}</button>
+      ))}
+    </div>
+  </div>))}</>);
+}
+
+function OCall({state,update}) {
+  const [msg,setMsg]=useState(""); const [team,setTeam]=useState("");
+  const quick=["출전 선수 준비해주세요","경기장으로 이동해주세요","잠시 대기해주세요","담당 선생님께 보고해주세요"];
+  const send=()=>{ if(!msg.trim())return; update(s=>({...s,callout:{msg:msg.trim(),team:team||null}})); setMsg(""); setTeam(""); };
+  return(<>
+    {state.callout&&(<div style={{background:"#fff1f2",border:"1.5px solid #fecdd3",borderRadius:12,
+      padding:"13px 16px",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div>
+        <div style={{fontSize:12,color:TEAM_COLORS[state.callout.team]||"#ef4444",fontWeight:700,marginBottom:2}}>
+          {state.callout.team?`${state.callout.team}팀`:"전체"} 공지 중
+        </div>
+        <div style={{fontWeight:700,color:"#111827"}}>{state.callout.msg}</div>
+      </div>
+      <button onClick={()=>update(s=>({...s,callout:null}))} className="obtn" style={{color:"#ef4444",borderColor:"#fecdd3"}}>해제</button>
+    </div>)}
+    <div className="card">
+      <div style={{marginBottom:10}}>
+        <div style={{fontSize:12,color:"#9ca3af",marginBottom:5}}>대상 팀</div>
+        <select value={team} onChange={e=>setTeam(e.target.value)} className="oinput">
+          <option value="">전체 공지</option>
+          {TEAM_NAMES.map(t=><option key={t} value={t}>{t}팀</option>)}
+        </select>
+      </div>
+      <div style={{marginBottom:10}}>
+        <div style={{fontSize:12,color:"#9ca3af",marginBottom:5}}>메시지</div>
+        <input value={msg} onChange={e=>setMsg(e.target.value)} placeholder="공지 내용 입력..." className="oinput"/>
+      </div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
+        {quick.map(q=><button key={q} onClick={()=>setMsg(q)} className="obtn" style={{fontSize:12}}>{q}</button>)}
+      </div>
+      <button onClick={send} className="obtn primary" style={{width:"100%",padding:12,fontSize:15}}>📢 공지 송출</button>
+    </div>
+  </>);
+}
+
+function OMusic({state,update,playTrack,playingId}) {
+  const [title,setTitle]=useState(""); const [url,setUrl]=useState(""); const [cat,setCat]=useState("일반");
+  const add=()=>{ if(!title.trim()||!url.trim())return;
+    update(s=>({...s,tracks:[...s.tracks,{id:Date.now()+"",title:title.trim(),url:url.trim(),cat}]}));
+    setTitle(""); setUrl(""); };
+  return(<>
+    <div className="card">
+      <div style={{fontWeight:700,marginBottom:10,color:"#111827"}}>🎵 트랙 추가</div>
+      <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="곡 이름" className="oinput" style={{marginBottom:8}}/>
+      <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="오디오 직접 URL (.mp3 등)" className="oinput" style={{marginBottom:8}}/>
+      <select value={cat} onChange={e=>setCat(e.target.value)} className="oinput" style={{marginBottom:10}}>
+        {["입장식","응원전","일반"].map(c=><option key={c}>{c}</option>)}
+      </select>
+      <button onClick={add} className="obtn primary" style={{width:"100%",padding:10,fontSize:14}}>추가</button>
+    </div>
+    {state.tracks.length===0?<div style={{color:"#9ca3af",textAlign:"center",padding:30}}>🎵 트랙 없음</div>
+    :state.tracks.map(t=>(<div key={t.id} className="card" style={{display:"flex",alignItems:"center",gap:12}}>
+      <button onClick={()=>playTrack(t)} style={{width:40,height:40,borderRadius:"50%",border:"none",
+        cursor:"pointer",flexShrink:0,fontSize:16,fontFamily:"inherit",
+        background:playingId===t.id?"#111827":"#f3f4f6",color:playingId===t.id?"#fff":"#374151"}}>
+        {playingId===t.id?"⏸":"▶"}
+      </button>
+      <div style={{flex:1}}><div style={{fontWeight:700,color:"#111827",fontSize:14}}>{t.title}</div>
+        <div style={{fontSize:12,color:"#9ca3af"}}>{t.cat}</div></div>
+      <button onClick={()=>update(s=>({...s,tracks:s.tracks.filter(x=>x.id!==t.id)}))}
+        style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:18,padding:4}}>✕</button>
+    </div>))}
+  </>);
+}
+
+function OSeat({state,update}) {
+  const set=(cls,key,val)=>update(s=>({...s,seats:{...s.seats,[cls]:{...(s.seats[cls]||{}),[key]:val}}}));
+  return(<>{TEAM_NAMES.map(team=>(<div key={team}>
+    <div style={{display:"flex",alignItems:"center",gap:8,margin:"14px 0 8px"}}>
+      <TeamBadge team={team} size={24}/><span style={{fontWeight:700,color:TEAM_COLORS[team]}}>{team}팀</span>
+    </div>
+    {TEAM_MAP[team].map(cls=>(<div key={cls} className="card" style={{marginBottom:6,padding:"10px 14px"}}>
+      <div style={{fontWeight:700,color:"#111827",marginBottom:8}}>{cls}반</div>
+      <div style={{display:"flex",gap:7}}>
+        <input value={state.seats[cls]?.zone||""} onChange={e=>set(cls,"zone",e.target.value)}
+          placeholder="좌석 구역" className="oinput" style={{flex:2}}/>
+        <input value={state.seats[cls]?.note||""} onChange={e=>set(cls,"note",e.target.value)}
+          placeholder="비고" className="oinput" style={{flex:1}}/>
+      </div>
+    </div>))}
+  </div>))}</>);
+}
+
+// ══════════════════════════════════════════
+//  APP
+// ══════════════════════════════════════════
+function App() {
+  const [isOp, setIsOp] = useState(false);
+  const [showPwModal, setShowPwModal] = useState(false);
+  const [pw, setPw] = useState("");
+  const [pwErr, setPwErr] = useState(false);
+  const OP_PW = "1234";
+  const {state,update,ready,online}=useStore(isOp);
+
+  const tryLogin = () => {
+    if(pw === OP_PW) { setIsOp(true); setShowPwModal(false); setPw(""); setPwErr(false); }
+    else { setPwErr(true); setPw(""); }
+  };
+
+  if(!ready)return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",
+    fontFamily:"sans-serif",color:"#9ca3af",fontSize:16}}>불러오는 중...</div>);
+
+  return (
+    <div>
+      {showPwModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:100,
+          display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div style={{background:"#fff",borderRadius:16,padding:24,width:"100%",maxWidth:320,
+            fontFamily:"'Noto Sans KR',sans-serif"}}>
+            <div style={{fontWeight:900,fontSize:18,color:"#111827",marginBottom:6}}>⚙️ 운영자 로그인</div>
+            <div style={{fontSize:13,color:"#9ca3af",marginBottom:16}}>운영자 비밀번호를 입력하세요</div>
+            <input type="password" value={pw} onChange={e=>{setPw(e.target.value);setPwErr(false);}}
+              onKeyDown={e=>e.key==="Enter"&&tryLogin()} placeholder="비밀번호"
+              style={{width:"100%",border:`1.5px solid ${pwErr?"#ef4444":"#e5e7eb"}`,borderRadius:8,
+                padding:"10px 12px",fontSize:15,outline:"none",boxSizing:"border-box",fontFamily:"inherit",marginBottom:8}}/>
+            {pwErr && <div style={{fontSize:12,color:"#ef4444",marginBottom:8}}>비밀번호가 틀렸어요</div>}
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>{setShowPwModal(false);setPw("");setPwErr(false);}}
+                style={{flex:1,padding:"10px 0",borderRadius:8,border:"1.5px solid #e5e7eb",
+                  background:"#fff",fontFamily:"inherit",fontSize:14,cursor:"pointer",color:"#6b7280"}}>취소</button>
+              <button onClick={tryLogin}
+                style={{flex:1,padding:"10px 0",borderRadius:8,border:"none",
+                  background:"#111827",color:"#fff",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer"}}>로그인</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {!online && (
+        <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#fef2f2",
+          borderTop:"2px solid #fecaca",padding:"8px 16px",textAlign:"center",
+          fontSize:13,fontWeight:700,color:"#dc2626",zIndex:200}}>
+          🔴 오프라인 — 인터넷 연결을 확인하세요
+        </div>
+      )}
+      {online===true && ready && (
+        <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#f0fdf4",
+          borderTop:"1px solid #bbf7d0",padding:"5px 16px",textAlign:"center",
+          fontSize:11,color:"#16a34a",zIndex:200}}>
+          {isOp ? "🟢 Firebase 실시간 연결됨 (운영자)" : "🟢 연결됨 · 5초마다 자동 갱신"}
+        </div>
+      )}
+      {isOp
+        ? <OperatorPage state={state} update={update} onLogout={()=>setIsOp(false)}/>
+        : <ViewerPage   state={state} onOpClick={()=>setShowPwModal(true)}/>
+      }
+    </div>
+  );
+}
+
+
+</script>
+</body>
+</html>
