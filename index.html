@@ -146,6 +146,48 @@ const SCHED_DEFAULT = [
 ];
 
 // ─── 대진표 로직 ───
+
+// ─── Storage 키 (Firebase Realtime Database) ───
+const SK = "hanmaeum_v6";
+
+// ─── 초기 상태 ───
+const INIT = () => ({
+  schedule:     SCHED_DEFAULT,
+  scores:       {},    // 팀 토너먼트 직접 입력 결과
+  brackets:     {},    // 대진표
+  cheer:        {},    // 응원전 채점
+  callout:      null,  // 공지/호출
+  tracks:       [],    // BGM
+  roles: {              // 역할별 비밀번호
+    bracket: "",        // 대진표 담당
+    score:   "",        // 채점·점수 입력
+    mc:      "",        // MC/입장식/응원전 진행
+  },
+  seats:        {},
+  entry: {              // 입장식 데이터 (구글시트 연동)
+    sheetUrl: "",
+    items:    {},       // { "1-1": {intro, audio} }
+    current:  null,
+  },
+  cheerShow: {          // 응원전 진행 데이터
+    sheetUrl:   "",
+    items:      {},
+    order:      [],
+    currentIdx: -1,
+  },
+  timeTrial:    {},     // { "1학년 8자마라톤": {"1-1":12, ...} }
+  groupScores:  {},     // { "장애물달리기": {g1:{"1-1":1,...}, ...} }
+  relayFinals:  {},     // { grade1:{"1-1":1,...}, grade2:{...} }
+  p100: {               // 피지컬100
+    roster: {},         // 사전 명단
+    r1:    {m:{}, f:{}},
+    r2elim:{m:[], f:[]},
+    r3:    {m:{}, f:{}},
+  },
+  lu: 0,                // 마지막 수정 시각
+});
+
+
 function nextPow2(n) { let p=1; while(p<n) p*=2; return p; }
 
 function buildSeeds(participants) {
