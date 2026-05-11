@@ -76,21 +76,37 @@ const classToTeam = c => TEAM_NAMES.find(t => TEAM_MAP[t].includes(c)) || "?";
 // 8자마라톤은 기록 입력 → 자동순위 방식 (대진표 없음)
 const TIME_TRIAL_SPORTS = ["1학년 8자마라톤","2학년 8자마라톤"];
 const TIME_TRIAL_SPORT = TIME_TRIAL_SPORTS[0]; // 호환용
-const TIME_TRIAL_PTS = [100,90,80,70,60,50,40,30,20,10];
 
 const SPORT_PTS = {
-  "장애물달리기": [100,90,80,70,50,50,50,30,30,30],
-  "줄다리기":    [100,90,80,80,50,50,50,30,30,30],
-  "계주":       [100,90,80,70,50,50,50,30,30,30],
-  "2/3인 각":   [100,90,80,80,50,50,50,30,30,30],
-  "골때녀":     [100,70,50,50,30,30,30,30,10,10],
-  "태풍의눈":    [100,90,80,70,50,50,50,50,50,50],
+  "줄다리기": [100,90,80,80,50],  // 팀 토너먼트 5팀
+  "2/3인 각": [100,90,80,80,50],  // 팀 토너먼트 5팀
 };
-const SPORTS = Object.keys(SPORT_PTS);
-const ALL_SPORTS = [...TIME_TRIAL_SPORTS, ...SPORTS];
+const TEAM_TOURN_SPORTS = ["줄다리기","2/3인 각"];
+const GRP_SPORTS = ["장애물달리기","태풍의눈"];  // 조별 순위(조내 1~5위)
+const EVENT_SPORTS = ["골때녀"];
+const SPORTS = [...TEAM_TOURN_SPORTS, ...GRP_SPORTS, "계주"];
+const ALL_SPORTS = [...TIME_TRIAL_SPORTS, ...SPORTS, ...EVENT_SPORTS];
 
-// ─── 피지컬100 구성 ───
-// 4그룹 × 5주자 = 20조 (남/여 각각)
+// 조별 종목 배점: 각 조 내 1~5위
+const GRP_PTS = [100, 90, 80, 70, 60];
+// 계주 결승/예선탈락 배점
+const RELAY_FINAL_PTS = [100, 80, 60, 40];
+const RELAY_ELIM_PTS  = 30;
+// 피지컬100 점수 (학생 1인당)
+const P100_PTS = { r2:10, r3:10, win:30 };
+// 8자마라톤 배점 (학년별 1~10위)
+const TT_PTS = [100,90,80,70,60,50,40,30,20,10];
+
+// 조별 종목 그룹 정의 (장애물달리기/태풍의눈/계주 공용)
+const GRP_KEYS = ["g1","g2","g3","g4"];
+const GRP_DEF = {
+  g1:{ name:"1학년 1조", cls:["1-1","1-2","1-3","1-4","1-5"],  grade:"1" },
+  g2:{ name:"1학년 2조", cls:["1-6","1-7","1-8","1-9","1-10"], grade:"1" },
+  g3:{ name:"2학년 1조", cls:["2-1","2-2","2-3","2-4","2-5"],  grade:"2" },
+  g4:{ name:"2학년 2조", cls:["2-6","2-7","2-8","2-9","2-10"], grade:"2" },
+};
+
+// ─── 피지컬100 구성 (P100_GROUPS와 GRP_DEF 동일) ───
 const P100_GROUPS = {
   g1:{ name:"1조", cls:["1-1","1-2","1-3","1-4","1-5"]   },
   g2:{ name:"2조", cls:["1-6","1-7","1-8","1-9","1-10"]  },
@@ -227,7 +243,9 @@ const INIT = () => ({
     order: [],    // ["1-1","1-2",...] 진행 순서
     currentIdx: -1
   },
-  timeTrial: {}, // { "8자마라톤": { "1-1": "1:23.4", ... } }
+  timeTrial:    {}, // { "1학년 8자마라톤": {"1-1":12,...} }
+  groupScores:  {}, // { "장애물달리기": {g1:{"1-1":1,...},...} }
+  relayFinals:  {}, // { grade1:{"1-1":1,...}, grade2:{...} }
   p100: {
     roster:  {}, // cls → { m:["","","","",""], f:["","","","",""] }
     r1:      { m:{}, f:{} }, // heatKey → { cls, name }
@@ -277,68 +295,93 @@ function getTimeTrialRanks(counts) {
 
 function calcScores(state) {
   const classPts = {};
-  for(const cls of ALL_CLASSES) classPts[cls]=0;
 
-  // 8자마라톤: 학년별 개수 기반 순위 (큰 수 = 1위)
+  // ── 8자마라톤: 학년별 개수 입력 → 큰 수가 1위 ──
   for(const sp of TIME_TRIAL_SPORTS) {
     const counts = state.timeTrial?.[sp]||{};
     const ranks  = getTimeTrialRanks(counts);
-    for(const [cls,rank] of Object.entries(ranks))
-      classPts[cls]=(classPts[cls]||0)+(TIME_TRIAL_PTS[rank-1]||0);
+    for(const [cls, rank] of Object.entries(ranks))
+      classPts[cls] = (classPts[cls]||0) + (TT_PTS[rank-1]||0);
   }
 
-  for(const sp of SPORTS) {
-    const br = state.brackets?.[sp];
-    let rankMap = {};
-    if(br?.drawn) {
-      const rounds = computeBracket(br.seeds||[], br.results||{});
-      rankMap = getBracketRanks(rounds);
+  // ── 팀 토너먼트 (줄다리기, 2/3인 각): 대진표 순위 ──
+  for(const sp of TEAM_TOURN_SPORTS) {
+    const br = state.brackets?.[sp]||{};
+    const sr = state.scores?.[sp]||{};
+    if(br.drawn) {
+      const ranks = getBracketRanks(br);
+      const pts = SPORT_PTS[sp]||[];
+      for(const [team, rank] of Object.entries(ranks)) {
+        const p = pts[rank-1]||0;
+        if(p) for(const cls of TEAM_MAP[team])
+          classPts[cls] = (classPts[cls]||0) + p;
+      }
     } else {
-      rankMap = state.scores?.[sp]||{};
+      for(const [cls, rank] of Object.entries(sr))
+        classPts[cls] = (classPts[cls]||0) + (SPORT_PTS[sp]?.[rank-1]||0);
     }
-    for(const [cls,rank] of Object.entries(rankMap))
-      classPts[cls]=(classPts[cls]||0)+(SPORT_PTS[sp][rank-1]||0);
   }
 
-  // 피지컬 100 점수
-  const p100s = state.p100||{};
+  // ── 조별 종목 (장애물달리기, 태풍의눈): 각 조 1~5위 ──
+  const gs = state.groupScores||{};
+  for(const sp of GRP_SPORTS) {
+    for(const gk of GRP_KEYS) {
+      const gResult = gs[sp]?.[gk]||{};
+      for(const [cls, rank] of Object.entries(gResult))
+        classPts[cls] = (classPts[cls]||0) + (GRP_PTS[rank-1]||0);
+    }
+  }
+
+  // ── 계주: 예선(조별 1~5위) + 결승(1~4위 차등) ──
+  const relayGs = gs["계주"]||{};
+  const rf = state.relayFinals||{};
+  const finalClsSet = new Set([
+    ...Object.keys(rf.grade1||{}),
+    ...Object.keys(rf.grade2||{})
+  ]);
+
+  for(const gk of GRP_KEYS) {
+    const gResult = relayGs[gk]||{};
+    for(const [cls, rank] of Object.entries(gResult)) {
+      if(!finalClsSet.has(cls)) {
+        // 예선 탈락: 동일 점수
+        classPts[cls] = (classPts[cls]||0) + RELAY_ELIM_PTS;
+      }
+    }
+  }
+  // 결승 점수
+  for(const gradeKey of ["grade1","grade2"]) {
+    for(const [cls, rank] of Object.entries(rf[gradeKey]||{}))
+      classPts[cls] = (classPts[cls]||0) + (RELAY_FINAL_PTS[rank-1]||0);
+  }
+
+  // ── 피지컬100: 학생 1인당 진출 단계별 점수 ──
+  const p100 = state.p100||{};
   for(const gk of ["m","f"]) {
-    const r1 = p100s.r1?.[gk]||{};
-    const r2elim = p100s.r2elim?.[gk]||[];
-    const r3 = p100s.r3?.[gk]||{};
-    // 1차전 통과: 학급당 +10
-    for(const w of Object.values(r1))
-      if(w?.cls) classPts[w.cls] = (classPts[w.cls]||0) + P100_PTS.qualify;
-    // 2라운드 생존: 추가 +20
-    for(const [hk,w] of Object.entries(r1))
-      if(w?.cls && !r2elim.includes(hk))
-        classPts[w.cls] = (classPts[w.cls]||0) + P100_PTS.survive;
-    // 우승: 추가 +30
-    if(r3.final && r1[r3.final]?.cls)
-      classPts[r1[r3.final].cls] = (classPts[r1[r3.final].cls]||0) + P100_PTS.champion;
-  }
-
-  // 응원전: 학급별 채점 → 학년별 순위 → 점수 부여 → 학급 포함 팀에 합산
-  const cheerPtsByClass = {};
-  for(const grade of ["1","2"]) {
-    const gradeClasses = ALL_CLASSES.filter(c=>c.startsWith(grade+"-"));
-    const gradeScores = gradeClasses
-      .map(c=>{const cc=state.cheer?.[c]||{};return {c,s:(cc.c||0)+(cc.p||0)+(cc.u||0)+(cc.e||0)};})
-      .filter(x=>x.s>0)
-      .sort((a,b)=>b.s-a.s);
-    gradeScores.forEach(({c},i)=>{ cheerPtsByClass[c]=TIME_TRIAL_PTS[i]||0; });
-    // classPts에 응원전 점수 추가
-    for(const [c,p] of Object.entries(cheerPtsByClass)) {
-      if(gradeClasses.includes(c)) classPts[c]=(classPts[c]||0)+p;
+    const r1     = p100.r1?.[gk]||{};
+    const r2elim = p100.r2elim?.[gk]||[];
+    const r3     = p100.r3?.[gk]||{};
+    for(const [hk, w] of Object.entries(r1)) {
+      if(!w?.cls) continue;
+      classPts[w.cls] = (classPts[w.cls]||0) + P100_PTS.r2;    // 2차전 진출 +10
+      if(!r2elim.includes(hk))
+        classPts[w.cls] = (classPts[w.cls]||0) + P100_PTS.r3;  // 3차전 진출 +10
     }
+    if(r3.final && r1[r3.final]?.cls)
+      classPts[r1[r3.final].cls] = (classPts[r1[r3.final].cls]||0) + P100_PTS.win; // 우승 +30
   }
 
-  const teamPts={};
-  for(const team of TEAM_NAMES)
-    teamPts[team]=TEAM_MAP[team].reduce((s,c)=>s+(classPts[c]||0),0);
+  // ── 응원전: 학급별 채점 → 학년별 순위 → 점수 (종합순위 미포함) ──
+  // 응원전은 별도 표시용으로만, 종합점수에 미반영
 
-  return {classPts,teamPts};
+  // ── 팀별 합산 ──
+  const teamPts = {};
+  for(const team of TEAM_NAMES) {
+    teamPts[team] = TEAM_MAP[team].reduce((s,c)=>s+(classPts[c]||0), 0);
+  }
+  return { classPts, teamPts };
 }
+
 
 function getRankGroups(pts) {
   const groups=[]; let i=0;
@@ -691,8 +734,9 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
   const pickMainTab = (id) => { setMainTab(id); setSbTab(null); };
 
   const pageTitle = () => {
-    if(mainTab==="dash") return "🏠 대시보드";
-    if(mainTab==="rank") return "🏆 종합 순위";
+    if(mainTab==="dash")  return "🏠 대시보드";
+    if(mainTab==="cheer") return "📣 응원전";
+    if(mainTab==="rank")  return "🏆 종합 순위";
     const map = {
       entry:"🚶 입장식", cheershow:"📣 응원전 현황", "좌석":"💺 좌석 배치",
       "피지컬100":"🏋️ 피지컬100",
@@ -711,6 +755,7 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
       {id:"줄다리기",        icon:"🪢", l:"줄다리기"},
       {id:"태풍의눈",        icon:"🌀", l:"태풍의 눈"},
       {id:"장애물달리기",    icon:"🚧", l:"장애물달리기"},
+      {id:"태풍의눈",        icon:"🌀", l:"태풍의 눈"},
       {id:"계주",            icon:"🏃", l:"계주"},
       {id:"2/3인 각",        icon:"👯", l:"2/3인 각"},
       {id:"피지컬100",       icon:"🏋️", l:"피지컬100"},
@@ -722,8 +767,9 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
   ];
 
   const renderContent = () => {
-    if(mainTab==="dash") return <VDash cur={cur} next={next} ranked={ranked} state={state}/>;
-    if(mainTab==="rank") return <VRank ranked={ranked} state={state}/>;
+    if(mainTab==="dash")   return <VDash cur={cur} next={next} ranked={ranked} state={state}/>;
+    if(mainTab==="cheer")  return <VCheer state={state}/>;
+    if(mainTab==="rank")   return <VRank ranked={ranked} state={state}/>;
     if(sbTab==="entry")     return <VEntry state={state}/>;
     if(sbTab==="cheershow") return <VCheerShow state={state}/>;
     if(sbTab==="좌석")      return <VSeat state={state}/>;
@@ -759,6 +805,9 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
         <button className="menu-btn" onClick={()=>setSbOpen(true)}>☰</button>
         <button className={`v-main-tab${mainTab==="dash"?" on":""}`} onClick={()=>pickMainTab("dash")}>
           <span className="vt-icon">🏠</span><span className="vt-l">대시보드</span>
+        </button>
+        <button className={`v-main-tab${mainTab==="cheer"?" on":""}`} onClick={()=>pickMainTab("cheer")}>
+          <span className="vt-icon">📣</span><span className="vt-l">응원전</span>
         </button>
         <button className={`v-main-tab${mainTab==="rank"?" on":""}`} onClick={()=>pickMainTab("rank")}>
           <span className="vt-icon">🏆</span><span className="vt-l">순위</span>
@@ -817,30 +866,242 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
 
 // ── VSportDetail: 종목별 결과 단일 뷰 ──
 function VSportDetail({sel, state}) {
-  useEffect(()=>{window.scrollTo(0,0);},[sel]);
+  useEffect(()=>{ window.scrollTo(0,0); },[sel]);
 
+  const SPORT_META = {
+    "1학년 8자마라톤": {icon:"⏱",desc:"1학년 10개반 동시 진행 · 8자 줄넘기 개수 측정 · 큰 수가 1위",unit:"개"},
+    "2학년 8자마라톤": {icon:"⏱",desc:"2학년 10개반 동시 진행 · 8자 줄넘기 개수 측정 · 큰 수가 1위",unit:"개"},
+    "장애물달리기":    {icon:"🚧",desc:"학년별 2개조 추첨 · 조 내 1~5위 배점 · 학급 → 팀 합산"},
+    "태풍의눈":        {icon:"🌀",desc:"학년별 2개조 추첨 · 조 내 1~5위 배점 · 학급 → 팀 합산"},
+    "계주":            {icon:"🏃",desc:"학년별 2조 예선 → 각 조 1·2위 결승 · 결승 1~4위 차등 · 예선탈락 동일점수"},
+    "줄다리기":        {icon:"🪢",desc:"팀 토너먼트 · 학급당 10명 · 팀당 40명 출전"},
+    "2/3인 각":        {icon:"👯",desc:"팀 토너먼트 · 학급당 교사 포함 6명 (학생회 주관)"},
+    "골때녀":          {icon:"⚽",desc:"이벤트 경기 · 종합점수 미반영"},
+    "피지컬100":       {icon:"🏋️",desc:"개인전 3단계 · 2차진출 +10 · 3차진출 +10 · 우승 +30"},
+  };
+  const meta = SPORT_META[sel]||{icon:"🏅",desc:""};
+
+  // 공통: 경기 전 안내 카드
+  const NotYet = () => (
+    <div>
+      <div className="card" style={{marginBottom:10,background:"#fafaf9"}}>
+        <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:8}}>
+          <span style={{fontSize:36}}>{meta.icon}</span>
+          <div>
+            <div style={{fontWeight:800,fontSize:17,color:"#37352f"}}>{sel}</div>
+            <div style={{fontSize:12,color:"#787671",marginTop:2}}>{meta.desc}</div>
+          </div>
+        </div>
+      </div>
+      <div className="card" style={{textAlign:"center",padding:"40px 20px"}}>
+        <div style={{fontSize:40,marginBottom:14}}>⏳</div>
+        <div style={{fontWeight:700,fontSize:16,color:"#37352f",marginBottom:6}}>
+          경기가 아직 실시되지 않았습니다
+        </div>
+        <div style={{fontSize:13,color:"#9b9a97"}}>
+          운영자가 결과를 입력하면 자동으로 표시됩니다
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── 이벤트 종목 ──
+  if(EVENT_SPORTS.includes(sel)) return (
+    <div className="card" style={{background:"#fef3c7",border:"1px solid #fde68a"}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
+        <span style={{fontSize:32}}>🎪</span>
+        <div>
+          <div style={{fontWeight:800,fontSize:17,color:"#92400e"}}>{sel}</div>
+          <div style={{fontSize:12,color:"#a16207"}}>이벤트 경기 · 종합점수 미반영</div>
+        </div>
+      </div>
+      <div style={{fontSize:14,color:"#78350f",lineHeight:1.7}}>
+        🎽 1학년 학생 vs 1학년 교사<br/>
+        🎽 2학년 학생 vs 2학년 교사
+      </div>
+    </div>
+  );
+
+  // ── 8자마라톤 ──
+  if(TIME_TRIAL_SPORTS.includes(sel)) {
+    const counts = state.timeTrial?.[sel]||{};
+    const ranks  = getTimeTrialRanks(counts);
+    const sorted = Object.entries(counts).filter(([,c])=>parseCount(c)>=0)
+                    .sort((a,b)=>parseCount(b[1])-parseCount(a[1]));
+    if(!sorted.length) return <NotYet/>;
+    const teamSum={};
+    for(const[cls,rank] of Object.entries(ranks)){
+      const t=classToTeam(cls);
+      teamSum[t]=(teamSum[t]||0)+(TT_PTS[rank-1]||0);
+    }
+    return(<>
+      <div style={{fontSize:14,fontWeight:700,color:"#37352f",marginBottom:8}}>{meta.icon} {sel}</div>
+      <div className="card" style={{marginBottom:8}}>
+        <div style={{fontSize:11,color:"#787671",fontWeight:700,marginBottom:8}}>팀별 합산</div>
+        {TEAM_NAMES.filter(t=>teamSum[t]).sort((a,b)=>teamSum[b]-teamSum[a]).map(t=>(
+          <div key={t} className="rrow"><TeamBadge team={t} size={24}/>
+            <span style={{flex:1,fontWeight:700}}>{t}팀</span>
+            <span style={{fontWeight:900,color:TEAM_COLORS[t],fontSize:16}}>{teamSum[t]}점</span>
+          </div>
+        ))}
+      </div>
+      <div className="card">
+        <div style={{fontSize:11,color:"#787671",fontWeight:700,marginBottom:8}}>학급별 결과</div>
+        {sorted.map(([c,v])=>{const team=classToTeam(c);const rank=ranks[c];return(
+          <div key={c} className="rrow">
+            <span style={{fontSize:14,minWidth:28,textAlign:"center"}}>
+              {rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":`${rank}위`}
+            </span>
+            <TeamBadge team={team} size={20}/>
+            <span style={{flex:1,fontSize:13}}>{c}반</span>
+            <span style={{fontFamily:"monospace",fontWeight:700,color:"#787671",marginRight:6}}>{v}개</span>
+            <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{TT_PTS[rank-1]}점</Chip>
+          </div>
+        );})}
+      </div>
+    </>);
+  }
+
+  // ── 조별 종목 (장애물달리기, 태풍의눈) ──
+  if(GRP_SPORTS.includes(sel)) {
+    const gs = state.groupScores?.[sel]||{};
+    const hasData = GRP_KEYS.some(gk=>Object.keys(gs[gk]||{}).length>0);
+    if(!hasData) return <NotYet/>;
+    const teamSum={};
+    for(const gk of GRP_KEYS)
+      for(const [cls,rank] of Object.entries(gs[gk]||{})){
+        const t=classToTeam(cls);
+        teamSum[t]=(teamSum[t]||0)+(GRP_PTS[rank-1]||0);
+      }
+    return(<>
+      <div style={{fontSize:14,fontWeight:700,color:"#37352f",marginBottom:8}}>{meta.icon} {sel}</div>
+      <div className="card" style={{marginBottom:8}}>
+        <div style={{fontSize:11,color:"#787671",fontWeight:700,marginBottom:8}}>팀별 합산</div>
+        {TEAM_NAMES.filter(t=>teamSum[t]).sort((a,b)=>teamSum[b]-teamSum[a]).map(t=>(
+          <div key={t} className="rrow"><TeamBadge team={t} size={24}/>
+            <span style={{flex:1,fontWeight:700}}>{t}팀</span>
+            <span style={{fontWeight:900,color:TEAM_COLORS[t],fontSize:16}}>{teamSum[t]}점</span>
+          </div>
+        ))}
+      </div>
+      {GRP_KEYS.map(gk=>{
+        const gr=gs[gk]||{};
+        if(!Object.keys(gr).length) return null;
+        return(<div key={gk} className="card" style={{marginBottom:8}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:8}}>{GRP_DEF[gk].name}</div>
+          {Object.entries(gr).sort((a,b)=>a[1]-b[1]).map(([cls,rank])=>{
+            const team=classToTeam(cls);
+            return(<div key={cls} className="rrow">
+              <span style={{fontSize:14,minWidth:28,textAlign:"center"}}>
+                {rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":`${rank}위`}
+              </span>
+              <TeamBadge team={team} size={20}/>
+              <span style={{flex:1,fontSize:13}}>{cls}반 ({team}팀)</span>
+              <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{GRP_PTS[rank-1]}점</Chip>
+            </div>);
+          })}
+        </div>);
+      })}
+    </>);
+  }
+
+  // ── 계주 ──
+  if(sel==="계주") {
+    const gs = state.groupScores?.["계주"]||{};
+    const rf = state.relayFinals||{};
+    const hasData = GRP_KEYS.some(gk=>Object.keys(gs[gk]||{}).length>0);
+    if(!hasData) return <NotYet/>;
+    const teamSum={};
+    const finalSet=new Set([...Object.keys(rf.grade1||{}),...Object.keys(rf.grade2||{})]);
+    for(const gk of GRP_KEYS)
+      for(const [cls,rank] of Object.entries(gs[gk]||{}))
+        if(!finalSet.has(cls)){const t=classToTeam(cls);teamSum[t]=(teamSum[t]||0)+RELAY_ELIM_PTS;}
+    for(const gk of ["grade1","grade2"])
+      for(const [cls,rank] of Object.entries(rf[gk]||{})){
+        const t=classToTeam(cls);
+        teamSum[t]=(teamSum[t]||0)+(RELAY_FINAL_PTS[rank-1]||0);
+      }
+    return(<>
+      <div style={{fontSize:14,fontWeight:700,color:"#37352f",marginBottom:8}}>🏃 계주</div>
+      <div className="card" style={{marginBottom:8}}>
+        <div style={{fontSize:11,color:"#787671",fontWeight:700,marginBottom:8}}>팀별 합산</div>
+        {TEAM_NAMES.filter(t=>teamSum[t]).sort((a,b)=>teamSum[b]-teamSum[a]).map(t=>(
+          <div key={t} className="rrow"><TeamBadge team={t} size={24}/>
+            <span style={{flex:1,fontWeight:700}}>{t}팀</span>
+            <span style={{fontWeight:900,color:TEAM_COLORS[t],fontSize:16}}>{teamSum[t]}점</span>
+          </div>
+        ))}
+      </div>
+      {/* 결승 결과 */}
+      {[{key:"grade1",label:"1학년 결승"},{key:"grade2",label:"2학년 결승"}].map(({key,label})=>(
+        Object.keys(rf[key]||{}).length>0&&(
+          <div key={key} className="card" style={{marginBottom:8}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:8}}>🏆 {label}</div>
+            {Object.entries(rf[key]).sort((a,b)=>a[1]-b[1]).map(([cls,rank])=>{
+              const team=classToTeam(cls);
+              return(<div key={cls} className="rrow">
+                <span style={{fontSize:14,minWidth:28,textAlign:"center"}}>
+                  {rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":`${rank}위`}
+                </span>
+                <TeamBadge team={team} size={20}/>
+                <span style={{flex:1,fontSize:13}}>{cls}반 ({team}팀)</span>
+                <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{RELAY_FINAL_PTS[rank-1]}점</Chip>
+              </div>);
+            })}
+          </div>
+        )
+      ))}
+    </>);
+  }
+
+  // ── 팀 토너먼트 (줄다리기, 2/3인 각) ──
+  if(TEAM_TOURN_SPORTS.includes(sel)) {
+    const br=state.brackets?.[sel]||{};
+    const sr=state.scores?.[sel]||{};
+    const hasBracket=br.drawn&&br.seeds;
+    const hasScore=Object.keys(sr).length>0;
+    if(!hasBracket&&!hasScore) return <NotYet/>;
+    if(hasBracket) return <BracketTree bracket={br} sport={sel}
+      scores={sr} groups={getRankGroups(SPORT_PTS[sel]||[])} state={state}/>;
+    return(<div className="card">
+      {Object.entries(sr).sort((a,b)=>a[1]-b[1]).map(([team,rank])=>(
+        <div key={team} className="rrow">
+          <span style={{fontSize:14,minWidth:28,textAlign:"center"}}>
+            {rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":`${rank}위`}
+          </span>
+          <TeamBadge team={team} size={22}/>
+          <span style={{flex:1,fontWeight:600}}>{team}팀</span>
+          <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>
+            {(SPORT_PTS[sel]||[])[rank-1]||0}점
+          </Chip>
+        </div>
+      ))}
+    </div>);
+  }
+
+  // ── 피지컬100 ──
   if(sel==="피지컬100") {
-    const p100s=state.p100||{};
-    const stats=(gk)=>{
-      const r1=p100s.r1?.[gk]||{};
-      const elim=p100s.r2elim?.[gk]||[];
-      const r3=p100s.r3?.[gk]||{};
+    const p=state.p100||{};
+    const stats=gk=>{
+      const r1=p.r1?.[gk]||{};
+      const elim=p.r2elim?.[gk]||[];
+      const r3=p.r3?.[gk]||{};
       const qualifiers=Object.entries(r1).filter(([,w])=>w?.cls);
       const survivors=qualifiers.filter(([hk])=>!elim.includes(hk));
       const champion=r3.final&&r1[r3.final]?.cls?r1[r3.final]:null;
       return{qualifiers,survivors,champion};
     };
     const sM=stats("m"),sF=stats("f");
-    const empty=sM.qualifiers.length===0&&sF.qualifiers.length===0;
-    if(empty) return <div className="card" style={{color:"#9b9a97",textAlign:"center",padding:40}}>경기 시작 전</div>;
+    if(!sM.qualifiers.length&&!sF.qualifiers.length) return <NotYet/>;
     return(<>
       {[{k:"m",l:"🏃‍♂️ 남자",s:sM},{k:"f",l:"🏃‍♀️ 여자",s:sF}].map(({k,l,s})=>(
-        s.qualifiers.length>0&&(<div key={k} style={{marginBottom:18}}>
+        s.qualifiers.length>0&&(<div key={k} style={{marginBottom:14}}>
           <div className="sl">{l}</div>
-          {s.champion&&(<div className="card" style={{background:"linear-gradient(135deg,#fbbf24,#f59e0b)",border:"none",marginBottom:8}}>
+          {s.champion&&(<div className="card" style={{background:"linear-gradient(135deg,#fbbf24,#f59e0b)",
+            border:"none",marginBottom:8}}>
             <div style={{display:"flex",alignItems:"center",gap:12}}>
-              <span style={{fontSize:32}}>🏆</span>
-              <div><div style={{fontSize:11,fontWeight:700,color:"#78350f"}}>최종 우승</div>
+              <span style={{fontSize:30}}>🏆</span>
+              <div><div style={{fontSize:11,fontWeight:700,color:"#78350f"}}>우승 +{P100_PTS.win}점</div>
                 <div style={{fontSize:18,fontWeight:900,color:"#1c1917"}}>{s.champion.name}</div>
                 <div style={{fontSize:12,color:"#78350f"}}>{s.champion.cls}반 ({classToTeam(s.champion.cls)}팀)</div>
               </div>
@@ -850,10 +1111,14 @@ function VSportDetail({sel, state}) {
             {s.qualifiers.map(([hk,w])=>{
               const team=classToTeam(w.cls);
               const isElim=!s.survivors.find(([h])=>h===hk);
-              return(<div key={hk} className="rrow" style={{opacity:isElim?.5:1}}>
+              return(<div key={hk} className="rrow" style={{opacity:isElim?.55:1}}>
                 <TeamBadge team={team} size={20}/>
-                <span style={{flex:1,fontSize:13,color:"#37352f"}}>{w.name} <span style={{fontSize:11,color:"#9b9a97"}}>({w.cls}반)</span></span>
-                <span style={{fontSize:11,color:isElim?"#9ca3af":"#16a34a"}}>{isElim?"탈락":"생존"}</span>
+                <span style={{flex:1,fontSize:13,color:"#37352f"}}>{w.name}
+                  <span style={{fontSize:11,color:"#9b9a97",marginLeft:4}}>({w.cls}반)</span>
+                </span>
+                <span style={{fontSize:11,color:isElim?"#9b9a97":"#16a34a",fontWeight:600}}>
+                  {isElim?"2차탈락":"3차진출"}
+                </span>
               </div>);
             })}
           </div>
@@ -862,62 +1127,9 @@ function VSportDetail({sel, state}) {
     </>);
   }
 
-  if(EVENT_SPORTS.includes(sel)) return(
-    <div className="card" style={{background:"#fef3c7",border:"1px solid #fde68a"}}>
-      <span style={{fontSize:26}}>🎪</span>
-      <div style={{fontWeight:800,fontSize:16,color:"#92400e",marginTop:6}}>{sel}</div>
-      <div style={{fontSize:12,color:"#a16207"}}>이벤트 경기 · 종합점수 미반영</div>
-      <div style={{marginTop:10,fontSize:14,color:"#78350f",lineHeight:1.6}}>
-        • 1학년 학생 vs 1학년 교사<br/>• 2학년 학생 vs 2학년 교사
-      </div>
-    </div>
-  );
-
-  if(TIME_TRIAL_SPORTS.includes(sel)) {
-    const counts=state.timeTrial?.[sel]||{};
-    const ranks=getTimeTrialRanks(counts);
-    const sorted=Object.entries(counts).filter(([,c])=>parseCount(c)>=0).sort((a,b)=>parseCount(b[1])-parseCount(a[1]));
-    if(!sorted.length) return <div className="card" style={{color:"#9b9a97",textAlign:"center",padding:40}}>결과 미입력</div>;
-    const teamSum={};
-    for(const[cls,rank] of Object.entries(ranks)){const t=classToTeam(cls);teamSum[t]=(teamSum[t]||0)+(TIME_TRIAL_PTS[rank-1]||0);}
-    return(<>
-      <div className="card" style={{marginBottom:8}}>
-        {TEAM_NAMES.filter(t=>teamSum[t]).sort((a,b)=>teamSum[b]-teamSum[a]).map(t=>(
-          <div key={t} className="rrow"><TeamBadge team={t} size={24}/>
-            <span style={{flex:1,fontWeight:700}}>{t}팀</span>
-            <span style={{fontWeight:900,color:TEAM_COLORS[t]}}>{teamSum[t]}점</span>
-          </div>
-        ))}
-      </div>
-      <div className="card">
-        {sorted.map(([c,t])=>{const team=classToTeam(c);const rank=ranks[c];return(<div key={c} className="rrow">
-          <span style={{fontSize:14,minWidth:28,textAlign:"center"}}>{rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":`${rank}위`}</span>
-          <TeamBadge team={team} size={20}/><span style={{flex:1,fontSize:13}}>{c}반</span>
-          <span style={{fontFamily:"monospace",fontWeight:600,color:"#787671",marginRight:6}}>{t}개</span>
-          <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{TIME_TRIAL_PTS[rank-1]}점</Chip>
-        </div>);})}
-      </div>
-    </>);
-  }
-
-  const br=state.brackets?.[sel]||{};
-  const sr=state.scores?.[sel]||{};
-  const pts=SPORT_PTS[sel]||[];
-  const groups=getRankGroups(pts);
-  const hasBracket=br.drawn&&br.seeds;
-  if(!Object.keys(sr).length&&!hasBracket) return <div className="card" style={{color:"#9b9a97",textAlign:"center",padding:40}}>결과 미입력</div>;
-  if(hasBracket) return <BracketTree bracket={br} sport={sel} scores={sr} groups={groups} state={state}/>;
-  return(<div className="card">
-    {groups.map((g,gi)=>g.cls.filter(c=>sr[c]).map(c=>{
-      const team=classToTeam(c);
-      return(<div key={c} className="rrow">
-        <span style={{fontSize:14,minWidth:28,textAlign:"center"}}>{gi===0?"🥇":gi===1?"🥈":gi===2?"🥉":`${gi+1}위`}</span>
-        <TeamBadge team={team} size={20}/><span style={{flex:1,fontSize:13}}>{c}반</span>
-        <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{g.pts}점</Chip>
-      </div>);
-    }))}
-  </div>);
+  return <NotYet/>;
 }
+
 
 
 function VDash({cur, next, ranked, state}) {
@@ -1278,7 +1490,7 @@ function VSport({state}) {
             const teamSum={};
             for(const [cls,rank] of Object.entries(ranks)){
               const team=classToTeam(cls);
-              teamSum[team]=(teamSum[team]||0)+(TIME_TRIAL_PTS[rank-1]||0);
+              teamSum[team]=(teamSum[team]||0)+(TT_PTS[rank-1]||0);
             }
             return(<div className="card" style={{marginBottom:12}}>
               <div style={{fontSize:12,fontWeight:700,color:"#6b7280",marginBottom:8}}>팀별 합산</div>
@@ -1303,7 +1515,7 @@ function VSport({state}) {
                 <TeamBadge team={team} size={22}/>
                 <span style={{flex:1,fontWeight:600,color:"#374151"}}>{c}반</span>
                 <span style={{fontWeight:700,color:"#6b7280",fontSize:14,marginRight:6,fontFamily:"monospace"}}>{t}개</span>
-                <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{TIME_TRIAL_PTS[rank-1]}점</Chip>
+                <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{TT_PTS[rank-1]}점</Chip>
               </div>);
             })}
           </div>
@@ -1334,12 +1546,12 @@ function VSport({state}) {
     </>):sel!=="피지컬100"?(()=>{
       const br=state.brackets?.[sel]||{};
       const sr=state.scores?.[sel]||{};
-      const groups=getRankGroups(SPORT_PTS[sel]);
+      const groups=getRankGroups(SPORT_PTS[sel]||[]);
       const hasBracket=br?.drawn;
       const hasManual=Object.keys(sr).length>0;
 
       let rankMap={};
-      if(hasBracket){const rounds=computeBracket(br.seeds||[],br.results||{});rankMap=getBracketRanks(rounds);}
+      if(hasBracket){const rounds=computeBracket((br.seeds||[])||[],(br.results||{})||{});rankMap=getBracketRanks(rounds);}
       else rankMap=sr;
       const teamSum={};
       for(const [cls,rank] of Object.entries(rankMap)){
@@ -1366,7 +1578,7 @@ function VSport({state}) {
         </>)}
         {hasBracket&&subTab==="bracket"&&(<>
           <div className="sl">대진표</div>
-          <BracketTree seeds={br.seeds||[]} results={br.results||{}} readOnly={true}/>
+          <BracketTree seeds={(br.seeds||[])||[]} results={(br.results||{})||{}} readOnly={true}/>
         </>)}
         {(!hasBracket||subTab==="manual")&&hasManual&&(<>
           <div className="sl">학급별 결과</div>
@@ -2683,7 +2895,7 @@ function OTimeTrial({state,update}) {
       const team=classToTeam(cls);
       const rank=ranks[cls];
       const c=counts[cls]||"";
-      const pt=rank?TIME_TRIAL_PTS[rank-1]:null;
+      const pt=rank?TT_PTS[rank-1]:null;
       return(<div key={cls} className="card" style={{marginBottom:6,padding:"10px 14px"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
           {rank?<span style={{fontSize:14,minWidth:30,textAlign:"center",fontWeight:700}}>
@@ -2717,7 +2929,7 @@ function OTimeTrial({state,update}) {
             <TeamBadge team={team} size={22}/>
             <span style={{flex:1,fontWeight:500,color:"#37352f"}}>{cls}반</span>
             <span style={{fontSize:13,color:"#787671",marginRight:6,fontFamily:"monospace",fontWeight:600}}>{counts[cls]}개</span>
-            <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{TIME_TRIAL_PTS[ranks[cls]-1]}점</Chip>
+            <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{TT_PTS[ranks[cls]-1]}점</Chip>
           </div>);
         })}
       </div>
@@ -2773,6 +2985,34 @@ function OPhysical100({ state, update }) {
 // ══════════════════════════════════════════
 //  OPERATOR
 // ══════════════════════════════════════════
+// ── 에러 바운더리 (탭 오류 시 빈화면 대신 에러 표시) ──
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = {error:null}; }
+  static getDerivedStateFromError(e) { return {error:e}; }
+  componentDidCatch(e) { console.error("TabError:", e); }
+  render() {
+    if(this.state.error) return (
+      <div style={{padding:30,textAlign:"center",color:"#eb5757",fontFamily:"inherit"}}>
+        <div style={{fontSize:30,marginBottom:10}}>⚠️</div>
+        <div style={{fontWeight:700,fontSize:16,marginBottom:6}}>오류가 발생했어요</div>
+        <div style={{fontSize:12,color:"#9b9a97",marginBottom:16}}>
+          {this.state.error.message}
+        </div>
+        <button onClick={()=>this.setState({error:null})}
+          style={{padding:"8px 20px",background:"#37352f",color:"#fff",border:"none",
+            borderRadius:6,cursor:"pointer",fontFamily:"inherit",fontSize:13}}>
+          다시 시도
+        </button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
+function SafeTab({children}) {
+  return <ErrorBoundary>{children}</ErrorBoundary>;
+}
+
 function OperatorPage({ state, update, role, onLogout }) {
   const [tab, setTab] = useState("sched");
   const [sbOpen, setSbOpen] = useState(false);
@@ -2860,18 +3100,23 @@ function OperatorPage({ state, update, role, onLogout }) {
           </div>
 
           <div className="content">
-            {tab==="p100"      && <OPhysical100 state={state} update={update}/>}
-            {tab==="timetrial" && <OTimeTrial   state={state} update={update}/>}
-            {tab==="bracket"   && <OBracket     state={state} update={update}/>}
-            {tab==="score"     && <OScore       state={state} update={update}/>}
-            {tab==="entry"     && <OEntry       state={state} update={update}/>}
-            {tab==="cheershow" && <OCheerShow   state={state} update={update}/>}
-            {tab==="cheer"     && <OCheer       state={state} update={update}/>}
-            {tab==="sched"     && <OSched       state={state} update={update}/>}
-            {tab==="call"      && <OCall        state={state} update={update}/>}
-            {tab==="music"     && <OMusic       state={state} update={update} playTrack={playTrack} playingId={playingId}/>}
-            {tab==="seat"      && <OSeat        state={state} update={update}/>}
-            {tab==="rolesetup" && <ORoleSetup   state={state} update={update}/>}
+            <SafeTab>
+              {tab==="p100"      && <OPhysical100 state={state} update={update}/>}
+              {tab==="timetrial" && <OTimeTrial   state={state} update={update}/>}
+              {tab==="bracket"   && <OBracket     state={state} update={update}/>}
+              {tab==="score"     && <OScore       state={state} update={update}/>}
+              {tab==="obstacle" && <OGroupSport sport="장애물달리기" state={state} update={update}/>}
+              {tab==="typhoon"  && <OGroupSport sport="태풍의눈"    state={state} update={update}/>}
+              {tab==="relay"    && <ORelay                          state={state} update={update}/>}
+              {tab==="entry"     && <OEntry       state={state} update={update}/>}
+              {tab==="cheershow" && <OCheerShow   state={state} update={update}/>}
+              {tab==="cheer"     && <OCheer       state={state} update={update}/>}
+              {tab==="sched"     && <OSched       state={state} update={update}/>}
+              {tab==="call"      && <OCall        state={state} update={update}/>}
+              {tab==="music"     && <OMusic       state={state} update={update} playTrack={playTrack} playingId={playingId}/>}
+              {tab==="seat"      && <OSeat        state={state} update={update}/>}
+              {tab==="rolesetup" && <ORoleSetup   state={state} update={update}/>}
+            </SafeTab>
           </div>
         </main>
       </div>
@@ -2905,12 +3150,12 @@ function OBracket({state,update}) {
 
   const setResult=(matchId,winner)=>{
     update(s=>{
-      const cur=s.brackets[sel]||{};
+      const cur=s.brackets?.[sel]||{};
       return{...s,brackets:{...s.brackets,[sel]:{...cur,results:{...(cur.results||{}),[matchId]:winner}}}};
     });
   };
 
-  const rounds=br.drawn?computeBracket(br.seeds||[],br.results||{}):[];
+  const rounds=br.drawn?computeBracket((br.seeds||[])||[],(br.results||{})||{}):[];
 
   return(<>
     {/* 종목 선택 (8자마라톤 제외) */}
@@ -2975,7 +3220,7 @@ function OBracket({state,update}) {
       <div>
         <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center"}}>
           <div style={{flex:1,fontSize:14,fontWeight:700,color:"#111827"}}>
-            {sel} · {br.seeds?.filter(s=>s!=="BYE").length}팀 대진표
+            {sel} · {(br.seeds||[])?.filter(s=>s!=="BYE").length}팀 대진표
           </div>
           <button onClick={resetBracket} className="obtn danger" style={{fontSize:12,padding:"6px 12px"}}>
             🔄 재추첨
@@ -2987,8 +3232,8 @@ function OBracket({state,update}) {
           팀 이름 탭 → 승자 선택 / 다시 탭 → 취소
         </div>
         <BracketTree
-          seeds={br.seeds||[]}
-          results={br.results||{}}
+          seeds={(br.seeds||[])||[]}
+          results={(br.results||{})||{}}
           onResult={setResult}
           readOnly={false}
         />
@@ -3024,7 +3269,7 @@ function OBracket({state,update}) {
 function OScore({state,update}) {
   const [sel,setSel]=useState(SPORTS[0]);
   const srank=state.scores?.[sel]||{};
-  const groups=getRankGroups(SPORT_PTS[sel]);
+  const groups=getRankGroups(SPORT_PTS[sel]||[]);
   const hasBracket=state.brackets?.[sel]?.drawn;
 
   const setRank=(cls,rank)=>update(s=>{
@@ -3412,6 +3657,289 @@ function OMusic({state,update,playTrack,playingId}) {
   </>);
 }
 
+
+// ════════════════════════════════════════════════════════
+//  조별 순위 종목 운영자 컴포넌트 (장애물달리기, 태풍의눈)
+// ════════════════════════════════════════════════════════
+function OGroupSport({ sport, state, update }) {
+  const gs = state.groupScores?.[sport]||{};
+  const [selGk, setSelGk] = useState("g1");
+
+  const setRank = (gk, cls, rank) => update(s => {
+    const cur = s.groupScores?.[sport]?.[gk]?.[cls];
+    const newG = { ...(s.groupScores?.[sport]?.[gk]||{}) };
+    if(cur===rank) delete newG[cls];
+    else {
+      // 같은 순위 이미 있으면 해제
+      for(const [c,r] of Object.entries(newG)) { if(r===rank) delete newG[c]; }
+      newG[cls] = rank;
+    }
+    return { ...s, groupScores:{ ...(s.groupScores||{}),
+      [sport]:{ ...(s.groupScores?.[sport]||{}), [gk]:newG } } };
+  });
+
+  const grp = GRP_DEF[selGk];
+  const gResult = gs[selGk]||{};
+  const takenRanks = Object.values(gResult);
+  const doneCount = GRP_KEYS.reduce((n,gk)=>n+Object.keys(gs[gk]||{}).length,0);
+
+  return(<>
+    <div className="page-title">{sport==="장애물달리기"?"🚧":"🌀"} {sport}</div>
+    <div className="page-desc">
+      4개 조 · 각 조 5개반 · 조 내 순위 입력 → 팀 점수 합산
+    </div>
+    <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,
+      padding:"10px 14px",marginBottom:12,fontSize:13,color:"#1d4ed8"}}>
+      배점: 1위 100pt · 2위 90pt · 3위 80pt · 4위 70pt · 5위 60pt<br/>
+      <span style={{fontSize:11}}>총 {doneCount}/20개 반 입력 완료</span>
+    </div>
+
+    {/* 조 선택 탭 */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}}>
+      {GRP_KEYS.map(gk=>{
+        const done = Object.keys(gs[gk]||{}).length;
+        const g = GRP_DEF[gk];
+        return (
+          <button key={gk} onClick={()=>setSelGk(gk)}
+            className={`obtn${selGk===gk?" on":""}`}
+            style={{padding:"9px 8px",fontSize:13,display:"flex",
+              flexDirection:"column",alignItems:"center",gap:2}}>
+            <span style={{fontWeight:800}}>{g.name}</span>
+            <span style={{fontSize:10,opacity:.8}}>{done}/5 입력</span>
+          </button>
+        );
+      })}
+    </div>
+
+    {/* 순위 입력 */}
+    <div style={{fontSize:12,color:"#9b9a97",marginBottom:8}}>
+      {grp.name} ({grp.cls.join("반 ")}반) — 각 반의 순위를 선택하세요
+    </div>
+    {grp.cls.map(cls=>{
+      const team = classToTeam(cls);
+      const curRank = gResult[cls];
+      return(
+        <div key={cls} className="card" style={{marginBottom:6,padding:"10px 12px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+            <TeamBadge team={team} size={24}/>
+            <span style={{fontWeight:700,color:"#37352f",flex:1}}>{cls}반 ({team}팀)</span>
+            {curRank&&<Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>
+              {curRank}위 +{GRP_PTS[curRank-1]}pt
+            </Chip>}
+          </div>
+          <div style={{display:"flex",gap:5}}>
+            {[1,2,3,4,5].map(r=>{
+              const isMine = curRank===r;
+              const isTaken = takenRanks.includes(r)&&!isMine;
+              return(
+                <button key={r} onClick={()=>!isTaken&&setRank(selGk,cls,r)}
+                  style={{flex:1,padding:"9px 0",borderRadius:6,border:"1.5px solid",
+                    borderColor: isMine?TEAM_COLORS[team]:isTaken?"#f3f4f6":"#e7e7e5",
+                    background: isMine?TEAM_COLORS[team]:isTaken?"#f9fafb":"#fff",
+                    color: isMine?"#fff":isTaken?"#d1d5db":"#37352f",
+                    cursor:isTaken?"not-allowed":"pointer",
+                    fontWeight:700,fontSize:14,fontFamily:"inherit"}}>
+                  {r}위
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    })}
+
+    {/* 조 결과 요약 */}
+    {Object.keys(gResult).length===5&&(
+      <div className="card" style={{background:"#f0fdf4",borderColor:"#bbf7d0"}}>
+        <div style={{fontSize:12,fontWeight:700,color:"#15803d",marginBottom:8}}>
+          ✅ {grp.name} 완료
+        </div>
+        {Object.entries(gResult).sort((a,b)=>a[1]-b[1]).map(([cls,rank])=>{
+          const team=classToTeam(cls);
+          return(<div key={cls} className="rrow">
+            <span style={{minWidth:28,fontSize:14}}>{rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":`${rank}위`}</span>
+            <TeamBadge team={team} size={20}/>
+            <span style={{flex:1,fontWeight:600}}>{cls}반</span>
+            <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{GRP_PTS[rank-1]}pt</Chip>
+          </div>);
+        })}
+      </div>
+    )}
+  </>);
+}
+
+// ════════════════════════════════════════════════════════
+//  계주 운영자 컴포넌트 (예선 4조 + 결승 학년별)
+// ════════════════════════════════════════════════════════
+function ORelay({ state, update }) {
+  const gs = state.groupScores?.["계주"]||{};
+  const rf = state.relayFinals||{};
+  const [tab, setTab] = useState("prelim");
+  const [selGk, setSelGk] = useState("g1");
+
+  const setRank = (gk, cls, rank) => update(s => {
+    const cur = s.groupScores?.["계주"]?.[gk]?.[cls];
+    const newG = { ...(s.groupScores?.["계주"]?.[gk]||{}) };
+    if(cur===rank) delete newG[cls];
+    else {
+      for(const [c,r] of Object.entries(newG)) { if(r===rank) delete newG[c]; }
+      newG[cls] = rank;
+    }
+    return { ...s, groupScores:{ ...(s.groupScores||{}),
+      "계주":{ ...(s.groupScores?.["계주"]||{}), [gk]:newG } } };
+  });
+
+  const setFinalRank = (gradeKey, cls, rank) => update(s => {
+    const cur = s.relayFinals?.[gradeKey]?.[cls];
+    const newF = { ...(s.relayFinals?.[gradeKey]||{}) };
+    if(cur===rank) delete newF[cls];
+    else {
+      for(const [c,r] of Object.entries(newF)) { if(r===rank) delete newF[c]; }
+      newF[cls] = rank;
+    }
+    return { ...s, relayFinals:{ ...(s.relayFinals||{}), [gradeKey]:newF } };
+  });
+
+  // 결승 진출자: 각 조 상위 2팀
+  const getFinalists = (gradeGroups) =>
+    gradeGroups.flatMap(gk => {
+      const gr = gs[gk]||{};
+      return Object.entries(gr).filter(([,r])=>r<=2).sort((a,b)=>a[1]-b[1]).map(([cls])=>cls);
+    });
+
+  const grade1Finalists = getFinalists(["g1","g2"]);
+  const grade2Finalists = getFinalists(["g3","g4"]);
+
+  const grp = GRP_DEF[selGk];
+  const gResult = gs[selGk]||{};
+  const takenRanks = Object.values(gResult);
+
+  return(<>
+    <div className="page-title">🏃 계주</div>
+    <div className="page-desc">예선 4조 → 각 조 1·2위 결승 진출 → 학년별 결승</div>
+
+    <div style={{display:"flex",gap:8,marginBottom:12}}>
+      <button onClick={()=>setTab("prelim")} className={`obtn${tab==="prelim"?" on":""}`} style={{flex:1}}>
+        📋 예선 결과 입력
+      </button>
+      <button onClick={()=>setTab("final")} className={`obtn${tab==="final"?" on":""}`} style={{flex:1}}>
+        🏆 결승 결과 입력
+      </button>
+    </div>
+
+    {tab==="prelim"&&(<>
+      <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,
+        padding:"10px 14px",marginBottom:12,fontSize:13,color:"#1d4ed8"}}>
+        각 조 1·2위 → 결승 진출 | 3·4·5위 → 예선 탈락 ({RELAY_ELIM_PTS}pt 동일)
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}}>
+        {GRP_KEYS.map(gk=>{
+          const done = Object.keys(gs[gk]||{}).length;
+          const g = GRP_DEF[gk];
+          return(
+            <button key={gk} onClick={()=>setSelGk(gk)}
+              className={`obtn${selGk===gk?" on":""}`}
+              style={{padding:"9px 8px",fontSize:13,display:"flex",
+                flexDirection:"column",alignItems:"center",gap:2}}>
+              <span style={{fontWeight:800}}>{g.name}</span>
+              <span style={{fontSize:10,opacity:.8}}>{done}/5 입력</span>
+            </button>
+          );
+        })}
+      </div>
+      {grp.cls.map(cls=>{
+        const team=classToTeam(cls);
+        const curRank=gResult[cls];
+        const isAdv=curRank&&curRank<=2;
+        return(
+          <div key={cls} className="card" style={{marginBottom:6,padding:"10px 12px",
+            background:isAdv?"#f0fdf4":"#fff",borderColor:isAdv?"#bbf7d0":"#e7e7e5"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+              <TeamBadge team={team} size={24}/>
+              <span style={{fontWeight:700,flex:1}}>{cls}반 ({team}팀)</span>
+              {curRank&&<span style={{fontSize:13,fontWeight:800,
+                color:isAdv?"#16a34a":"#9b9a97"}}>
+                {isAdv?"🏅 결승 진출":"예선 탈락"} ({curRank}위)
+              </span>}
+            </div>
+            <div style={{display:"flex",gap:5}}>
+              {[1,2,3,4,5].map(r=>{
+                const isMine=curRank===r;
+                const isTaken=takenRanks.includes(r)&&!isMine;
+                return(
+                  <button key={r} onClick={()=>!isTaken&&setRank(selGk,cls,r)}
+                    style={{flex:1,padding:"9px 0",borderRadius:6,border:"1.5px solid",
+                      borderColor:isMine?TEAM_COLORS[team]:isTaken?"#f3f4f6":"#e7e7e5",
+                      background:isMine?TEAM_COLORS[team]:isTaken?"#f9fafb":"#fff",
+                      color:isMine?"#fff":isTaken?"#d1d5db":"#37352f",
+                      cursor:isTaken?"not-allowed":"pointer",
+                      fontWeight:700,fontSize:14,fontFamily:"inherit"}}>
+                    {r}위
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </>)}
+
+    {tab==="final"&&(
+      [
+        {key:"grade1", label:"1학년 결승", finalists:grade1Finalists},
+        {key:"grade2", label:"2학년 결승", finalists:grade2Finalists},
+      ].map(({key,label,finalists})=>(
+        <div key={key} style={{marginBottom:20}}>
+          <div className="sl">{label}</div>
+          {finalists.length<4?(
+            <div className="card" style={{color:"#9b9a97",textAlign:"center",padding:30}}>
+              {label.replace("결승","예선")}을 먼저 완료하세요<br/>
+              <span style={{fontSize:12}}>(각 조 1·2위 총 4팀 필요 · 현재 {finalists.length}팀)</span>
+            </div>
+          ):(
+            <div>
+              {finalists.map(cls=>{
+                const team=classToTeam(cls);
+                const curRank=rf[key]?.[cls];
+                const takenF=Object.values(rf[key]||{});
+                return(
+                  <div key={cls} className="card" style={{marginBottom:6,padding:"10px 12px"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                      <TeamBadge team={team} size={24}/>
+                      <span style={{fontWeight:700,flex:1}}>{cls}반 ({team}팀)</span>
+                      {curRank&&<Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>
+                        {curRank}위 +{RELAY_FINAL_PTS[curRank-1]}pt
+                      </Chip>}
+                    </div>
+                    <div style={{display:"flex",gap:5}}>
+                      {[1,2,3,4].map(r=>{
+                        const isMine=curRank===r;
+                        const isTaken=takenF.includes(r)&&!isMine;
+                        return(
+                          <button key={r} onClick={()=>!isTaken&&setFinalRank(key,cls,r)}
+                            style={{flex:1,padding:"9px 0",borderRadius:6,border:"1.5px solid",
+                              borderColor:isMine?TEAM_COLORS[team]:isTaken?"#f3f4f6":"#e7e7e5",
+                              background:isMine?TEAM_COLORS[team]:isTaken?"#f9fafb":"#fff",
+                              color:isMine?"#fff":isTaken?"#d1d5db":"#37352f",
+                              cursor:isTaken?"not-allowed":"pointer",
+                              fontWeight:700,fontSize:14,fontFamily:"inherit"}}>
+                            {r}위
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ))
+    )}
+  </>);
+}
+
+
 // ── 역할별 비밀번호 설정 (운영자 전용) ──
 function ORoleSetup({state, update}) {
   const roles = state.roles || {};
@@ -3728,30 +4256,50 @@ function App() {
   return (
     <div>
       {showPwModal && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",zIndex:100,
-          display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
-          onClick={()=>{setShowPwModal(false);setPwErr(false);}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:12,
-            padding:24,width:"100%",maxWidth:360,fontFamily:"'Noto Sans KR',sans-serif"}}>
-            <div style={{fontWeight:900,fontSize:18,color:"#37352f",marginBottom:4}}>
-              🔐 운영자 / 채점 모드
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:100,
+          display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
+          onClick={()=>{setShowPwModal(false);setPwErr(false);setPw("");}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,
+            padding:22,width:"100%",maxWidth:380,fontFamily:"'Noto Sans KR',sans-serif",
+            boxShadow:"0 20px 60px rgba(0,0,0,.25)"}}>
+            <div style={{fontWeight:900,fontSize:17,color:"#37352f",marginBottom:4}}>🔐 모드 선택</div>
+            <div style={{fontSize:12,color:"#9b9a97",marginBottom:14}}>
+              역할을 선택하고 비밀번호를 입력하세요
             </div>
-            <div style={{fontSize:13,color:"#9b9a97",marginBottom:16}}>비밀번호를 입력하세요</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:14}}>
+              {[
+                {id:"operator",icon:"👑",l:"총괄 운영자",desc:"모든 기능"},
+                {id:"bracket", icon:"📋",l:"대진표 담당", desc:"대진표·추첨"},
+                {id:"score",   icon:"✏️", l:"채점·점수입력",desc:"점수·응원채점"},
+                {id:"mc",      icon:"🎤",l:"MC·입장식",  desc:"입장·응원진행"},
+              ].map(r=>(
+                <div key={r.id} style={{padding:"10px 8px",borderRadius:8,
+                  border:"1.5px solid #e7e7e5",background:"#fafaf9",textAlign:"left"}}>
+                  <div style={{fontSize:18,marginBottom:3}}>{r.icon}</div>
+                  <div style={{fontSize:12,fontWeight:700,color:"#37352f"}}>{r.l}</div>
+                  <div style={{fontSize:10,color:"#9b9a97"}}>{r.desc}</div>
+                </div>
+              ))}
+            </div>
             <input type="password" value={pw}
               onChange={e=>{setPw(e.target.value);setPwErr(false);}}
               onKeyDown={e=>e.key==="Enter"&&tryLogin()}
-              placeholder="비밀번호" className="oinput"
-              style={{marginBottom:8,fontSize:16,borderColor:pwErr?"#eb5757":"#e7e7e5"}}
+              placeholder="비밀번호 입력 후 로그인" className="oinput"
+              style={{marginBottom:8,fontSize:15,borderColor:pwErr?"#eb5757":"#e7e7e5"}}
               autoFocus/>
-            {pwErr && <div style={{color:"#eb5757",fontSize:12,marginBottom:8}}>⚠️ 비밀번호가 틀렸습니다</div>}
-            <div style={{display:"flex",gap:8,marginBottom:8}}>
+            {pwErr&&<div style={{color:"#eb5757",fontSize:12,marginBottom:8}}>
+              ⚠️ 비밀번호가 틀렸습니다
+            </div>}
+            <div style={{display:"flex",gap:8}}>
               <button onClick={()=>{setShowPwModal(false);setPw("");setPwErr(false);}}
-                className="obtn" style={{flex:1,padding:"10px 0"}}>취소</button>
+                className="obtn" style={{flex:1,padding:"11px 0"}}>취소</button>
               <button onClick={tryLogin}
-                className="obtn primary" style={{flex:1,padding:"10px 0"}}>🚀 입장</button>
+                className="obtn primary" style={{flex:1,padding:"11px 0",fontSize:14}}>
+                🚀 로그인
+              </button>
             </div>
-            <div style={{fontSize:11,color:"#bcbbb6",textAlign:"center"}}>
-              비밀번호는 총괄 운영자가 설정합니다
+            <div style={{fontSize:11,color:"#bcbbb6",textAlign:"center",marginTop:10,lineHeight:1.5}}>
+              총괄 운영자: 1234 · 채점·MC 비번은 운영자가 🔑 에서 설정
             </div>
           </div>
         </div>
