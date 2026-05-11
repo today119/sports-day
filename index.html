@@ -805,6 +805,7 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
   );
 }
 
+
 // ── VSportDetail: 종목별 결과 단일 뷰 ──
 function VSportDetail({sel, state}) {
   useEffect(()=>{window.scrollTo(0,0);},[sel]);
@@ -3752,7 +3753,7 @@ function App() {
         </div>
       )}
       {isOp
-        ? <OperatorPage state={state} update={update} onLogout={()=>setIsOp(false)}/>
+        ? <OperatorPage state={state} update={update} role={role} onLogout={()=>{setIsOp(false);setRole("operator");}}/>
         : <ViewerPage   state={state} onOpClick={()=>setShowPwModal(true)} onRefresh={refresh} refreshing={refreshing}/>
       }
     </div>
