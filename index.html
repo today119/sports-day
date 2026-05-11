@@ -1404,59 +1404,68 @@ function BracketTree({bracket, sport, scores, groups, state}) {
       <div style={{
         border:"2px solid",
         borderColor: isDone?"#16a34a":"#e7e7e5",
-        borderRadius:8, background:"#fff", padding:6, marginBottom:6
+        borderRadius:8, background:"#fff", padding:6, marginBottom:0
       }}>
-        <div style={{fontSize:10,fontWeight:700,color:"#9b9a97",marginBottom:4,letterSpacing:.5}}>
-          {m.label}
-        </div>
-        {[m.a, m.b].map((t,i)=>{
-          const isWinner = m.winner===t;
-          const isLoser  = m.winner && m.winner!==t;
-          return(
-            <div key={i} style={{
-              display:"flex", alignItems:"center", gap:6,
-              padding:"6px 8px", borderRadius:5,
-              background: isWinner?"#dcfce7":isLoser?"#fafaf9":"transparent",
-              border: isWinner?"1.5px solid #16a34a":"1.5px solid transparent",
-              opacity: isLoser?.55:1, marginBottom: i===0?2:0
-            }}>
-              {t && t!=="?" ? (<>
-                <TeamBadge team={t} size={18}/>
-                <span style={{fontWeight:700,fontSize:13,color:"#37352f"}}>{t}팀</span>
-                {isWinner&&<span style={{marginLeft:"auto",fontSize:11,color:"#16a34a",fontWeight:800}}>✓</span>}
-              </>) : (
-                <span style={{fontSize:11,color:"#bcbbb6"}}>경기 대기</span>
-              )}
-            </div>
-          );
-        })}
+        {[m.a, m.b].map((t,i)=>(
+          <div key={i} style={{
+            display:"flex", alignItems:"center", gap:6,
+            padding:"6px 8px", borderRadius:5,
+            background: m.winner===t?"#dcfce7":m.winner&&m.winner!==t?"#fafaf9":"transparent",
+            border: m.winner===t?"1.5px solid #16a34a":"1.5px solid transparent",
+            opacity: m.winner&&m.winner!==t?.55:1, marginBottom: i===0?2:0
+          }}>
+            {t && t!=="?" ? (<>
+              <TeamBadge team={t} size={18}/>
+              <span style={{fontWeight:700,fontSize:13,color:"#37352f"}}>{t}팀</span>
+              {m.winner===t&&<span style={{marginLeft:"auto",fontSize:11,color:"#16a34a",fontWeight:800}}>✓</span>}
+            </>) : (
+              <span style={{fontSize:11,color:"#bcbbb6"}}>경기 대기</span>
+            )}
+          </div>
+        ))}
       </div>
     );
   };
 
   return(<>
     <div className="card" style={{marginBottom:10,padding:10}}>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,alignItems:"start"}}>
-        <div>
-          <div style={{fontSize:10,fontWeight:800,color:"#9b9a97",marginBottom:6,
-            letterSpacing:1,textAlign:"center"}}>1라운드</div>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#f59e0b",
+              padding:"3px 8px",borderRadius:4}}>1라운드</span>
+          </div>
           <MatchCard m={m1}/>
         </div>
-        <div>
-          <div style={{fontSize:10,fontWeight:800,color:"#9b9a97",marginBottom:6,
-            letterSpacing:1,textAlign:"center"}}>준결승</div>
-          <MatchCard m={sf1}/>
-          <MatchCard m={sf2}/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
+            <div style={{marginBottom:6}}>
+              <span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#3b82f6",
+                padding:"3px 8px",borderRadius:4}}>준결승 ①</span>
+            </div>
+            <MatchCard m={sf1}/>
+          </div>
+          <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
+            <div style={{marginBottom:6}}>
+              <span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#3b82f6",
+                padding:"3px 8px",borderRadius:4}}>준결승 ②</span>
+            </div>
+            <MatchCard m={sf2}/>
+          </div>
         </div>
-        <div>
-          <div style={{fontSize:10,fontWeight:800,color:"#9b9a97",marginBottom:6,
-            letterSpacing:1,textAlign:"center"}}>결승</div>
+        <div style={{background:"linear-gradient(135deg,#fff7ed,#fef3c7)",
+          borderRadius:10,padding:12,border:"2px solid #f59e0b"}}>
+          <div style={{textAlign:"center",marginBottom:6}}>
+            <span style={{fontSize:11,fontWeight:800,color:"#fff",background:"#f59e0b",
+              padding:"4px 12px",borderRadius:4}}>🏆 결승</span>
+          </div>
           <MatchCard m={mF}/>
           {mF.winner && (
-            <div style={{background:"linear-gradient(135deg,#fbbf24,#f59e0b)",
-              borderRadius:8, padding:8, marginTop:4, textAlign:"center"}}>
+            <div style={{background:"#fff",
+              borderRadius:8, padding:10, marginTop:6, textAlign:"center",
+              border:"2px solid #f59e0b"}}>
               <div style={{fontSize:10,color:"#78350f",fontWeight:700}}>🏆 우승</div>
-              <div style={{fontSize:16,fontWeight:900,color:"#1c1917"}}>{mF.winner}팀</div>
+              <div style={{fontSize:18,fontWeight:900,color:"#1c1917"}}>{mF.winner}팀</div>
             </div>
           )}
         </div>
@@ -3220,34 +3229,76 @@ function OBracket({state, update}) {
           </button>
         </div>
 
-        {/* 대진표 구조에 시드 박스 배치 */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14,alignItems:"start"}}>
-          {/* 1라운드 (2 vs 3) */}
-          <div>
-            <div style={{fontSize:9,fontWeight:800,color:"#9b9a97",marginBottom:6,
-              letterSpacing:1,textAlign:"center"}}>1라운드</div>
-            <SeedBox seedNum={2} label="2번 시드"/>
-            <div style={{height:8}}/>
-            <SeedBox seedNum={3} label="3번 시드"/>
+        {/* 매치 박스 - 각 매치를 묶어서 표시 */}
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
+
+          {/* 1라운드: 2 vs 3 */}
+          <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+              <span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#f59e0b",
+                padding:"3px 8px",borderRadius:4,letterSpacing:.5}}>1라운드</span>
+              <span style={{fontSize:11,color:"#9b9a97"}}>승자가 준결승①로 진출</span>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center"}}>
+              <SeedBox seedNum={2} label="2번 시드"/>
+              <div style={{fontSize:14,fontWeight:900,color:"#9b9a97"}}>VS</div>
+              <SeedBox seedNum={3} label="3번 시드"/>
+            </div>
           </div>
-          {/* 준결승 (1번부전 + 4v5) */}
-          <div>
-            <div style={{fontSize:9,fontWeight:800,color:"#9b9a97",marginBottom:6,
-              letterSpacing:1,textAlign:"center"}}>준결승</div>
-            <SeedBox seedNum={1} label="1번 시드 (부전승)"/>
-            <div style={{height:8}}/>
-            <SeedBox seedNum={4} label="4번 시드"/>
-            <div style={{height:4}}/>
-            <SeedBox seedNum={5} label="5번 시드"/>
+
+          {/* 준결승 2개 + 결승 */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            {/* 준결승 ① */}
+            <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
+              <div style={{marginBottom:8}}>
+                <span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#3b82f6",
+                  padding:"3px 8px",borderRadius:4,letterSpacing:.5}}>준결승 ①</span>
+              </div>
+              <SeedBox seedNum={1} label="1번 시드 (부전승)"/>
+              <div style={{textAlign:"center",fontSize:12,fontWeight:900,color:"#9b9a97",margin:"6px 0"}}>VS</div>
+              <div style={{padding:"10px 8px",borderRadius:8,border:"2px dashed #d4d4d2",
+                background:"#fafaf9",textAlign:"center",minHeight:50,
+                display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                <span style={{fontSize:9,color:"#9b9a97",fontWeight:700,letterSpacing:.5}}>
+                  1라운드 승자
+                </span>
+                <span style={{fontSize:16,fontWeight:900,color:"#d4d4d2"}}>?</span>
+              </div>
+            </div>
+
+            {/* 준결승 ② */}
+            <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
+              <div style={{marginBottom:8}}>
+                <span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#3b82f6",
+                  padding:"3px 8px",borderRadius:4,letterSpacing:.5}}>준결승 ②</span>
+              </div>
+              <SeedBox seedNum={4} label="4번 시드"/>
+              <div style={{textAlign:"center",fontSize:12,fontWeight:900,color:"#9b9a97",margin:"6px 0"}}>VS</div>
+              <SeedBox seedNum={5} label="5번 시드"/>
+            </div>
           </div>
+
           {/* 결승 */}
-          <div>
-            <div style={{fontSize:9,fontWeight:800,color:"#9b9a97",marginBottom:6,
-              letterSpacing:1,textAlign:"center"}}>결승</div>
-            <div style={{padding:"10px 8px",borderRadius:10,border:"2px dashed #d4d4d2",
-              background:"#fafaf9",textAlign:"center",minHeight:62,
-              display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <span style={{fontSize:11,color:"#9b9a97"}}>경기 후 확정</span>
+          <div style={{background:"linear-gradient(135deg,#fff7ed,#fef3c7)",
+            borderRadius:10,padding:14,border:"2px solid #f59e0b"}}>
+            <div style={{marginBottom:8,textAlign:"center"}}>
+              <span style={{fontSize:11,fontWeight:800,color:"#fff",background:"#f59e0b",
+                padding:"4px 12px",borderRadius:4,letterSpacing:1}}>🏆 결승</span>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center"}}>
+              <div style={{padding:"10px 8px",borderRadius:8,border:"2px dashed #f59e0b",
+                background:"#fff",textAlign:"center",minHeight:50,
+                display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                <span style={{fontSize:9,color:"#a16207",fontWeight:700,letterSpacing:.5}}>준결승 ① 승자</span>
+                <span style={{fontSize:16,fontWeight:900,color:"#fbbf24"}}>?</span>
+              </div>
+              <div style={{fontSize:14,fontWeight:900,color:"#a16207"}}>VS</div>
+              <div style={{padding:"10px 8px",borderRadius:8,border:"2px dashed #f59e0b",
+                background:"#fff",textAlign:"center",minHeight:50,
+                display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                <span style={{fontSize:9,color:"#a16207",fontWeight:700,letterSpacing:.5}}>준결승 ② 승자</span>
+                <span style={{fontSize:16,fontWeight:900,color:"#fbbf24"}}>?</span>
+              </div>
             </div>
           </div>
         </div>
@@ -3378,32 +3429,47 @@ function OBracket({state, update}) {
 
     return (
       <div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,alignItems:"start"}}>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {/* 1라운드: 2 vs 3 */}
-          <div>
-            <div style={{fontSize:11,fontWeight:800,color:"#9b9a97",marginBottom:6,
-              letterSpacing:1,textAlign:"center"}}>1라운드</div>
+          <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+              <span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#f59e0b",
+                padding:"3px 8px",borderRadius:4,letterSpacing:.5}}>1라운드</span>
+              <span style={{fontSize:11,color:"#9b9a97"}}>승자가 준결승①로 진출</span>
+            </div>
             <MatchCard m={m1}/>
-            <div style={{padding:8,fontSize:11,color:"#9b9a97",textAlign:"center",
-              background:"#fafaf9",borderRadius:6,marginTop:50}}>
-              4·5번 시드는<br/>준결승부터 시작
+          </div>
+
+          {/* 준결승 */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
+              <div style={{marginBottom:8}}>
+                <span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#3b82f6",
+                  padding:"3px 8px",borderRadius:4,letterSpacing:.5}}>준결승 ①</span>
+              </div>
+              <MatchCard m={sf1}/>
+            </div>
+            <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
+              <div style={{marginBottom:8}}>
+                <span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#3b82f6",
+                  padding:"3px 8px",borderRadius:4,letterSpacing:.5}}>준결승 ②</span>
+              </div>
+              <MatchCard m={sf2}/>
             </div>
           </div>
-          {/* 준결승 */}
-          <div>
-            <div style={{fontSize:11,fontWeight:800,color:"#9b9a97",marginBottom:6,
-              letterSpacing:1,textAlign:"center"}}>준결승</div>
-            <MatchCard m={sf1}/>
-            <MatchCard m={sf2}/>
-          </div>
+
           {/* 결승 */}
-          <div>
-            <div style={{fontSize:11,fontWeight:800,color:"#9b9a97",marginBottom:6,
-              letterSpacing:1,textAlign:"center"}}>결승</div>
+          <div style={{background:"linear-gradient(135deg,#fff7ed,#fef3c7)",
+            borderRadius:10,padding:12,border:"2px solid #f59e0b"}}>
+            <div style={{textAlign:"center",marginBottom:8}}>
+              <span style={{fontSize:11,fontWeight:800,color:"#fff",background:"#f59e0b",
+                padding:"4px 12px",borderRadius:4,letterSpacing:1}}>🏆 결승</span>
+            </div>
             <MatchCard m={mF}/>
             {mF.winner && (
-              <div style={{background:"linear-gradient(135deg,#fbbf24,#f59e0b)",
-                borderRadius:8, padding:10, marginTop:6, textAlign:"center"}}>
+              <div style={{background:"#fff",
+                borderRadius:8, padding:10, marginTop:6, textAlign:"center",
+                border:"2px solid #f59e0b"}}>
                 <div style={{fontSize:10,color:"#78350f",fontWeight:700,letterSpacing:1}}>🏆 우승</div>
                 <div style={{fontSize:20,fontWeight:900,color:"#1c1917",marginTop:2}}>
                   {mF.winner}팀
