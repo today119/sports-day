@@ -933,10 +933,10 @@ function VSportDetail({sel, state}) {
   const meta = SPORT_META[sel]||{icon:"🏅",desc:""};
 
   // 공통: 경기 전 안내 카드
-  const NotYet = () => (
+  const NotYet = ({extraInfo}) => (
     <div>
       <div className="card" style={{marginBottom:10,background:"#fafaf9"}}>
-        <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:8}}>
+        <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:6}}>
           <span style={{fontSize:36}}>{meta.icon}</span>
           <div>
             <div style={{fontWeight:800,fontSize:17,color:"#37352f"}}>{sel}</div>
@@ -944,17 +944,19 @@ function VSportDetail({sel, state}) {
           </div>
         </div>
       </div>
-      <div className="card" style={{textAlign:"center",padding:"40px 20px"}}>
-        <div style={{fontSize:40,marginBottom:14}}>⏳</div>
-        <div style={{fontWeight:700,fontSize:16,color:"#37352f",marginBottom:6}}>
+      {extraInfo}
+      <div className="card" style={{textAlign:"center",padding:"32px 20px"}}>
+        <div style={{fontSize:36,marginBottom:10}}>⏳</div>
+        <div style={{fontWeight:700,fontSize:15,color:"#37352f",marginBottom:4}}>
           경기가 아직 실시되지 않았습니다
         </div>
-        <div style={{fontSize:13,color:"#9b9a97"}}>
+        <div style={{fontSize:12,color:"#9b9a97"}}>
           운영자가 결과를 입력하면 자동으로 표시됩니다
         </div>
       </div>
     </div>
   );
+
 
   // ── 이벤트 종목 ──
   if(EVENT_SPORTS.includes(sel)) return (
@@ -979,7 +981,35 @@ function VSportDetail({sel, state}) {
     const ranks  = getTimeTrialRanks(counts);
     const sorted = Object.entries(counts).filter(([,c])=>parseCount(c)>=0)
                     .sort((a,b)=>parseCount(b[1])-parseCount(a[1]));
-    if(!sorted.length) return <NotYet/>;
+    if(!sorted.length) {
+      // 학년별 학급 10개 미리보기
+      const grade = sel.startsWith("1")?"1":"2";
+      const gradeClasses = ALL_CLASSES.filter(c=>c.startsWith(grade+"-"));
+      return <NotYet extraInfo={
+        <>
+          <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",marginBottom:8}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#1d4ed8",marginBottom:6}}>📊 점수 산정</div>
+            <div style={{fontSize:12,color:"#1e40af",lineHeight:1.6}}>
+              학년별 10개 반 1~10위 차등 점수<br/>
+              1위 100 · 2위 90 · 3위 80 · 4위 70 · 5위 60 · 6위 50 · 7위 40 · 8위 30 · 9위 20 · 10위 10
+            </div>
+          </div>
+          <div className="card" style={{marginBottom:8}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:8}}>참가 학급</div>
+            {gradeClasses.map(c=>{
+              const team=classToTeam(c);
+              return(
+                <div key={c} className="rrow" style={{padding:"6px 10px"}}>
+                  <TeamBadge team={team} size={20}/>
+                  <span style={{flex:1,fontWeight:600,fontSize:13}}>{c}반</span>
+                  <span style={{fontSize:12,color:"#9b9a97",fontStyle:"italic"}}>횟수 입력 전</span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      }/>;
+    }
     const teamSum={};
     for(const[cls,rank] of Object.entries(ranks)){
       const t=classToTeam(cls);
@@ -1017,7 +1047,40 @@ function VSportDetail({sel, state}) {
   if(GRP_SPORTS.includes(sel)) {
     const gs = state.groupScores?.[sel]||{};
     const hasData = GRP_KEYS.some(gk=>Object.keys(gs[gk]||{}).length>0);
-    if(!hasData) return <NotYet/>;
+    if(!hasData) return <NotYet extraInfo={
+      <>
+        <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",marginBottom:8}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#1d4ed8",marginBottom:6}}>📊 점수 산정</div>
+          <div style={{fontSize:12,color:"#1e40af",lineHeight:1.6}}>
+            4개 조(5팀씩) 추첨 → 각 조 1~5위 차등 점수<br/>
+            1위 100 · 2위 90 · 3위 80 · 4위 70 · 5위 60
+          </div>
+        </div>
+        <div className="card">
+          <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:8}}>조 편성 (예정)</div>
+          {GRP_KEYS.map(gk=>{
+            const g=GRP_DEF[gk];
+            return(
+              <div key={gk} style={{padding:"8px 10px",borderBottom:"1px solid #f5f5f3"}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#37352f",marginBottom:4}}>{g.name}</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                  {g.cls.map(c=>{
+                    const team=classToTeam(c);
+                    return(
+                      <span key={c} style={{
+                        fontSize:11, padding:"3px 7px", borderRadius:4,
+                        background:TEAM_BG[team], color:TEAM_COLORS[team],
+                        fontWeight:600,
+                      }}>{c}반</span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </>
+    }/>;
     const teamSum={};
     for(const gk of GRP_KEYS)
       for(const [cls,rank] of Object.entries(gs[gk]||{})){
@@ -1061,7 +1124,40 @@ function VSportDetail({sel, state}) {
     const gs = state.groupScores?.["계주"]||{};
     const rf = state.relayFinals||{};
     const hasData = GRP_KEYS.some(gk=>Object.keys(gs[gk]||{}).length>0);
-    if(!hasData) return <NotYet/>;
+    if(!hasData) return <NotYet extraInfo={
+      <>
+        <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",marginBottom:8}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#1d4ed8",marginBottom:6}}>📊 점수 산정</div>
+          <div style={{fontSize:12,color:"#1e40af",lineHeight:1.6}}>
+            4개 조(5팀씩) 추첨 → 각 조 1~5위 차등 점수<br/>
+            1위 100 · 2위 90 · 3위 80 · 4위 70 · 5위 60
+          </div>
+        </div>
+        <div className="card">
+          <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:8}}>조 편성 (예정)</div>
+          {GRP_KEYS.map(gk=>{
+            const g=GRP_DEF[gk];
+            return(
+              <div key={gk} style={{padding:"8px 10px",borderBottom:"1px solid #f5f5f3"}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#37352f",marginBottom:4}}>{g.name}</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                  {g.cls.map(c=>{
+                    const team=classToTeam(c);
+                    return(
+                      <span key={c} style={{
+                        fontSize:11, padding:"3px 7px", borderRadius:4,
+                        background:TEAM_BG[team], color:TEAM_COLORS[team],
+                        fontWeight:600,
+                      }}>{c}반</span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </>
+    }/>;
     const teamSum={};
     const finalSet=new Set([...Object.keys(rf.grade1||{}),...Object.keys(rf.grade2||{})]);
     for(const gk of GRP_KEYS)
@@ -1111,7 +1207,20 @@ function VSportDetail({sel, state}) {
     const sr=state.scores?.[sel]||{};
     const hasBracket=br.drawn&&br.seeds;
     const hasScore=Object.keys(sr).length>0;
-    if(!hasBracket&&!hasScore) return <NotYet/>;
+    if(!hasBracket&&!hasScore) return <NotYet extraInfo={
+      <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe"}}>
+        <div style={{fontSize:12,fontWeight:700,color:"#1d4ed8",marginBottom:6}}>📊 점수 산정 (5팀 토너먼트)</div>
+        <div style={{fontSize:12,color:"#1e40af",lineHeight:1.7}}>
+          🥇 1위 (결승 승자) <b>100점</b><br/>
+          🥈 2위 (결승 패자) <b>90점</b><br/>
+          🥉 3위 (준결승 ① 패자) <b>80점</b><br/>
+          4위 (준결승 ② 패자) <b>80점</b><br/>
+          5위 (1라운드 패자) <b>50점</b><br/>
+          <br/>
+          <b>대진:</b> 1번 시드 부전승 · 2 vs 3 → 승자 vs 1번 / 4 vs 5 → 결승
+        </div>
+      </div>
+    }/>;
     if(hasBracket) return <BracketTree bracket={br} sport={sel}
       scores={sr} groups={getRankGroups(SPORT_PTS[sel]||[])} state={state}/>;
     return(<div className="card">
@@ -2787,85 +2896,83 @@ function P100Round3({ p, gk }) {
 
 // ─── 8자마라톤 (운영자) ───
 function OTimeTrial({state,update}) {
-  const [grade, setGrade] = useState(TIME_TRIAL_SPORTS[0]);
-  const counts = state.timeTrial?.[grade]||{};
-  const ranks  = getTimeTrialRanks(counts);
-
-  const setCount=(cls,val)=>update(s=>({...s,
-    timeTrial:{
-      ...(s.timeTrial||{}),
-      [grade]:{...(s.timeTrial?.[grade]||{}),[cls]:val}
-    }
+  const [sel, setSel] = useState(TIME_TRIAL_SPORTS[0]);
+  const counts = state.timeTrial?.[sel]||{};
+  const set = (cls, v) => update(s => ({
+    ...s, timeTrial:{ ...(s.timeTrial||{}),
+      [sel]:{ ...(s.timeTrial?.[sel]||{}), [cls]: v===""?undefined:v }}
   }));
 
-  const isFirstGrade = grade.startsWith("1학년");
-  const gradeClasses = ALL_CLASSES.filter(c=>c.startsWith(isFirstGrade?"1-":"2-"));
-  const filledCount = gradeClasses.filter(c=>parseCount(counts[c])>=0).length;
+  // 학년별 학급
+  const grade = sel.startsWith("1") ? "1" : "2";
+  const gradeClasses = ALL_CLASSES.filter(c => c.startsWith(grade+"-"));
+  const filled = gradeClasses.filter(c=>counts[c]!==undefined&&counts[c]!=="").length;
+
+  // 현재 순위 계산
+  const ranks = getTimeTrialRanks(counts);
 
   return(<>
     <div className="page-title">⏱ 8자마라톤</div>
-    <div className="page-desc">학년별 10개 반 → 개수 입력 → 큰 수가 1위</div>
+    <div className="page-desc">학년별 10개 반 동시 진행 · 개수 입력 → 큰 수가 1위</div>
 
     <div style={{display:"flex",gap:8,marginBottom:14}}>
-      {TIME_TRIAL_SPORTS.map(g=>(
-        <button key={g} onClick={()=>setGrade(g)}
-          className={`obtn${grade===g?" on":""}`}
-          style={{flex:1,padding:"10px 0",fontSize:14,fontWeight:600}}>
-          {g}
+      {TIME_TRIAL_SPORTS.map(sp=>(
+        <button key={sp} onClick={()=>setSel(sp)}
+          className={`obtn${sel===sp?" on":""}`} style={{flex:1,padding:"12px 0",fontSize:14}}>
+          {sp}
         </button>
       ))}
     </div>
 
-    <div className="card-flat" style={{background:"#f0f7ff",borderLeft:"3px solid #2e7df5",
-      fontSize:13,color:"#1e40af",marginBottom:12}}>
-      ⭕ {grade} · {filledCount}/{gradeClasses.length}반 입력
+    <div className="card" style={{marginBottom:10,background:"#eff6ff",borderColor:"#bfdbfe",padding:"10px 14px"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:16}}>📊</span>
+        <span style={{fontSize:13,fontWeight:700,color:"#1d4ed8",flex:1}}>
+          {sel} · {filled}/10반 입력
+        </span>
+      </div>
+      <div style={{fontSize:11,color:"#1e40af",marginTop:4}}>
+        배점: 1위 100 · 2위 90 · 3위 80 · 4위 70 · 5위 60 · 6위 50 · 7위 40 · 8위 30 · 9위 20 · 10위 10
+      </div>
     </div>
 
-    {[...gradeClasses].sort((a,b)=>(ranks[a]||999)-(ranks[b]||999)).map(cls=>{
-      const team=classToTeam(cls);
-      const rank=ranks[cls];
-      const c=counts[cls]||"";
-      const pt=rank?TT_PTS[rank-1]:null;
-      return(<div key={cls} className="card" style={{marginBottom:6,padding:"10px 14px"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-          {rank?<span style={{fontSize:14,minWidth:30,textAlign:"center",fontWeight:700}}>
-            {rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":`${rank}위`}
-          </span>:<span style={{fontSize:12,minWidth:30,textAlign:"center",color:"#d4d4d2"}}>-</span>}
-          <TeamBadge team={team} size={22}/>
-          <span style={{fontWeight:600,color:"#37352f",flex:1}}>{cls}반</span>
-          {pt!==null&&<Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{pt}점</Chip>}
+    {gradeClasses.map(cls=>{
+      const team = classToTeam(cls);
+      const rank = ranks[cls];
+      const v = counts[cls]||"";
+      return(
+        <div key={cls} className="card" style={{
+          marginBottom:6, padding:"10px 14px",
+          borderLeft:`4px solid ${TEAM_COLORS[team]}`,
+          display:"flex",alignItems:"center",gap:10}}>
+          <TeamBadge team={team} size={26}/>
+          <div style={{minWidth:60}}>
+            <div style={{fontWeight:800,fontSize:15,color:"#37352f"}}>{cls}반</div>
+          </div>
+          <input type="number" inputMode="numeric"
+            value={v}
+            onChange={e=>set(cls, e.target.value)}
+            placeholder="개수"
+            className="oinput"
+            style={{flex:1,fontSize:18,textAlign:"center",fontFamily:"monospace",fontWeight:700,padding:"10px 12px"}}/>
+          <span style={{fontSize:13,color:"#787671",fontWeight:600,minWidth:24}}>개</span>
+          {rank && (
+            <div style={{
+              minWidth:54, textAlign:"center", padding:"6px 8px",
+              borderRadius:6, background:TEAM_BG[team],
+              border:`1.5px solid ${TEAM_COLORS[team]}`,
+              fontSize:12, fontWeight:800, color:TEAM_COLORS[team]
+            }}>
+              {rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":`${rank}위`}<br/>
+              <span style={{fontSize:10}}>+{TT_PTS[rank-1]}pt</span>
+            </div>
+          )}
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <input type="number" value={c} onChange={e=>setCount(cls,e.target.value)}
-            placeholder="개수 입력" className="oinput"
-            style={{flex:1,fontSize:15,fontWeight:600,textAlign:"center"}}/>
-          <span style={{fontSize:13,color:"#9b9a97",flexShrink:0,fontWeight:500}}>개</span>
-          {c!==""&&<button onClick={()=>setCount(cls,"")}
-            style={{background:"none",border:"none",color:"#eb5757",cursor:"pointer",
-              fontSize:18,padding:"0 4px",flexShrink:0}}>✕</button>}
-        </div>
-      </div>);
+      );
     })}
-
-    {filledCount>0&&(<>
-      <div className="sl">{grade} 순위</div>
-      <div className="card">
-        {[...gradeClasses].filter(c=>ranks[c]).sort((a,b)=>ranks[a]-ranks[b]).map(cls=>{
-          const team=classToTeam(cls);
-          return(<div key={cls} className="rrow">
-            <span style={{fontSize:15,minWidth:32,textAlign:"center"}}>
-              {ranks[cls]===1?"🥇":ranks[cls]===2?"🥈":ranks[cls]===3?"🥉":`${ranks[cls]}위`}
-            </span>
-            <TeamBadge team={team} size={22}/>
-            <span style={{flex:1,fontWeight:500,color:"#37352f"}}>{cls}반</span>
-            <span style={{fontSize:13,color:"#787671",marginRight:6,fontFamily:"monospace",fontWeight:600}}>{counts[cls]}개</span>
-            <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{TT_PTS[ranks[cls]-1]}점</Chip>
-          </div>);
-        })}
-      </div>
-    </>)}
   </>);
 }
+
 
 function OPhysical100({ state, update }) {
   const [sub,setSub]=useState("r1");
@@ -3381,115 +3488,178 @@ function OBracket({state, update}) {
   };
 
 
-  // 5팀 특수 대진 렌더링
+  // ── 좌→우 트리 형 대진표 ──
   const renderBracket = () => {
     if(seeds.length<5) return null;
     const computed = compute5SpecialBracket(seeds, results);
     const { matches, ranks } = computed;
     const [m1, sf1, sf2, mF] = matches;
 
-    const MatchCard = ({m, big=false}) => {
-      const isDone = !!m.winner;
-      const A = m.a, B = m.b;
-      return (
-        <div style={{
-          border:"2px solid",
-          borderColor: isDone?"#16a34a":"#e7e7e5",
-          borderRadius:8, background:"#fff", padding:6,
-          marginBottom:6
-        }}>
-          <div style={{fontSize:10,fontWeight:700,color:"#9b9a97",marginBottom:4,letterSpacing:.5}}>
-            {m.label}
+    // 큰 매치 박스 (이름/팀 클릭하여 승자 선택)
+    const Slot = ({team, isWinner, isLoser, canPick, onPick, placeholder}) => {
+      const inner = team && team!=="?" ? (
+        <>
+          <TeamBadge team={team} size={26}/>
+          <div style={{fontSize:18,fontWeight:900,
+            color:isWinner?"#16a34a":isLoser?"#9b9a97":"#37352f",
+            textDecoration:isLoser?"line-through":"none"}}>
+            {team}팀
           </div>
-          {[A,B].map((t,i)=>{
-            const isWinner = m.winner===t;
-            const isLoser  = m.winner && m.winner!==t;
-            const canPick  = !!t && t!=="?" && (
-              (m.id==="m1") ||
-              (m.id==="sf1" && m1.winner) ||
-              (m.id==="sf2") ||
-              (m.id==="f" && sf1.winner && sf2.winner)
-            );
-            return(
-              <div key={i} onClick={()=>canPick&&pickWinner(m.id,t)}
-                style={{
-                  display:"flex", alignItems:"center", gap:6,
-                  padding:"6px 8px", borderRadius:5,
-                  background: isWinner?"#dcfce7":isLoser?"#fafaf9":"transparent",
-                  border: isWinner?"1.5px solid #16a34a":"1.5px solid transparent",
-                  cursor: canPick?"pointer":"default",
-                  opacity: isLoser?.55:1,
-                  marginBottom: i===0?2:0
-                }}>
-                {t && t!=="?" ? (<>
-                  <TeamBadge team={t} size={18}/>
-                  <span style={{fontWeight:700,fontSize:13,color:"#37352f"}}>{t}팀</span>
-                  {isWinner&&<span style={{marginLeft:"auto",fontSize:11,color:"#16a34a",fontWeight:800}}>✓ 승</span>}
-                </>) : (
-                  <span style={{fontSize:12,color:"#bcbbb6"}}>? (이전 매치 결과 대기)</span>
-                )}
-              </div>
-            );
-          })}
+          {isWinner&&<span style={{fontSize:14,fontWeight:900,color:"#16a34a"}}>✓</span>}
+        </>
+      ) : (
+        <span style={{fontSize:13,color:"#bcbbb6",fontStyle:"italic"}}>{placeholder||"대기"}</span>
+      );
+      return(
+        <div onClick={()=>canPick&&onPick&&onPick()} style={{
+          background:isWinner?"#dcfce7":"#fff",
+          border:`2.5px solid ${isWinner?"#16a34a":isLoser?"#e7e7e5":(team&&team!=="?"?"#9b9a97":"#e7e7e5")}`,
+          borderRadius:10, padding:"14px 16px",
+          display:"flex", alignItems:"center", gap:10,
+          minHeight:60, cursor:canPick?"pointer":"default",
+          opacity:isLoser?0.5:1, transition:"all .2s",
+        }}>
+          {inner}
         </div>
       );
     };
 
+    // 결승 우승팀 표시
+    const Champion = ({team}) => team ? (
+      <div style={{background:"linear-gradient(135deg,#fbbf24,#f59e0b)",
+        borderRadius:12, padding:"18px 20px", textAlign:"center",
+        boxShadow:"0 8px 20px rgba(251,191,36,.4)"}}>
+        <div style={{fontSize:11,fontWeight:800,color:"#78350f",letterSpacing:2}}>🏆 우승</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginTop:6}}>
+          <TeamBadge team={team} size={36}/>
+          <div style={{fontSize:24,fontWeight:900,color:"#1c1917"}}>{team}팀</div>
+        </div>
+      </div>
+    ) : (
+      <div style={{
+        border:"2.5px dashed #d4d4d2", borderRadius:10, padding:"14px 16px",
+        textAlign:"center", color:"#9b9a97", minHeight:60,
+        display:"flex",alignItems:"center",justifyContent:"center"
+      }}>
+        <span style={{fontSize:13,fontStyle:"italic"}}>결승 후 결정</span>
+      </div>
+    );
+
+    // 연결선 그리는 헬퍼
+    const Connector = ({pos="middle"}) => (
+      <div style={{position:"relative", width:30, alignSelf:"stretch"}}>
+        <svg width="30" height="100%" style={{position:"absolute",top:0,left:0}}>
+          <line x1="0" y1={pos==="top"?"75%":"25%"} x2="15" y2={pos==="top"?"75%":"25%"}
+            stroke="#9b9a97" strokeWidth="2.5"/>
+          <line x1="15" y1="25%" x2="15" y2="75%" stroke="#9b9a97" strokeWidth="2.5"/>
+          <line x1="15" y1="50%" x2="30" y2="50%" stroke="#9b9a97" strokeWidth="2.5"/>
+        </svg>
+      </div>
+    );
+
     return (
       <div>
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {/* 1라운드: 2 vs 3 */}
-          <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-              <span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#f59e0b",
-                padding:"3px 8px",borderRadius:4,letterSpacing:.5}}>1라운드</span>
-              <span style={{fontSize:11,color:"#9b9a97"}}>승자가 준결승①로 진출</span>
-            </div>
-            <MatchCard m={m1}/>
+        {/* 좌→우 트리 */}
+        <div style={{display:"flex",alignItems:"stretch",gap:0,marginBottom:14,
+          overflowX:"auto",paddingBottom:8}}>
+
+          {/* 컬럼 1: 1라운드 */}
+          <div style={{flexShrink:0,minWidth:200,display:"flex",flexDirection:"column",gap:10}}>
+            <div style={{fontSize:11,fontWeight:800,color:"#fff",
+              background:"#f59e0b",padding:"4px 10px",borderRadius:5,
+              textAlign:"center",letterSpacing:1}}>1라운드</div>
+            <Slot team={m1.a}
+              isWinner={m1.winner===m1.a} isLoser={m1.winner&&m1.winner!==m1.a}
+              canPick={!!m1.a&&m1.a!=="?"} onPick={()=>pickWinner("m1",m1.a)}
+              placeholder={`${seeds[1]||"?"}`}/>
+            <Slot team={m1.b}
+              isWinner={m1.winner===m1.b} isLoser={m1.winner&&m1.winner!==m1.b}
+              canPick={!!m1.b&&m1.b!=="?"} onPick={()=>pickWinner("m1",m1.b)}
+              placeholder={`${seeds[2]||"?"}`}/>
+            {/* 4번/5번 시드는 준결승부터 → 빈 칸으로 공간 차지 */}
+            <div style={{height:20}}/>
+            <Slot team={sf2.a}
+              isWinner={sf2.winner===sf2.a} isLoser={sf2.winner&&sf2.winner!==sf2.a}
+              canPick={false}
+              placeholder={`${seeds[3]||"?"}`}/>
+            <Slot team={sf2.b}
+              isWinner={sf2.winner===sf2.b} isLoser={sf2.winner&&sf2.winner!==sf2.b}
+              canPick={false}
+              placeholder={`${seeds[4]||"?"}`}/>
           </div>
 
-          {/* 준결승 */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
-              <div style={{marginBottom:8}}>
-                <span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#3b82f6",
-                  padding:"3px 8px",borderRadius:4,letterSpacing:.5}}>준결승 ①</span>
-              </div>
-              <MatchCard m={sf1}/>
-            </div>
-            <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
-              <div style={{marginBottom:8}}>
-                <span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#3b82f6",
-                  padding:"3px 8px",borderRadius:4,letterSpacing:.5}}>준결승 ②</span>
-              </div>
-              <MatchCard m={sf2}/>
-            </div>
+          <Connector pos="top"/>
+
+          {/* 컬럼 2: 준결승 */}
+          <div style={{flexShrink:0,minWidth:200,display:"flex",flexDirection:"column",gap:10,
+            justifyContent:"space-around"}}>
+            <div style={{fontSize:11,fontWeight:800,color:"#fff",
+              background:"#3b82f6",padding:"4px 10px",borderRadius:5,
+              textAlign:"center",letterSpacing:1}}>준결승 ①</div>
+            <Slot team={s1}
+              isWinner={sf1.winner===s1} isLoser={sf1.winner&&sf1.winner!==s1}
+              canPick={!!m1.winner} onPick={()=>pickWinner("sf1",s1)}
+              placeholder="1번 시드"/>
+            <Slot team={m1.winner}
+              isWinner={sf1.winner===m1.winner} isLoser={sf1.winner&&sf1.winner!==m1.winner}
+              canPick={!!m1.winner} onPick={()=>pickWinner("sf1",m1.winner)}
+              placeholder="1라운드 승자"/>
+
+            <div style={{fontSize:11,fontWeight:800,color:"#fff",
+              background:"#3b82f6",padding:"4px 10px",borderRadius:5,
+              textAlign:"center",letterSpacing:1,marginTop:14}}>준결승 ②</div>
+            <Slot team={sf2.a}
+              isWinner={sf2.winner===sf2.a} isLoser={sf2.winner&&sf2.winner!==sf2.a}
+              canPick={!!sf2.a} onPick={()=>pickWinner("sf2",sf2.a)}/>
+            <Slot team={sf2.b}
+              isWinner={sf2.winner===sf2.b} isLoser={sf2.winner&&sf2.winner!==sf2.b}
+              canPick={!!sf2.b} onPick={()=>pickWinner("sf2",sf2.b)}/>
           </div>
 
-          {/* 결승 */}
-          <div style={{background:"linear-gradient(135deg,#fff7ed,#fef3c7)",
-            borderRadius:10,padding:12,border:"2px solid #f59e0b"}}>
-            <div style={{textAlign:"center",marginBottom:8}}>
-              <span style={{fontSize:11,fontWeight:800,color:"#fff",background:"#f59e0b",
-                padding:"4px 12px",borderRadius:4,letterSpacing:1}}>🏆 결승</span>
-            </div>
-            <MatchCard m={mF}/>
-            {mF.winner && (
-              <div style={{background:"#fff",
-                borderRadius:8, padding:10, marginTop:6, textAlign:"center",
-                border:"2px solid #f59e0b"}}>
-                <div style={{fontSize:10,color:"#78350f",fontWeight:700,letterSpacing:1}}>🏆 우승</div>
-                <div style={{fontSize:20,fontWeight:900,color:"#1c1917",marginTop:2}}>
-                  {mF.winner}팀
-                </div>
-              </div>
-            )}
+          <Connector pos="top"/>
+
+          {/* 컬럼 3: 결승 */}
+          <div style={{flexShrink:0,minWidth:200,display:"flex",flexDirection:"column",gap:10,
+            justifyContent:"center"}}>
+            <div style={{fontSize:11,fontWeight:800,color:"#fff",
+              background:"#f59e0b",padding:"4px 10px",borderRadius:5,
+              textAlign:"center",letterSpacing:1}}>🏆 결승</div>
+            <Slot team={sf1.winner}
+              isWinner={mF.winner===sf1.winner} isLoser={mF.winner&&mF.winner!==sf1.winner}
+              canPick={!!sf1.winner&&!!sf2.winner} onPick={()=>pickWinner("f",sf1.winner)}
+              placeholder="준결승① 승자"/>
+            <Slot team={sf2.winner}
+              isWinner={mF.winner===sf2.winner} isLoser={mF.winner&&mF.winner!==sf2.winner}
+              canPick={!!sf1.winner&&!!sf2.winner} onPick={()=>pickWinner("f",sf2.winner)}
+              placeholder="준결승② 승자"/>
+          </div>
+
+          <Connector pos="top"/>
+
+          {/* 컬럼 4: 우승 */}
+          <div style={{flexShrink:0,minWidth:200,display:"flex",flexDirection:"column",
+            justifyContent:"center"}}>
+            <Champion team={mF.winner}/>
           </div>
         </div>
 
-        {/* 순위 결과 */}
+        {/* 안내 + 점수 산정 */}
+        <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",marginBottom:10}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#1d4ed8",marginBottom:6}}>
+            📊 점수 산정
+          </div>
+          <div style={{fontSize:12,color:"#1e40af",lineHeight:1.7}}>
+            🥇 1위 (결승 승자): <b>100점</b><br/>
+            🥈 2위 (결승 패자): <b>90점</b><br/>
+            🥉 3위 (준결승 ① 패자): <b>80점</b><br/>
+            4위 (준결승 ② 패자): <b>80점</b><br/>
+            5위 (1라운드 패자): <b>50점</b>
+          </div>
+        </div>
+
+        {/* 순위 요약 */}
         {Object.keys(ranks).length>0 && (
-          <div className="card" style={{marginTop:14}}>
+          <div className="card">
             <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:8}}>📊 최종 순위</div>
             {Object.entries(ranks).sort((a,b)=>a[1]-b[1]).map(([t,r])=>(
               <div key={t} className="rrow">
@@ -3508,6 +3678,7 @@ function OBracket({state, update}) {
       </div>
     );
   };
+
 
   return(<>
     <div className="page-title">🗓 대진표 추첨</div>
