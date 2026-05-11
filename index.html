@@ -118,13 +118,6 @@ const P100_RUNNERS = [1,2,3,4,5];
 const ALL_HEATS_LIST = [];
 for(const r of P100_RUNNERS) for(const g of P100_GKEYS) ALL_HEATS_LIST.push(`r${r}-${g}`);
 
-// 점수 정책
-const P100_PTS = {
-  qualify:  10,  // 1차전 통과 (학급당 +10)
-  survive:  20,  // 2라운드 생존 (추가 +20 = 누적 30)
-  champion: 30   // 최종 우승 (추가 +30 = 누적 60)
-};
-
 const CHEER_CATS = [
   { id:"c", label:"창의성",   max:25 },
   { id:"p", label:"완성도",   max:25 },
