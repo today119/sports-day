@@ -921,8 +921,10 @@ function VSportDetail({sel, state}) {
 
 
 function VDash({cur, next, ranked, state}) {
+  const [schedOpen, setSchedOpen] = useState(false);
+
   return(<>
-    {/* 현재 진행 종목 */}
+    {/* ── 현재 진행 종목 ── */}
     {cur ? (
       <div className="dash-now">
         <div style={{fontSize:11,color:"rgba(255,255,255,.6)",fontWeight:700,
@@ -940,16 +942,16 @@ function VDash({cur, next, ranked, state}) {
         </div>
       </div>
     ) : (
-      <div style={{background:"#fafaf9",borderRadius:10,padding:"20px 16px",
-        textAlign:"center",color:"#9b9a97",marginBottom:10}}>
+      <div style={{background:"#fafaf9",borderRadius:10,padding:"16px",
+        textAlign:"center",color:"#9b9a97",marginBottom:10,fontSize:14}}>
         현재 진행 중인 일정이 없습니다
       </div>
     )}
 
-    {/* 다음 일정 */}
+    {/* ── 다음 일정 ── */}
     {next && (
       <div className="dash-next">
-        <div style={{fontSize:11,color:"#9b9a97",fontWeight:700,letterSpacing:1.5,marginBottom:8}}>
+        <div style={{fontSize:11,color:"#9b9a97",fontWeight:700,letterSpacing:1.5,marginBottom:6}}>
           NEXT →
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -962,8 +964,51 @@ function VDash({cur, next, ranked, state}) {
       </div>
     )}
 
-    {/* 팀 순위 TOP 5 */}
-    <div className="sl" style={{marginTop:20}}>🏆 팀 종합순위</div>
+    {/* ── 전체 일정 (토글) ── */}
+    <div className="card" style={{marginBottom:10,padding:0,overflow:"hidden"}}>
+      <button onClick={()=>setSchedOpen(v=>!v)}
+        style={{width:"100%",padding:"12px 16px",background:"none",border:"none",
+          cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:15}}>📅</span>
+        <span style={{fontWeight:700,color:"#37352f",fontSize:14,flex:1,textAlign:"left"}}>
+          전체 일정
+        </span>
+        <span style={{fontSize:13,color:"#9b9a97",fontWeight:700}}>
+          {schedOpen ? "▴ 접기" : "▾ 펼치기"}
+        </span>
+      </button>
+      {schedOpen && (
+        <div style={{borderTop:"1px solid #ebebea"}}>
+          {(state.schedule||[]).map((s,i)=>{
+            const isDone = s.status==="done";
+            const isCur  = s.status==="current";
+            return(
+              <div key={s.id} style={{
+                display:"flex",alignItems:"center",gap:10,padding:"10px 16px",
+                borderBottom: i<(state.schedule||[]).length-1?"1px solid #f5f5f3":"none",
+                background: isCur?"#fffbf0":isDone?"#fafaf9":"#fff",
+                opacity: isDone?0.55:1,
+              }}>
+                <span style={{fontSize:11,fontFamily:"monospace",color:"#9b9a97",
+                  minWidth:42,flexShrink:0}}>{s.time}</span>
+                <span style={{fontSize:18,flexShrink:0}}>{s.emoji}</span>
+                <span style={{flex:1,fontSize:14,fontWeight:isCur?700:500,
+                  color:isCur?"#92400e":"#37352f",
+                  textDecoration:isDone?"line-through":"none"}}>
+                  {s.title}
+                </span>
+                {isCur&&<span className="blink" style={{fontSize:10,fontWeight:800,
+                  color:"#eb5757",letterSpacing:1,flexShrink:0}}>LIVE</span>}
+                {isDone&&<span style={{fontSize:12,color:"#9b9a97",flexShrink:0}}>✓</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+
+    {/* ── 팀 종합순위 ── */}
+    <div className="sl">🏆 팀 종합순위</div>
     {ranked.map((r,i)=>(
       <div key={r.team} className={`rank-row${i===0?" r1":i===1?" r2":""}`}>
         <span style={{fontSize:22,minWidth:34,textAlign:"center",flexShrink:0}}>
@@ -982,6 +1027,7 @@ function VDash({cur, next, ranked, state}) {
     ))}
   </>);
 }
+
 
 // VNow는 VDash로 대체됨 (호환용 alias)
 function VNow({cur,next,ranked,state}) {
@@ -2727,8 +2773,8 @@ function OPhysical100({ state, update }) {
 // ══════════════════════════════════════════
 //  OPERATOR
 // ══════════════════════════════════════════
-function OperatorPage({ state, update, role, onLogout, onRoleClick }) {
-  const [tab, setTab] = useState("p100");
+function OperatorPage({ state, update, role, onLogout }) {
+  const [tab, setTab] = useState("sched");
   const [sbOpen, setSbOpen] = useState(false);
   const audioRef = useRef(null);
   const [playingId, setPlayingId] = useState(null);
@@ -2739,43 +2785,46 @@ function OperatorPage({ state, update, role, onLogout, onRoleClick }) {
     else { audioRef.current.src=track.url; audioRef.current.play().catch(()=>{}); setPlayingId(track.id); }
   };
 
-  const roleLabel = {operator:"총괄 운영자",bracket:"대진표 담당",score:"채점·점수 입력",mc:"MC/입장식"}[role||"operator"]||"운영자";
-  const NAV = [
+  const r = role||"operator";
+  const roleLabel = {operator:"👑 총괄 운영자",bracket:"📋 대진표 담당",score:"✏️ 채점·점수",mc:"🎤 MC/입장식"}[r]||"운영자";
+
+  const ALL_NAV = [
     {section:"개인전", items:[
-      {id:"p100",      icon:"🏋️", l:"피지컬 100", roles:["operator","score"]},
-      {id:"timetrial", icon:"⏱",  l:"8자마라톤",  roles:["operator","score"]},
+      {id:"p100",      icon:"🏋️", l:"피지컬100",    roles:["operator","score"]},
+      {id:"timetrial", icon:"⏱",  l:"8자마라톤",    roles:["operator","score"]},
     ]},
     {section:"단체전", items:[
-      {id:"bracket", icon:"🗓",  l:"대진표",     roles:["operator","bracket"]},
-      {id:"score",   icon:"🏅",  l:"점수 입력",  roles:["operator","score"]},
+      {id:"bracket",   icon:"🗓",  l:"대진표",        roles:["operator","bracket"]},
+      {id:"score",     icon:"🏅",  l:"점수 입력",     roles:["operator","score"]},
     ]},
     {section:"행사 운영", items:[
-      {id:"entry",     icon:"🚶", l:"입장식 진행",   roles:["operator","mc"]},
-      {id:"cheershow", icon:"📣", l:"응원전 진행",   roles:["operator","mc"]},
-      {id:"cheer",     icon:"⭐", l:"응원전 채점",   roles:["operator","scorer"]},
-      {id:"sched",     icon:"📅", l:"일정 관리",     roles:["operator"]},
-      {id:"call",      icon:"📢", l:"공지·호출",     roles:["operator"]},
-      {id:"music",     icon:"🎵", l:"BGM",          roles:["operator","mc"]},
-      {id:"seat",      icon:"💺", l:"좌석",          roles:["operator"]},
+      {id:"entry",     icon:"🚶", l:"입장식 진행",    roles:["operator","mc"]},
+      {id:"cheershow", icon:"📣", l:"응원전 진행",    roles:["operator","mc"]},
+      {id:"cheer",     icon:"⭐", l:"응원전 채점",    roles:["operator","score"]},
+      {id:"sched",     icon:"📅", l:"일정 관리",      roles:["operator"]},
+      {id:"call",      icon:"📢", l:"공지·호출",      roles:["operator","mc"]},
+      {id:"music",     icon:"🎵", l:"BGM",            roles:["operator","mc"]},
+      {id:"seat",      icon:"💺", l:"좌석",            roles:["operator"]},
+      {id:"rolesetup", icon:"🔑", l:"역할 비번 설정", roles:["operator"]},
     ]},
-    {section:"시스템", items:[
-      {id:"rolesetup", icon:"🔑", l:"비밀번호 설정", roles:["operator"]},
-    ]},
-  ].map(sec=>({...sec, items:sec.items.filter(it=>!it.roles||it.roles.includes(role))}))
-   .filter(sec=>sec.items.length>0);
+  ];
+
+  const NAV = ALL_NAV
+    .map(sec=>({...sec, items:sec.items.filter(it=>it.roles.includes(r))}))
+    .filter(sec=>sec.items.length>0);
 
   const curTab = NAV.flatMap(s=>s.items).find(i=>i.id===tab);
   const pickTab = (id) => { setTab(id); setSbOpen(false); };
 
   return (
-    <div style={{minHeight:"100vh"}}>
+    <div style={{minHeight:"100vh",background:"#fff",fontFamily:"'Inter','Noto Sans KR',sans-serif"}}>
       <style>{BASE_CSS}</style>
       <div className="layout">
         <div className={`sb-overlay${sbOpen?" open":""}`} onClick={()=>setSbOpen(false)}/>
 
         <aside className={`sidebar${sbOpen?" open":""}`}>
           <div className="sb-header">
-            <div className="sb-school" style={{color:"#eb5757",fontWeight:700}}>⚙️ {roleLabel}</div>
+            <div className="sb-school" style={{color:"#eb5757",fontWeight:700,fontSize:11}}>⚙️ {roleLabel}</div>
             <div className="sb-title">한마음 스포츠데이</div>
           </div>
 
@@ -2783,8 +2832,7 @@ function OperatorPage({ state, update, role, onLogout, onRoleClick }) {
             <div key={sec.section}>
               <div className="sb-section">{sec.section}</div>
               {sec.items.map(it=>(
-                <div key={it.id}
-                  className={`sb-item${tab===it.id?" active":""}`}
+                <div key={it.id} className={`sb-item${tab===it.id?" active":""}`}
                   onClick={()=>pickTab(it.id)}>
                   <span className="icon">{it.icon}</span>
                   <span>{it.l}</span>
@@ -2798,34 +2846,31 @@ function OperatorPage({ state, update, role, onLogout, onRoleClick }) {
             <span className="icon">🚪</span>
             <span>로그아웃</span>
           </div>
-          <div className="sb-footer">
-            역할: {role==="operator"?"👑 총괄 운영자":role==="bracket"?"📋 대진표 담당":role==="scorer"?"✏️ 채점자":"🎤 MC"}<br/>
-            ⚠️ 변경사항 실시간 반영
-          </div>
+          <div className="sb-footer">⚠️ 변경사항 실시간 반영</div>
         </aside>
 
         <main className="main">
           <div className="topbar">
             <button className="menu-btn" onClick={()=>setSbOpen(true)}>☰</button>
             <div className="breadcrumb">
-              <span className="crumb">운영자</span>
-              <span className="sep">/</span>
-              <span>{curTab?.icon} {curTab?.l}</span>
+              <span className="crumb" style={{color:"#9b9a97"}}>운영자</span>
+              <span style={{color:"#d0d0cc",fontSize:11,margin:"0 4px"}}>/</span>
+              <span>{curTab?.icon} {curTab?.l||"메뉴 선택"}</span>
             </div>
           </div>
 
           <div className="content">
-            {tab==="p100"     && <OPhysical100 state={state} update={update}/>}
-            {tab==="timetrial"&& <OTimeTrial   state={state} update={update}/>}
-            {tab==="bracket"  && <OBracket     state={state} update={update}/>}
-            {tab==="score"    && <OScore       state={state} update={update}/>}
+            {tab==="p100"      && <OPhysical100 state={state} update={update}/>}
+            {tab==="timetrial" && <OTimeTrial   state={state} update={update}/>}
+            {tab==="bracket"   && <OBracket     state={state} update={update}/>}
+            {tab==="score"     && <OScore       state={state} update={update}/>}
             {tab==="entry"     && <OEntry       state={state} update={update}/>}
             {tab==="cheershow" && <OCheerShow   state={state} update={update}/>}
             {tab==="cheer"     && <OCheer       state={state} update={update}/>}
             {tab==="sched"     && <OSched       state={state} update={update}/>}
-            {tab==="call"     && <OCall        state={state} update={update}/>}
-            {tab==="music"    && <OMusic       state={state} update={update} playTrack={playTrack} playingId={playingId}/>}
-            {tab==="seat"     && <OSeat        state={state} update={update}/>}
+            {tab==="call"      && <OCall        state={state} update={update}/>}
+            {tab==="music"     && <OMusic       state={state} update={update} playTrack={playTrack} playingId={playingId}/>}
+            {tab==="seat"      && <OSeat        state={state} update={update}/>}
             {tab==="rolesetup" && <ORoleSetup   state={state} update={update}/>}
           </div>
         </main>
@@ -2834,10 +2879,6 @@ function OperatorPage({ state, update, role, onLogout, onRoleClick }) {
   );
 }
 
-
-function OCard({children, style={}, ...rest}) {
-  return <div className="card" style={style} {...rest}>{children}</div>;
-}
 
 function OBracket({state,update}) {
   const [sel,setSel]=useState(SPORTS[0]);
