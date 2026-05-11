@@ -1509,87 +1509,111 @@ function BracketTeamRow({ cls, isWinner, onClick, isBye, isTbd }) {
 function BracketTree({bracket, sport, scores, groups, state}) {
   const seeds = bracket?.seeds || [];
   const results = bracket?.results || {};
+  if(seeds.length<5) return null;
+
   const computed = compute5SpecialBracket(seeds, results);
   const { matches, ranks } = computed;
   const [m1, sf1, sf2, mF] = matches;
 
-  const MatchCard = ({m}) => {
-    const isDone = !!m.winner;
-    return (
-      <div style={{
-        border:"2px solid",
-        borderColor: isDone?"#16a34a":"#e7e7e5",
-        borderRadius:8, background:"#fff", padding:6, marginBottom:0
-      }}>
-        {[m.a, m.b].map((t,i)=>(
-          <div key={i} style={{
-            display:"flex", alignItems:"center", gap:6,
-            padding:"6px 8px", borderRadius:5,
-            background: m.winner===t?"#dcfce7":m.winner&&m.winner!==t?"#fafaf9":"transparent",
-            border: m.winner===t?"1.5px solid #16a34a":"1.5px solid transparent",
-            opacity: m.winner&&m.winner!==t?.55:1, marginBottom: i===0?2:0
-          }}>
-            {t && t!=="?" ? (<>
-              <TeamBadge team={t} size={18}/>
-              <span style={{fontWeight:700,fontSize:13,color:"#37352f"}}>{t}팀</span>
-              {m.winner===t&&<span style={{marginLeft:"auto",fontSize:11,color:"#16a34a",fontWeight:800}}>✓</span>}
-            </>) : (
-              <span style={{fontSize:11,color:"#bcbbb6"}}>경기 대기</span>
-            )}
-          </div>
-        ))}
-      </div>
+  const W=720, H=460;
+  const SEED_X = { s5:90, s4:220, s3:430, s2:550, s1:660 };
+  const Y_FINAL_BAR = 50, Y_SF_LEFT = 200, Y_SF_RIGHT = 235;
+  const Y_R1 = 320, Y_TEAM_TOP = 380;
+  const lineColor = "#1f2937";
+  const teamFill = "#fde047";
+
+  const TeamSlot = ({x, team, label, isWinner, isLoser}) => {
+    const w=90, h=60;
+    return(
+      <g>
+        <rect x={x-w/2} y={Y_TEAM_TOP-22} width={w} height={22}
+          fill={teamFill} stroke={lineColor} strokeWidth="2"/>
+        <text x={x} y={Y_TEAM_TOP-6} textAnchor="middle"
+          fontSize="14" fontWeight="900" fill="#1f2937">{label}</text>
+        <rect x={x-w/2} y={Y_TEAM_TOP} width={w} height={h}
+          fill={team?(TEAM_BG[team]||"#fff"):"#fff"}
+          stroke={team?(TEAM_COLORS[team]||lineColor):lineColor}
+          strokeWidth={isWinner?"3":"2"} opacity={isLoser?0.4:1}/>
+        {team ? (<>
+          <text x={x} y={Y_TEAM_TOP+30} textAnchor="middle"
+            fontSize="18" fontWeight="900"
+            fill={isWinner?"#16a34a":TEAM_COLORS[team]||"#1f2937"}
+            opacity={isLoser?0.6:1}>{team}팀</text>
+          {isWinner&&<text x={x} y={Y_TEAM_TOP+50} textAnchor="middle"
+            fontSize="14" fontWeight="900" fill="#16a34a">✓</text>}
+        </>) : (
+          <text x={x} y={Y_TEAM_TOP+35} textAnchor="middle"
+            fontSize="12" fill="#9b9a97">-</text>
+        )}
+      </g>
     );
   };
 
   return(<>
-    <div className="card" style={{marginBottom:10,padding:10}}>
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-            <span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#f59e0b",
-              padding:"3px 8px",borderRadius:4}}>1라운드</span>
-          </div>
-          <MatchCard m={m1}/>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
-            <div style={{marginBottom:6}}>
-              <span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#3b82f6",
-                padding:"3px 8px",borderRadius:4}}>준결승 ①</span>
-            </div>
-            <MatchCard m={sf1}/>
-          </div>
-          <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
-            <div style={{marginBottom:6}}>
-              <span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#3b82f6",
-                padding:"3px 8px",borderRadius:4}}>준결승 ②</span>
-            </div>
-            <MatchCard m={sf2}/>
-          </div>
-        </div>
-        <div style={{background:"linear-gradient(135deg,#fff7ed,#fef3c7)",
-          borderRadius:10,padding:12,border:"2px solid #f59e0b"}}>
-          <div style={{textAlign:"center",marginBottom:6}}>
-            <span style={{fontSize:11,fontWeight:800,color:"#fff",background:"#f59e0b",
-              padding:"4px 12px",borderRadius:4}}>🏆 결승</span>
-          </div>
-          <MatchCard m={mF}/>
-          {mF.winner && (
-            <div style={{background:"#fff",
-              borderRadius:8, padding:10, marginTop:6, textAlign:"center",
-              border:"2px solid #f59e0b"}}>
-              <div style={{fontSize:10,color:"#78350f",fontWeight:700}}>🏆 우승</div>
-              <div style={{fontSize:18,fontWeight:900,color:"#1c1917"}}>{mF.winner}팀</div>
-            </div>
-          )}
-        </div>
-      </div>
+    <div style={{overflowX:"auto",background:"#fff",borderRadius:8,
+      border:"1px solid #e7e7e5",padding:10,marginBottom:14}}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",minWidth:600,height:"auto"}}>
+        {/* 결승 가로바 */}
+        <rect x={150} y={Y_FINAL_BAR} width={W-300} height={32}
+          fill="#fff" stroke={lineColor} strokeWidth="2"/>
+        {mF.winner && (
+          <text x={W/2} y={Y_FINAL_BAR+22} textAnchor="middle"
+            fontSize="18" fontWeight="900" fill="#16a34a">🏆 {mF.winner}팀 우승</text>
+        )}
+        <line x1={150} y1={Y_FINAL_BAR+16} x2={150} y2={Y_SF_LEFT} stroke={lineColor} strokeWidth="2"/>
+        <line x1={150} y1={Y_SF_LEFT} x2={(SEED_X.s5+SEED_X.s4)/2} y2={Y_SF_LEFT} stroke={lineColor} strokeWidth="2"/>
+        <line x1={W-150} y1={Y_FINAL_BAR+16} x2={W-150} y2={Y_SF_RIGHT} stroke={lineColor} strokeWidth="2"/>
+        <line x1={W-150} y1={Y_SF_RIGHT} x2={(SEED_X.s2+SEED_X.s1)/2+30} y2={Y_SF_RIGHT} stroke={lineColor} strokeWidth="2"/>
+
+        {/* 준결승① 가로 */}
+        <rect x={(SEED_X.s2+SEED_X.s3)/2-20} y={Y_SF_RIGHT-16}
+          width={(SEED_X.s1-SEED_X.s3)/2+50} height={32}
+          fill="#fff" stroke={lineColor} strokeWidth="2"/>
+        <text x={(SEED_X.s2+SEED_X.s1)/2+15} y={Y_SF_RIGHT+5}
+          textAnchor="middle" fontSize="14" fontWeight="700"
+          fill={sf1.winner?"#16a34a":"#6b7280"}>
+          {sf1.winner?`→ ${sf1.winner}팀`:"준결승 ①"}
+        </text>
+        <line x1={(SEED_X.s2+SEED_X.s3)/2} y1={Y_SF_RIGHT+16}
+          x2={(SEED_X.s2+SEED_X.s3)/2} y2={Y_R1+16} stroke={lineColor} strokeWidth="2"/>
+        <line x1={SEED_X.s1} y1={Y_SF_RIGHT+16} x2={SEED_X.s1} y2={Y_TEAM_TOP-22}
+          stroke={lineColor} strokeWidth="2"/>
+
+        {/* 1라운드 박스 */}
+        <rect x={(SEED_X.s2+SEED_X.s3)/2-50} y={Y_R1} width={100} height={32}
+          fill="#fff" stroke={lineColor} strokeWidth="2"/>
+        <text x={(SEED_X.s2+SEED_X.s3)/2} y={Y_R1+20} textAnchor="middle"
+          fontSize="13" fontWeight="800" fill={m1.winner?"#16a34a":"#6b7280"}>
+          {m1.winner?`${m1.winner}팀`:"1라운드"}
+        </text>
+        <line x1={SEED_X.s3} y1={Y_R1+32} x2={SEED_X.s3} y2={Y_TEAM_TOP-22} stroke={lineColor} strokeWidth="2"/>
+        <line x1={SEED_X.s2} y1={Y_R1+32} x2={SEED_X.s2} y2={Y_TEAM_TOP-22} stroke={lineColor} strokeWidth="2"/>
+        <line x1={SEED_X.s3} y1={Y_R1+32} x2={SEED_X.s2} y2={Y_R1+32} stroke={lineColor} strokeWidth="2"/>
+
+        {/* 준결승② */}
+        <text x={(SEED_X.s5+SEED_X.s4)/2} y={Y_SF_LEFT-6} textAnchor="middle"
+          fontSize="13" fontWeight="800" fill={sf2.winner?"#16a34a":"#6b7280"}>
+          {sf2.winner?`→ ${sf2.winner}팀`:"준결승 ②"}
+        </text>
+        <line x1={SEED_X.s5} y1={Y_SF_LEFT} x2={SEED_X.s5} y2={Y_TEAM_TOP-22} stroke={lineColor} strokeWidth="2"/>
+        <line x1={SEED_X.s4} y1={Y_SF_LEFT} x2={SEED_X.s4} y2={Y_TEAM_TOP-22} stroke={lineColor} strokeWidth="2"/>
+
+        <TeamSlot x={SEED_X.s5} team={seeds[4]} label="5"
+          isWinner={sf2.winner===seeds[4]} isLoser={sf2.winner&&sf2.winner!==seeds[4]}/>
+        <TeamSlot x={SEED_X.s4} team={seeds[3]} label="4"
+          isWinner={sf2.winner===seeds[3]} isLoser={sf2.winner&&sf2.winner!==seeds[3]}/>
+        <TeamSlot x={SEED_X.s3} team={seeds[2]} label="3"
+          isWinner={m1.winner===seeds[2]} isLoser={m1.winner&&m1.winner!==seeds[2]}/>
+        <TeamSlot x={SEED_X.s2} team={seeds[1]} label="2"
+          isWinner={m1.winner===seeds[1]} isLoser={m1.winner&&m1.winner!==seeds[1]}/>
+        <TeamSlot x={SEED_X.s1} team={seeds[0]} label="1"
+          isWinner={sf1.winner===seeds[0]} isLoser={sf1.winner&&sf1.winner!==seeds[0]}/>
+      </svg>
     </div>
 
     {Object.keys(ranks).length>0 && (
       <div className="card">
-        <div style={{fontSize:11,fontWeight:700,color:"#787671",marginBottom:8}}>📊 최종 순위</div>
+        <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:8}}>📊 최종 순위</div>
         {Object.entries(ranks).sort((a,b)=>a[1]-b[1]).map(([t,r])=>(
           <div key={t} className="rrow">
             <span style={{fontSize:14,minWidth:28,textAlign:"center"}}>
@@ -3488,176 +3512,236 @@ function OBracket({state, update}) {
   };
 
 
-  // ── 좌→우 트리 형 대진표 ──
+  // ── 한국 전통 토너먼트 (위→아래 SVG) ──
   const renderBracket = () => {
     if(seeds.length<5) return null;
     const computed = compute5SpecialBracket(seeds, results);
     const { matches, ranks } = computed;
     const [m1, sf1, sf2, mF] = matches;
 
-    // 큰 매치 박스 (이름/팀 클릭하여 승자 선택)
-    const Slot = ({team, isWinner, isLoser, canPick, onPick, placeholder}) => {
-      const inner = team && team!=="?" ? (
-        <>
-          <TeamBadge team={team} size={26}/>
-          <div style={{fontSize:18,fontWeight:900,
-            color:isWinner?"#16a34a":isLoser?"#9b9a97":"#37352f",
-            textDecoration:isLoser?"line-through":"none"}}>
-            {team}팀
-          </div>
-          {isWinner&&<span style={{fontSize:14,fontWeight:900,color:"#16a34a"}}>✓</span>}
-        </>
-      ) : (
-        <span style={{fontSize:13,color:"#bcbbb6",fontStyle:"italic"}}>{placeholder||"대기"}</span>
-      );
-      return(
-        <div onClick={()=>canPick&&onPick&&onPick()} style={{
-          background:isWinner?"#dcfce7":"#fff",
-          border:`2.5px solid ${isWinner?"#16a34a":isLoser?"#e7e7e5":(team&&team!=="?"?"#9b9a97":"#e7e7e5")}`,
-          borderRadius:10, padding:"14px 16px",
-          display:"flex", alignItems:"center", gap:10,
-          minHeight:60, cursor:canPick?"pointer":"default",
-          opacity:isLoser?0.5:1, transition:"all .2s",
-        }}>
-          {inner}
-        </div>
+    // SVG 좌표 (이미지3 기준)
+    const W=720, H=460;
+
+    // 시드별 X좌표 (5: 90, 4: 220, 3: 420, 2: 540, 1: 660)
+    const SEED_X = { s5:90, s4:220, s3:430, s2:550, s1:660 };
+    // 단계별 Y좌표
+    const Y_FINAL_BAR = 50;       // 결승 가로바
+    const Y_SF_LEFT   = 200;      // 준결승 ② 가로바 (왼쪽: 4↔5)
+    const Y_SF_RIGHT  = 235;      // 준결승 ① 가로바 (오른쪽: 1 ↔ 1라운드승자)
+    const Y_R1        = 320;      // 1라운드 가로바 (2↔3)
+    const Y_TEAM_TOP  = 380;      // 팀 박스 상단
+    const Y_TEAM_BOTTOM = 440;    // 팀 박스 하단
+
+    // 색상
+    const lineColor = "#1f2937";
+    const teamFill  = "#fde047";
+
+    // 팀 박스 컴포넌트 (직접 SVG에 그림)
+    const TeamSlot = ({x, team, label, isWinner, isLoser, canPick, onPick}) => {
+      const w = 90, h = 60;
+      const fillColor = team && team!=="?" ? (TEAM_BG[team]||"#fff") : "#fff";
+      const stroke    = team && team!=="?" ? (TEAM_COLORS[team]||lineColor) : lineColor;
+      return (
+        <g onClick={()=>canPick&&onPick&&onPick()}
+          style={{cursor:canPick?"pointer":"default"}}>
+          {/* 노란 라벨 박스 (시드 번호 표시) */}
+          <rect x={x-w/2} y={Y_TEAM_TOP-22} width={w} height={22}
+            fill={teamFill} stroke={lineColor} strokeWidth="2"/>
+          <text x={x} y={Y_TEAM_TOP-6} textAnchor="middle"
+            fontSize="14" fontWeight="900" fill="#1f2937">
+            {label}
+          </text>
+          {/* 팀 박스 */}
+          <rect x={x-w/2} y={Y_TEAM_TOP} width={w} height={h}
+            fill={fillColor} stroke={stroke} strokeWidth={isWinner?"3":"2"}
+            opacity={isLoser?0.4:1}/>
+          {team && team!=="?" ? (
+            <>
+              <text x={x} y={Y_TEAM_TOP+28} textAnchor="middle"
+                fontSize="18" fontWeight="900"
+                fill={isWinner?"#16a34a":TEAM_COLORS[team]||"#1f2937"}
+                textDecoration={isLoser?"line-through":"none"}
+                opacity={isLoser?0.6:1}>
+                {team}팀
+              </text>
+              {isWinner && (
+                <text x={x} y={Y_TEAM_TOP+48} textAnchor="middle"
+                  fontSize="14" fontWeight="900" fill="#16a34a">✓</text>
+              )}
+            </>
+          ) : (
+            <text x={x} y={Y_TEAM_TOP+35} textAnchor="middle"
+              fontSize="12" fill="#9b9a97">대기</text>
+          )}
+        </g>
       );
     };
 
-    // 결승 우승팀 표시
-    const Champion = ({team}) => team ? (
-      <div style={{background:"linear-gradient(135deg,#fbbf24,#f59e0b)",
-        borderRadius:12, padding:"18px 20px", textAlign:"center",
-        boxShadow:"0 8px 20px rgba(251,191,36,.4)"}}>
-        <div style={{fontSize:11,fontWeight:800,color:"#78350f",letterSpacing:2}}>🏆 우승</div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginTop:6}}>
-          <TeamBadge team={team} size={36}/>
-          <div style={{fontSize:24,fontWeight:900,color:"#1c1917"}}>{team}팀</div>
-        </div>
-      </div>
-    ) : (
-      <div style={{
-        border:"2.5px dashed #d4d4d2", borderRadius:10, padding:"14px 16px",
-        textAlign:"center", color:"#9b9a97", minHeight:60,
-        display:"flex",alignItems:"center",justifyContent:"center"
-      }}>
-        <span style={{fontSize:13,fontStyle:"italic"}}>결승 후 결정</span>
-      </div>
-    );
-
-    // 연결선 그리는 헬퍼
-    const Connector = ({pos="middle"}) => (
-      <div style={{position:"relative", width:30, alignSelf:"stretch"}}>
-        <svg width="30" height="100%" style={{position:"absolute",top:0,left:0}}>
-          <line x1="0" y1={pos==="top"?"75%":"25%"} x2="15" y2={pos==="top"?"75%":"25%"}
-            stroke="#9b9a97" strokeWidth="2.5"/>
-          <line x1="15" y1="25%" x2="15" y2="75%" stroke="#9b9a97" strokeWidth="2.5"/>
-          <line x1="15" y1="50%" x2="30" y2="50%" stroke="#9b9a97" strokeWidth="2.5"/>
-        </svg>
-      </div>
+    // 라운드 박스 (이름 또는 ? 표시)
+    const RoundBox = ({x, y, w, h, label, content, color, canPick, onPick}) => (
+      <g onClick={()=>canPick&&onPick&&onPick()}
+        style={{cursor:canPick?"pointer":"default"}}>
+        <rect x={x-w/2} y={y} width={w} height={h}
+          fill="#fff" stroke={color||lineColor} strokeWidth="2"/>
+        {label && (
+          <text x={x} y={y+h/2-8} textAnchor="middle" fontSize="12" fill="#9b9a97">
+            {label}
+          </text>
+        )}
+        <text x={x} y={y+h/2+10} textAnchor="middle"
+          fontSize="16" fontWeight="800" fill={color||"#1f2937"}>
+          {content||"?"}
+        </text>
+      </g>
     );
 
     return (
       <div>
-        {/* 좌→우 트리 */}
-        <div style={{display:"flex",alignItems:"stretch",gap:0,marginBottom:14,
-          overflowX:"auto",paddingBottom:8}}>
+        <div style={{overflowX:"auto",background:"#fff",borderRadius:8,
+          border:"1px solid #e7e7e5",padding:10,marginBottom:14}}>
+          <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",minWidth:600,height:"auto"}}>
+            {/* ──────── 결승 가로바 (맨 위) ──────── */}
+            <rect x={150} y={Y_FINAL_BAR} width={W-300} height={32}
+              fill="#fff" stroke={lineColor} strokeWidth="2"/>
+            {mF.winner && (
+              <text x={W/2} y={Y_FINAL_BAR+22} textAnchor="middle"
+                fontSize="18" fontWeight="900" fill="#16a34a">
+                🏆 {mF.winner}팀 우승
+              </text>
+            )}
 
-          {/* 컬럼 1: 1라운드 */}
-          <div style={{flexShrink:0,minWidth:200,display:"flex",flexDirection:"column",gap:10}}>
-            <div style={{fontSize:11,fontWeight:800,color:"#fff",
-              background:"#f59e0b",padding:"4px 10px",borderRadius:5,
-              textAlign:"center",letterSpacing:1}}>1라운드</div>
-            <Slot team={m1.a}
-              isWinner={m1.winner===m1.a} isLoser={m1.winner&&m1.winner!==m1.a}
-              canPick={!!m1.a&&m1.a!=="?"} onPick={()=>pickWinner("m1",m1.a)}
-              placeholder={`${seeds[1]||"?"}`}/>
-            <Slot team={m1.b}
-              isWinner={m1.winner===m1.b} isLoser={m1.winner&&m1.winner!==m1.b}
-              canPick={!!m1.b&&m1.b!=="?"} onPick={()=>pickWinner("m1",m1.b)}
-              placeholder={`${seeds[2]||"?"}`}/>
-            {/* 4번/5번 시드는 준결승부터 → 빈 칸으로 공간 차지 */}
-            <div style={{height:20}}/>
-            <Slot team={sf2.a}
-              isWinner={sf2.winner===sf2.a} isLoser={sf2.winner&&sf2.winner!==sf2.a}
-              canPick={false}
-              placeholder={`${seeds[3]||"?"}`}/>
-            <Slot team={sf2.b}
-              isWinner={sf2.winner===sf2.b} isLoser={sf2.winner&&sf2.winner!==sf2.b}
-              canPick={false}
-              placeholder={`${seeds[4]||"?"}`}/>
-          </div>
+            {/* 결승 → 왼쪽 (준결승②=4vs5) */}
+            <line x1={150} y1={Y_FINAL_BAR+16} x2={150} y2={Y_SF_LEFT}
+              stroke={lineColor} strokeWidth="2"/>
+            <line x1={150} y1={Y_SF_LEFT} x2={(SEED_X.s5+SEED_X.s4)/2} y2={Y_SF_LEFT}
+              stroke={lineColor} strokeWidth="2"/>
 
-          <Connector pos="top"/>
+            {/* 결승 → 오른쪽 (준결승① 박스) */}
+            <line x1={W-150} y1={Y_FINAL_BAR+16} x2={W-150} y2={Y_SF_RIGHT}
+              stroke={lineColor} strokeWidth="2"/>
+            <line x1={W-150} y1={Y_SF_RIGHT} x2={(SEED_X.s2+SEED_X.s1)/2+30} y2={Y_SF_RIGHT}
+              stroke={lineColor} strokeWidth="2"/>
 
-          {/* 컬럼 2: 준결승 */}
-          <div style={{flexShrink:0,minWidth:200,display:"flex",flexDirection:"column",gap:10,
-            justifyContent:"space-around"}}>
-            <div style={{fontSize:11,fontWeight:800,color:"#fff",
-              background:"#3b82f6",padding:"4px 10px",borderRadius:5,
-              textAlign:"center",letterSpacing:1}}>준결승 ①</div>
-            <Slot team={s1}
-              isWinner={sf1.winner===s1} isLoser={sf1.winner&&sf1.winner!==s1}
-              canPick={!!m1.winner} onPick={()=>pickWinner("sf1",s1)}
-              placeholder="1번 시드"/>
-            <Slot team={m1.winner}
-              isWinner={sf1.winner===m1.winner} isLoser={sf1.winner&&sf1.winner!==m1.winner}
-              canPick={!!m1.winner} onPick={()=>pickWinner("sf1",m1.winner)}
-              placeholder="1라운드 승자"/>
+            {/* ──────── 준결승 ① 가로 (1 ↔ 1라운드승자) ──────── */}
+            <rect x={(SEED_X.s2+SEED_X.s3)/2-20} y={Y_SF_RIGHT-16}
+              width={(SEED_X.s1-SEED_X.s3)/2+50} height={32}
+              fill="#fff" stroke={lineColor} strokeWidth="2"/>
+            <text x={(SEED_X.s2+SEED_X.s1)/2+15} y={Y_SF_RIGHT+5}
+              textAnchor="middle" fontSize="14" fontWeight="700"
+              fill={sf1.winner?"#16a34a":"#6b7280"}>
+              {sf1.winner ? `→ ${sf1.winner}팀` : "준결승 ①"}
+            </text>
 
-            <div style={{fontSize:11,fontWeight:800,color:"#fff",
-              background:"#3b82f6",padding:"4px 10px",borderRadius:5,
-              textAlign:"center",letterSpacing:1,marginTop:14}}>준결승 ②</div>
-            <Slot team={sf2.a}
-              isWinner={sf2.winner===sf2.a} isLoser={sf2.winner&&sf2.winner!==sf2.a}
-              canPick={!!sf2.a} onPick={()=>pickWinner("sf2",sf2.a)}/>
-            <Slot team={sf2.b}
-              isWinner={sf2.winner===sf2.b} isLoser={sf2.winner&&sf2.winner!==sf2.b}
-              canPick={!!sf2.b} onPick={()=>pickWinner("sf2",sf2.b)}/>
-          </div>
+            {/* 준결승① → 1번 시드 (1라운드 승자 박스) */}
+            <line x1={(SEED_X.s2+SEED_X.s3)/2} y1={Y_SF_RIGHT+16}
+              x2={(SEED_X.s2+SEED_X.s3)/2} y2={Y_R1+16}
+              stroke={lineColor} strokeWidth="2"/>
+            {/* 준결승① → 1번시드 직선 */}
+            <line x1={SEED_X.s1} y1={Y_SF_RIGHT+16} x2={SEED_X.s1} y2={Y_TEAM_TOP-22}
+              stroke={lineColor} strokeWidth="2"/>
 
-          <Connector pos="top"/>
+            {/* ──────── 1라운드 박스 (2↔3 승자 표시) ──────── */}
+            <rect x={(SEED_X.s2+SEED_X.s3)/2-50} y={Y_R1}
+              width={100} height={32}
+              fill="#fff" stroke={lineColor} strokeWidth="2"/>
+            <text x={(SEED_X.s2+SEED_X.s3)/2} y={Y_R1+20}
+              textAnchor="middle" fontSize="13" fontWeight="800"
+              fill={m1.winner?"#16a34a":"#6b7280"}>
+              {m1.winner ? `${m1.winner}팀` : "1라운드"}
+            </text>
 
-          {/* 컬럼 3: 결승 */}
-          <div style={{flexShrink:0,minWidth:200,display:"flex",flexDirection:"column",gap:10,
-            justifyContent:"center"}}>
-            <div style={{fontSize:11,fontWeight:800,color:"#fff",
-              background:"#f59e0b",padding:"4px 10px",borderRadius:5,
-              textAlign:"center",letterSpacing:1}}>🏆 결승</div>
-            <Slot team={sf1.winner}
-              isWinner={mF.winner===sf1.winner} isLoser={mF.winner&&mF.winner!==sf1.winner}
-              canPick={!!sf1.winner&&!!sf2.winner} onPick={()=>pickWinner("f",sf1.winner)}
-              placeholder="준결승① 승자"/>
-            <Slot team={sf2.winner}
-              isWinner={mF.winner===sf2.winner} isLoser={mF.winner&&mF.winner!==sf2.winner}
-              canPick={!!sf1.winner&&!!sf2.winner} onPick={()=>pickWinner("f",sf2.winner)}
-              placeholder="준결승② 승자"/>
-          </div>
+            {/* 1라운드 박스 → 2번/3번 시드 */}
+            <line x1={SEED_X.s3} y1={Y_R1+32} x2={SEED_X.s3} y2={Y_TEAM_TOP-22}
+              stroke={lineColor} strokeWidth="2"/>
+            <line x1={SEED_X.s2} y1={Y_R1+32} x2={SEED_X.s2} y2={Y_TEAM_TOP-22}
+              stroke={lineColor} strokeWidth="2"/>
+            <line x1={SEED_X.s3} y1={Y_R1+32} x2={SEED_X.s2} y2={Y_R1+32}
+              stroke={lineColor} strokeWidth="2"/>
 
-          <Connector pos="top"/>
+            {/* ──────── 준결승 ② (4↔5 승자) ──────── */}
+            <text x={(SEED_X.s5+SEED_X.s4)/2} y={Y_SF_LEFT-6}
+              textAnchor="middle" fontSize="13" fontWeight="800"
+              fill={sf2.winner?"#16a34a":"#6b7280"}>
+              {sf2.winner ? `→ ${sf2.winner}팀` : "준결승 ②"}
+            </text>
+            {/* 4↔5번 시드 연결 */}
+            <line x1={SEED_X.s5} y1={Y_SF_LEFT} x2={SEED_X.s5} y2={Y_TEAM_TOP-22}
+              stroke={lineColor} strokeWidth="2"/>
+            <line x1={SEED_X.s4} y1={Y_SF_LEFT} x2={SEED_X.s4} y2={Y_TEAM_TOP-22}
+              stroke={lineColor} strokeWidth="2"/>
 
-          {/* 컬럼 4: 우승 */}
-          <div style={{flexShrink:0,minWidth:200,display:"flex",flexDirection:"column",
-            justifyContent:"center"}}>
-            <Champion team={mF.winner}/>
+            {/* ──────── 팀 박스 (1~5번 시드) ──────── */}
+            <TeamSlot x={SEED_X.s5} team={seeds[4]} label="5"
+              isWinner={sf2.winner===seeds[4]} isLoser={sf2.winner&&sf2.winner!==seeds[4]}
+              canPick={!!seeds[4]} onPick={()=>pickWinner("sf2",seeds[4])}/>
+            <TeamSlot x={SEED_X.s4} team={seeds[3]} label="4"
+              isWinner={sf2.winner===seeds[3]} isLoser={sf2.winner&&sf2.winner!==seeds[3]}
+              canPick={!!seeds[3]} onPick={()=>pickWinner("sf2",seeds[3])}/>
+            <TeamSlot x={SEED_X.s3} team={seeds[2]} label="3"
+              isWinner={m1.winner===seeds[2]} isLoser={m1.winner&&m1.winner!==seeds[2]}
+              canPick={!!seeds[2]} onPick={()=>pickWinner("m1",seeds[2])}/>
+            <TeamSlot x={SEED_X.s2} team={seeds[1]} label="2"
+              isWinner={m1.winner===seeds[1]} isLoser={m1.winner&&m1.winner!==seeds[1]}
+              canPick={!!seeds[1]} onPick={()=>pickWinner("m1",seeds[1])}/>
+            <TeamSlot x={SEED_X.s1} team={seeds[0]} label="1"
+              isWinner={sf1.winner===seeds[0]} isLoser={sf1.winner&&sf1.winner!==seeds[0]}
+              canPick={!!m1.winner} onPick={()=>pickWinner("sf1",seeds[0])}/>
+
+            {/* 1라운드 승자가 준결승①에 들어갈 때: 박스 클릭 */}
+            {m1.winner && !sf1.winner && (
+              <g onClick={()=>pickWinner("sf1",m1.winner)} style={{cursor:"pointer"}}>
+                <rect x={(SEED_X.s2+SEED_X.s3)/2-50} y={Y_R1}
+                  width={100} height={32}
+                  fill="#fef3c7" stroke="#f59e0b" strokeWidth="2.5"/>
+                <text x={(SEED_X.s2+SEED_X.s3)/2} y={Y_R1+20}
+                  textAnchor="middle" fontSize="13" fontWeight="800" fill="#92400e">
+                  {m1.winner}팀 ▶
+                </text>
+              </g>
+            )}
+
+            {/* 결승 진행 가능 시 안내 */}
+            {sf1.winner && sf2.winner && !mF.winner && (
+              <g>
+                <rect x={150} y={Y_FINAL_BAR} width={W-300} height={32}
+                  fill="#fef3c7" stroke="#f59e0b" strokeWidth="3"/>
+                <text x={W/2-80} y={Y_FINAL_BAR+22} textAnchor="middle"
+                  fontSize="14" fontWeight="800" fill="#92400e"
+                  onClick={()=>pickWinner("f",sf1.winner)}
+                  style={{cursor:"pointer"}}>
+                  ◀ {sf1.winner}팀
+                </text>
+                <text x={W/2} y={Y_FINAL_BAR+22} textAnchor="middle"
+                  fontSize="14" fontWeight="900" fill="#1f2937">VS</text>
+                <text x={W/2+80} y={Y_FINAL_BAR+22} textAnchor="middle"
+                  fontSize="14" fontWeight="800" fill="#92400e"
+                  onClick={()=>pickWinner("f",sf2.winner)}
+                  style={{cursor:"pointer"}}>
+                  {sf2.winner}팀 ▶
+                </text>
+              </g>
+            )}
+          </svg>
+        </div>
+
+        <div className="card" style={{background:"#fef3c7",borderColor:"#fde68a",
+          marginBottom:10,padding:"10px 14px"}}>
+          <div style={{fontSize:12,color:"#92400e",lineHeight:1.7}}>
+            👆 <b>승자를 선택하려면 팀 박스나 라운드 박스를 탭하세요</b><br/>
+            ① 4↔5 경기 → 노란 라벨 4 또는 5 탭 (승자 선택)<br/>
+            ② 2↔3 경기 → 노란 라벨 2 또는 3 탭 (승자 선택)<br/>
+            ③ 1↔1라운드승자 → 1번 박스 또는 노란 1라운드 박스 탭<br/>
+            ④ 결승 → 위쪽 결승 바의 두 팀 중 탭
           </div>
         </div>
 
-        {/* 안내 + 점수 산정 */}
         <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",marginBottom:10}}>
-          <div style={{fontSize:12,fontWeight:700,color:"#1d4ed8",marginBottom:6}}>
-            📊 점수 산정
-          </div>
+          <div style={{fontSize:12,fontWeight:700,color:"#1d4ed8",marginBottom:6}}>📊 점수 산정</div>
           <div style={{fontSize:12,color:"#1e40af",lineHeight:1.7}}>
-            🥇 1위 (결승 승자): <b>100점</b><br/>
-            🥈 2위 (결승 패자): <b>90점</b><br/>
-            🥉 3위 (준결승 ① 패자): <b>80점</b><br/>
-            4위 (준결승 ② 패자): <b>80점</b><br/>
-            5위 (1라운드 패자): <b>50점</b>
+            🥇 1위 100점 · 🥈 2위 90점 · 🥉 3위 80점 · 4위 80점 · 5위 50점
           </div>
         </div>
 
-        {/* 순위 요약 */}
         {Object.keys(ranks).length>0 && (
           <div className="card">
             <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:8}}>📊 최종 순위</div>
