@@ -79,11 +79,10 @@ const TIME_TRIAL_SPORT = TIME_TRIAL_SPORTS[0]; // 호환용
 
 const SPORT_PTS = {
   "줄다리기": [100,90,80,80,50],  // 팀 토너먼트 5팀
-  "2/3인 각": [100,90,80,80,50],  // 팀 토너먼트 5팀
 };
-const TEAM_TOURN_SPORTS = ["줄다리기","2/3인 각"];
+const TEAM_TOURN_SPORTS = ["줄다리기"];
 const GRP_SPORTS = ["장애물달리기","태풍의눈"];  // 조별 순위(조내 1~5위)
-const EVENT_SPORTS = ["골때녀"];
+const EVENT_SPORTS = ["골때녀","미션달리기"];  // 점수 미반영 (학생회 주관)
 const SPORTS = [...TEAM_TOURN_SPORTS, ...GRP_SPORTS, "계주"];
 const ALL_SPORTS = [...TIME_TRIAL_SPORTS, ...SPORTS, ...EVENT_SPORTS];
 
@@ -133,7 +132,7 @@ const SCHED_DEFAULT = [
   { id:"s05", time:"10:10", title:"장애물달리기",            emoji:"🚧", status:"upcoming" },
   { id:"s06", time:"10:30", title:"줄다리기 예선",           emoji:"🪢", status:"upcoming" },
   { id:"s07", time:"10:50", title:"계주 예선",              emoji:"🏃", status:"upcoming" },
-  { id:"s08", time:"11:10", title:"2/3인 각 (학생회)",       emoji:"👯", status:"upcoming" },
+  { id:"s08", time:"11:10", title:"미션달리기 (학생회)",       emoji:"👯", status:"upcoming" },
   { id:"s09", time:"11:30", title:"응원전 1학년",            emoji:"📣", status:"upcoming" },
   { id:"s10", time:"12:00", title:"점심시간",               emoji:"🍱", status:"upcoming" },
   { id:"s11", time:"13:00", title:"응원전 2학년",            emoji:"📣", status:"upcoming" },
@@ -211,42 +210,44 @@ function computeBracket(seeds, results) {
 }
 
 // ── 5팀 특수 대진 ──
+// 1라운드: 2 vs 3 (한 경기만)
+// 준결승: (2vs3 승자) vs 1    /    4 vs 5
+// 결승: 두 준결승 승자
 function compute5SpecialBracket(seeds, results) {
-  // seeds = [seed1, seed2, seed3, seed4, seed5] (1위~5위 시드)
   const [s1, s2, s3, s4, s5] = seeds;
   results = results || {};
 
-  // Match 1: 4 vs 5
-  const m1Winner = results.m1; // seeds[3] or seeds[4]
-  const m1Loser  = m1Winner ? (m1Winner===s4?s5:s4) : null;
+  // m1 (1라운드): 2 vs 3
+  const m1Winner = results.m1;
+  const m1Loser  = m1Winner ? (m1Winner===s2?s3:s2) : null;
 
-  // Match 2: 2 vs 3
-  const m2Winner = results.m2; // seeds[1] or seeds[2]
-  const m2Loser  = m2Winner ? (m2Winner===s2?s3:s2) : null;
+  // sf1 (준결승 1): m1 승자 vs 1
+  const sf1Winner = results.sf1;
+  const sf1Loser  = sf1Winner ? (sf1Winner===s1 ? m1Winner : s1) : null;
 
-  // Match 3 (semi): m2Winner vs 1
-  const m3Winner = results.m3; // m2Winner or s1
-  const m3Loser  = m3Winner ? (m3Winner===s1 ? m2Winner : s1) : null;
+  // sf2 (준결승 2): 4 vs 5
+  const sf2Winner = results.sf2;
+  const sf2Loser  = sf2Winner ? (sf2Winner===s4?s5:s4) : null;
 
-  // Final: m1Winner vs m3Winner
+  // 결승: sf1 승자 vs sf2 승자
   const finalWinner = results.f;
-  const finalLoser  = finalWinner ? (finalWinner===m1Winner?m3Winner:m1Winner) : null;
+  const finalLoser  = finalWinner ? (finalWinner===sf1Winner?sf2Winner:sf1Winner) : null;
 
   return {
     type: "5special",
     seeds, results,
     matches: [
-      { id:"m1", round:1, label:"1차전", a:s4, b:s5, winner:m1Winner||null },
-      { id:"m2", round:1, label:"1차전", a:s2, b:s3, winner:m2Winner||null },
-      { id:"m3", round:2, label:"준결승", a:m2Winner||"?", b:s1, winner:m3Winner||null },
-      { id:"f",  round:3, label:"결승",  a:m1Winner||"?", b:m3Winner||"?", winner:finalWinner||null },
+      { id:"m1",  round:1, label:"1차전",   a:s2, b:s3,                 winner:m1Winner||null },
+      { id:"sf1", round:2, label:"준결승 ①", a:m1Winner||"?", b:s1,      winner:sf1Winner||null },
+      { id:"sf2", round:2, label:"준결승 ②", a:s4, b:s5,                 winner:sf2Winner||null },
+      { id:"f",   round:3, label:"결승",     a:sf1Winner||"?", b:sf2Winner||"?", winner:finalWinner||null },
     ],
     ranks: {
-      ...(finalWinner&&{[finalWinner]:1}),
-      ...(finalLoser &&{[finalLoser]:2}),
-      ...(m3Loser   &&{[m3Loser]:3}),
-      ...(m2Loser   &&{[m2Loser]:4}),
-      ...(m1Loser   &&{[m1Loser]:5}),
+      ...(finalWinner&&{[finalWinner]:1}),     // 1위: 결승 승자
+      ...(finalLoser &&{[finalLoser]:2}),      // 2위: 결승 패자
+      ...(sf1Loser   &&{[sf1Loser]:3}),        // 3위(공동): 준결승① 패자
+      ...(sf2Loser   &&{[sf2Loser]:4}),        // 4위(공동): 준결승② 패자
+      ...(m1Loser    &&{[m1Loser]:5}),         // 5위: 1차전 패자
     }
   };
 }
@@ -349,7 +350,7 @@ function calcScores(state) {
       classPts[cls] = (classPts[cls]||0) + (TT_PTS[rank-1]||0);
   }
 
-  // ── 팀 토너먼트 (줄다리기, 2/3인 각): 대진표 순위 ──
+  // ── 팀 토너먼트 (줄다리기): 대진표 순위 ──
   for(const sp of TEAM_TOURN_SPORTS) {
     const br = state.brackets?.[sp]||{};
     const sr = state.scores?.[sp]||{};
@@ -798,11 +799,10 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
       {id:"1학년 8자마라톤", icon:"⏱", l:"1학년 8자마라톤"},
       {id:"2학년 8자마라톤", icon:"⏱", l:"2학년 8자마라톤"},
       {id:"줄다리기",        icon:"🪢", l:"줄다리기"},
-      {id:"태풍의눈",        icon:"🌀", l:"태풍의 눈"},
       {id:"장애물달리기",    icon:"🚧", l:"장애물달리기"},
       {id:"태풍의눈",        icon:"🌀", l:"태풍의 눈"},
       {id:"계주",            icon:"🏃", l:"계주"},
-      {id:"2/3인 각",        icon:"👯", l:"2/3인 각"},
+      {id:"미션달리기",      icon:"🎯", l:"미션달리기 (이벤트)"},
       {id:"피지컬100",       icon:"🏋️", l:"피지컬100"},
       {id:"골때녀",          icon:"⚽", l:"골때녀 (이벤트)"},
     ]},
@@ -920,7 +920,7 @@ function VSportDetail({sel, state}) {
     "태풍의눈":        {icon:"🌀",desc:"학년별 2개조 추첨 · 조 내 1~5위 배점 · 학급 → 팀 합산"},
     "계주":            {icon:"🏃",desc:"학년별 2조 예선 → 각 조 1·2위 결승 · 결승 1~4위 차등 · 예선탈락 동일점수"},
     "줄다리기":        {icon:"🪢",desc:"팀 토너먼트 · 학급당 10명 · 팀당 40명 출전"},
-    "2/3인 각":        {icon:"👯",desc:"팀 토너먼트 · 학급당 교사 포함 6명 (학생회 주관)"},
+    "미션달리기":      {icon:"🎯",desc:"학생회 주관 이벤트 · 종합점수 미반영"},
     "골때녀":          {icon:"⚽",desc:"이벤트 경기 · 종합점수 미반영"},
     "피지컬100":       {icon:"🏋️",desc:"개인전 3단계 · 2차진출 +10 · 3차진출 +10 · 우승 +30"},
   };
@@ -1099,7 +1099,7 @@ function VSportDetail({sel, state}) {
     </>);
   }
 
-  // ── 팀 토너먼트 (줄다리기, 2/3인 각) ──
+  // ── 팀 토너먼트 (줄다리기) ──
   if(TEAM_TOURN_SPORTS.includes(sel)) {
     const br=state.brackets?.[sel]||{};
     const sr=state.scores?.[sel]||{};
@@ -1396,7 +1396,7 @@ function BracketTree({bracket, sport, scores, groups, state}) {
   const results = bracket?.results || {};
   const computed = compute5SpecialBracket(seeds, results);
   const { matches, ranks } = computed;
-  const [m1, m2, m3, mF] = matches;
+  const [m1, sf1, sf2, mF] = matches;
 
   const MatchCard = ({m}) => {
     const isDone = !!m.winner;
@@ -1439,18 +1439,14 @@ function BracketTree({bracket, sport, scores, groups, state}) {
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,alignItems:"start"}}>
         <div>
           <div style={{fontSize:10,fontWeight:800,color:"#9b9a97",marginBottom:6,
-            letterSpacing:1,textAlign:"center"}}>1차전</div>
-          <MatchCard m={m2}/>
+            letterSpacing:1,textAlign:"center"}}>1라운드</div>
           <MatchCard m={m1}/>
         </div>
         <div>
           <div style={{fontSize:10,fontWeight:800,color:"#9b9a97",marginBottom:6,
             letterSpacing:1,textAlign:"center"}}>준결승</div>
-          <MatchCard m={m3}/>
-          <div style={{padding:6,fontSize:10,color:"#9b9a97",textAlign:"center",
-            background:"#fffbeb",borderRadius:5,border:"1px dashed #fde68a",marginTop:4}}>
-            ⏳ 1번시드 부전승
-          </div>
+          <MatchCard m={sf1}/>
+          <MatchCard m={sf2}/>
         </div>
         <div>
           <div style={{fontSize:10,fontWeight:800,color:"#9b9a97",marginBottom:6,
@@ -2866,7 +2862,7 @@ function OPhysical100({ state, update }) {
     {id:"r2",    l:"② 버피+허들"},
     {id:"r3",    l:"③ 축구결승"},
   ];
-  const r1Done=gk=>HKS.filter(hk=>p.r1[gk]?.[hk]).length;
+  const r1Done=gk=>ALL_HEATS_LIST.filter(hk=>p.r1[gk]?.[hk]).length;
   return(
     <div>
       <div style={{display:"flex",gap:5,marginBottom:12,overflowX:"auto",scrollbarWidth:"none"}}>
@@ -2955,6 +2951,9 @@ function OperatorPage({ state, update, role, onLogout }) {
     {section:"단체전", items:[
       {id:"bracket",   icon:"🗓",  l:"대진표",        roles:["operator","bracket"]},
       {id:"score",     icon:"🏅",  l:"점수 입력",     roles:["operator","score"]},
+      {id:"obstacle",  icon:"🚧",  l:"장애물달리기",  roles:["operator","score"]},
+      {id:"typhoon",   icon:"🌀",  l:"태풍의눈",       roles:["operator","score"]},
+      {id:"relay",     icon:"🏃",  l:"계주",            roles:["operator","score"]},
     ]},
     {section:"행사 운영", items:[
       {id:"entry",     icon:"🚶", l:"입장식 진행",    roles:["operator","mc"]},
@@ -3299,7 +3298,7 @@ function OBracket({state, update}) {
     if(seeds.length<5) return null;
     const computed = compute5SpecialBracket(seeds, results);
     const { matches, ranks } = computed;
-    const [m1, m2, m3, mF] = matches;
+    const [m1, sf1, sf2, mF] = matches;
 
     const MatchCard = ({m, big=false}) => {
       const isDone = !!m.winner;
@@ -3318,9 +3317,10 @@ function OBracket({state, update}) {
             const isWinner = m.winner===t;
             const isLoser  = m.winner && m.winner!==t;
             const canPick  = !!t && t!=="?" && (
-              (m.id==="m1"||m.id==="m2") ||
-              (m.id==="m3" && m2.winner) ||
-              (m.id==="f" && m1.winner && m3.winner)
+              (m.id==="m1") ||
+              (m.id==="sf1" && m1.winner) ||
+              (m.id==="sf2") ||
+              (m.id==="f" && sf1.winner && sf2.winner)
             );
             return(
               <div key={i} onClick={()=>canPick&&pickWinner(m.id,t)}
@@ -3350,24 +3350,24 @@ function OBracket({state, update}) {
     return (
       <div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,alignItems:"start"}}>
-          {/* 1차전 (M1, M2) */}
+          {/* 1라운드: 2 vs 3 */}
           <div>
             <div style={{fontSize:11,fontWeight:800,color:"#9b9a97",marginBottom:6,
-              letterSpacing:1,textAlign:"center"}}>ROUND 1</div>
-            <MatchCard m={m2}/>
+              letterSpacing:1,textAlign:"center"}}>1라운드</div>
             <MatchCard m={m1}/>
+            <div style={{padding:8,fontSize:11,color:"#9b9a97",textAlign:"center",
+              background:"#fafaf9",borderRadius:6,marginTop:50}}>
+              4·5번 시드는<br/>준결승부터 시작
+            </div>
           </div>
-          {/* 준결승 + 1번시드 부전승 */}
+          {/* 준결승 */}
           <div>
             <div style={{fontSize:11,fontWeight:800,color:"#9b9a97",marginBottom:6,
               letterSpacing:1,textAlign:"center"}}>준결승</div>
-            <MatchCard m={m3}/>
-            <div style={{padding:8,fontSize:11,color:"#9b9a97",textAlign:"center",
-              background:"#fffbeb",borderRadius:6,border:"1px dashed #fde68a"}}>
-              ⏳ 1번 시드 부전승 → M1 승자와 결승
-            </div>
+            <MatchCard m={sf1}/>
+            <MatchCard m={sf2}/>
           </div>
-          {/* 결승 + 우승팀 */}
+          {/* 결승 */}
           <div>
             <div style={{fontSize:11,fontWeight:800,color:"#9b9a97",marginBottom:6,
               letterSpacing:1,textAlign:"center"}}>결승</div>
