@@ -165,8 +165,12 @@ const INIT = () => ({
   seats:        {},
   entry: {              // 입장식 데이터 (구글시트 연동)
     sheetUrl: "",
-    items:    {},       // { "1-1": {intro, audio} }
+    items:    {},       // { "1-1": {intro, audio, classInfo} }
     current:  null,
+  },
+  roster: {             // 학급별 참가자 명단 (구글시트 연동)
+    sheetUrl: "",
+    classes:  {},       // { "1-1": {teacher, leader, vleader, sportLead, intro, students:[{name,gender,sports:[...]}]} }
   },
   cheerShow: {          // 응원전 진행 데이터
     sheetUrl:   "",
@@ -807,7 +811,8 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
       {id:"골때녀",          icon:"⚽", l:"골때녀 (이벤트)"},
     ]},
     {section:"안내", items:[
-      {id:"좌석", icon:"💺", l:"좌석 배치"},
+      {id:"roster", icon:"📋", l:"선수 명단"},
+      {id:"좌석",   icon:"💺", l:"좌석 배치"},
     ]},
   ];
 
@@ -817,6 +822,7 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
     if(mainTab==="rank")   return <VRank ranked={ranked} state={state}/>;
     if(sbTab==="entry")     return <VEntry state={state}/>;
     if(sbTab==="cheershow") return <VCheerShow state={state}/>;
+    if(sbTab==="roster")    return <VRoster state={state}/>;
     if(sbTab==="좌석")      return <VSeat state={state}/>;
     if(sbTab==="피지컬100") return <VSportDetail sel="피지컬100" state={state}/>;
     if(sbTab && [...TIME_TRIAL_SPORTS,...SPORTS,...EVENT_SPORTS].includes(sbTab))
@@ -2972,6 +2978,7 @@ function OperatorPage({ state, update, role, onLogout }) {
       {id:"call",      icon:"📢", l:"공지·호출",      roles:["operator","mc"]},
       {id:"music",     icon:"🎵", l:"BGM",            roles:["operator","mc"]},
       {id:"seat",      icon:"💺", l:"좌석",            roles:["operator"]},
+      {id:"roster",    icon:"📋", l:"참가 신청 명단",    roles:["operator","mc"]},
       {id:"rolesetup", icon:"🔑", l:"역할 비번 설정", roles:["operator"]},
     ]},
   ];
@@ -3042,6 +3049,7 @@ function OperatorPage({ state, update, role, onLogout }) {
               {tab==="call"      && <OCall        state={state} update={update}/>}
               {tab==="music"     && <OMusic       state={state} update={update} playTrack={playTrack} playingId={playingId}/>}
               {tab==="seat"      && <OSeat        state={state} update={update}/>}
+              {tab==="roster"    && <ORoster      state={state} update={update}/>}
               {tab==="rolesetup" && <ORoleSetup   state={state} update={update}/>}
             </SafeTab>
           </div>
@@ -4190,6 +4198,411 @@ function ORelay({ state, update }) {
           )}
         </div>
       ))
+    )}
+  </>);
+}
+
+
+
+// ════════════════════════════════════════════════════════
+//  ORoster: 운영자 - 참가 신청 명단 (구글시트 연동)
+// ════════════════════════════════════════════════════════
+function ORoster({state, update}) {
+  const roster = state.roster || {sheetUrl:"", classes:{}};
+  const [sheetUrl, setSheetUrl] = useState(roster.sheetUrl||"");
+  const [loading, setLoading] = useState(false);
+  const [selClass, setSelClass] = useState(null);
+
+  const SPORT_COLS = ["줄다리기","장애물달리기","계주","태풍의눈","8자마라톤","피지컬100","미션달리기","골때녀"];
+
+  // 시트 형식:
+  // 행 1: 헤더
+  // A=학급(1-1), B=담임, C=반장, D=부반장, E=체육부장, F=팀 소개 멘트
+  // G~ 이후: 학생 명단 (학번|이름|성별|종목1,종목2,...)
+  // 
+  // 또는 다른 구조: 한 시트에 학급별 섹션 구분
+  // 여기서는 단순화: 시트 1행=학급, 그 다음행~12명 학생 묶음
+  // 더 깔끔한 방식: 학급 정보 시트 + 학생 시트 분리
+  
+  // 실제 구현: 단일 시트 / 한 학생당 한 행
+  // A=학급(1-1), B=학번, C=이름, D=성별(남/여), 
+  // E=담임여부(✓), F=반장여부(✓), G=부반장(✓), H=체육부장(✓),
+  // I=팀소개멘트(첫 행만), J~Q=종목 8개 (체크된 종목)
+
+  const loadFromSheet = async () => {
+    const csvUrl = sheetToCSV(sheetUrl);
+    if(!csvUrl) { alert("구글 시트 공유 URL이 올바르지 않습니다"); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(csvUrl);
+      const text = await res.text();
+      const rows = parseCSV(text);
+      const classes = {};
+
+      // 첫 행 헤더 건너뛰기
+      for(let i=1; i<rows.length; i++) {
+        const r = rows[i];
+        const cls = (r[0]||"").trim();
+        if(!cls) continue;
+        if(!classes[cls]) {
+          classes[cls] = {
+            teacher:"", leader:"", vleader:"", sportLead:"",
+            intro:"", students:[]
+          };
+        }
+        const c = classes[cls];
+        const stuId   = (r[1]||"").trim();
+        const stuName = (r[2]||"").trim();
+        const gender  = (r[3]||"").trim();
+        const isHomeroom = !!(r[4]||"").trim();
+        const isLeader   = !!(r[5]||"").trim();
+        const isVleader  = !!(r[6]||"").trim();
+        const isSportLead= !!(r[7]||"").trim();
+        const introText  = (r[8]||"").trim();
+
+        // 종목들 (J~Q열, 인덱스 9~16)
+        const sports = [];
+        for(let s=0; s<SPORT_COLS.length; s++) {
+          const v = (r[9+s]||"").trim();
+          if(v && v!=="0" && v.toLowerCase()!=="false") sports.push(SPORT_COLS[s]);
+        }
+
+        if(introText && !c.intro) c.intro = introText;
+        if(isHomeroom && stuName) c.teacher = stuName;
+        if(isLeader   && stuName) c.leader = stuName;
+        if(isVleader  && stuName) c.vleader = stuName;
+        if(isSportLead&& stuName) c.sportLead = stuName;
+        if(stuName && (gender==="남"||gender==="여")) {
+          c.students.push({id:stuId, name:stuName, gender, sports});
+        }
+      }
+
+      update(s => ({
+        ...s, roster:{ sheetUrl, classes }
+      }));
+      alert(`✅ ${Object.keys(classes).length}개 학급, 명단 불러왔습니다`);
+    } catch(e) {
+      alert("불러오기 실패: "+e.message+"\n시트 공유를 '링크가 있는 모든 사용자: 뷰어'로 설정해주세요");
+    }
+    setLoading(false);
+  };
+
+  // 학급 명단 통계
+  const getClassStats = (cls) => {
+    const c = roster.classes?.[cls];
+    if(!c) return null;
+    const stats = {total:c.students.length, m:0, f:0, bySport:{}};
+    for(const st of c.students) {
+      if(st.gender==="남") stats.m++;
+      else if(st.gender==="여") stats.f++;
+      for(const sp of st.sports) {
+        if(!stats.bySport[sp]) stats.bySport[sp]={total:0,m:0,f:0,names:[]};
+        stats.bySport[sp].total++;
+        stats.bySport[sp].names.push(st.name);
+        if(st.gender==="남") stats.bySport[sp].m++;
+        else if(st.gender==="여") stats.bySport[sp].f++;
+      }
+    }
+    return stats;
+  };
+
+  const classes = roster.classes||{};
+  const classKeys = Object.keys(classes).sort();
+
+  const TEMPLATE_URL = "https://docs.google.com/spreadsheets/d/1XXX/copy"; // 안내용
+
+  return(<>
+    <div className="page-title">📋 참가 신청 명단</div>
+    <div className="page-desc">
+      각 학급 담임/체육부장이 구글시트에 입력 → 자동 집계
+    </div>
+
+    {/* 시트 양식 안내 */}
+    <div className="card" style={{marginBottom:12,background:"#eff6ff",borderColor:"#bfdbfe"}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#1d4ed8",marginBottom:6}}>📊 시트 양식</div>
+      <div style={{fontSize:12,color:"#1e40af",lineHeight:1.7}}>
+        <b>1행은 헤더 (제목)</b>, 2행부터 학생별 입력<br/>
+        A=학급(예: 1-1) · B=학번 · C=이름 · D=성별(남/여)<br/>
+        E=담임(✓) · F=반장(✓) · G=부반장(✓) · H=체육부장(✓)<br/>
+        I=팀소개멘트(학급당 1행만 입력) · J~Q=종목 체크<br/>
+        <br/>
+        <b>종목 컬럼 순서:</b><br/>
+        J=줄다리기 · K=장애물달리기 · L=계주 · M=태풍의눈<br/>
+        N=8자마라톤 · O=피지컬100 · P=미션달리기 · Q=골때녀
+      </div>
+    </div>
+
+    {/* 시트 URL 입력 */}
+    <div className="card" style={{marginBottom:12}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#37352f",marginBottom:8}}>
+        🔗 구글 시트 공유 URL
+      </div>
+      <input value={sheetUrl} onChange={e=>setSheetUrl(e.target.value)}
+        placeholder="https://docs.google.com/spreadsheets/d/..."
+        className="oinput" style={{marginBottom:8,fontFamily:"monospace",fontSize:12}}/>
+      <div style={{fontSize:11,color:"#9b9a97",marginBottom:8,lineHeight:1.5}}>
+        ⚠️ 시트 공유 설정: "링크가 있는 모든 사용자 → 뷰어"
+      </div>
+      <button onClick={loadFromSheet} disabled={loading}
+        className="obtn primary" style={{width:"100%",padding:10,fontSize:14}}>
+        {loading?"불러오는 중...":"📥 시트에서 명단 불러오기"}
+      </button>
+    </div>
+
+    {/* 학급 목록 + 통계 */}
+    {classKeys.length>0 ? (<>
+      <div className="sl">📊 학급별 신청 현황 ({classKeys.length}개)</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:14}}>
+        {classKeys.map(cls=>{
+          const stats = getClassStats(cls);
+          const team = classToTeam(cls);
+          return(
+            <div key={cls} onClick={()=>setSelClass(selClass===cls?null:cls)}
+              className="card" style={{
+                cursor:"pointer",padding:"10px 12px",
+                borderLeft:`4px solid ${TEAM_COLORS[team]}`,
+                background:selClass===cls?TEAM_BG[team]:"#fff"
+              }}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                <span style={{fontWeight:800,color:TEAM_COLORS[team]}}>{cls}반</span>
+                <span style={{fontSize:11,color:"#9b9a97"}}>({team}팀)</span>
+              </div>
+              <div style={{fontSize:12,color:"#37352f"}}>
+                👥 {stats.total}명 · 👦 {stats.m} · 👧 {stats.f}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 선택된 학급 상세 */}
+      {selClass && (() => {
+        const c = roster.classes[selClass];
+        const stats = getClassStats(selClass);
+        const team = classToTeam(selClass);
+        return(
+          <div className="card" style={{borderColor:TEAM_COLORS[team],borderWidth:2}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,
+              paddingBottom:10,borderBottom:`1px solid ${TEAM_BG[team]}`}}>
+              <TeamBadge team={team} size={30}/>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:900,fontSize:18,color:"#37352f"}}>{selClass}반</div>
+                <div style={{fontSize:12,color:"#787671"}}>{team}팀 · 총 {stats.total}명</div>
+              </div>
+            </div>
+
+            {/* 학급 정보 */}
+            <div style={{fontSize:13,color:"#37352f",lineHeight:1.8,marginBottom:14,
+              background:"#fafaf9",padding:"10px 12px",borderRadius:6}}>
+              {c.teacher  && <div>📝 담임: <b>{c.teacher} 선생님</b></div>}
+              {c.leader   && <div>👨‍🎓 반장: <b>{c.leader}</b></div>}
+              {c.vleader  && <div>👩‍🎓 부반장: <b>{c.vleader}</b></div>}
+              {c.sportLead&& <div>🏅 체육부장: <b>{c.sportLead}</b></div>}
+            </div>
+
+            {/* 팀 소개 멘트 */}
+            {c.intro && (
+              <div style={{background:"#fff7ed",border:"1px solid #fed7aa",
+                borderRadius:8,padding:"10px 12px",marginBottom:14}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#92400e",marginBottom:4}}>
+                  📣 팀 소개 멘트 (입장식)
+                </div>
+                <div style={{fontSize:13,color:"#78350f",lineHeight:1.6}}>{c.intro}</div>
+              </div>
+            )}
+
+            {/* 종목별 참가자 */}
+            <div className="sl">🏆 종목별 참가자</div>
+            {SPORT_COLS.map(sp=>{
+              const spStats = stats.bySport[sp];
+              if(!spStats) return null;
+              return(
+                <div key={sp} className="card" style={{marginBottom:6,padding:"8px 12px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                    <span style={{fontWeight:700,color:"#37352f",flex:1,fontSize:13}}>
+                      {sp}
+                    </span>
+                    <span style={{fontSize:11,color:"#787671"}}>
+                      {spStats.total}명 (남 {spStats.m} · 여 {spStats.f})
+                    </span>
+                  </div>
+                  <div style={{fontSize:12,color:"#787671",lineHeight:1.5}}>
+                    {spStats.names.join(", ")}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+    </>) : (
+      <div className="card" style={{textAlign:"center",color:"#9b9a97",padding:30}}>
+        시트에서 명단을 불러오면 학급별 현황이 표시됩니다
+      </div>
+    )}
+  </>);
+}
+
+// ════════════════════════════════════════════════════════
+//  VRoster: 학생 - 선수 명단 조회
+// ════════════════════════════════════════════════════════
+function VRoster({state}) {
+  const roster = state.roster || {classes:{}};
+  const [view, setView] = useState("class"); // class | sport
+  const [selClass, setSelClass] = useState(null);
+  const [selSport, setSelSport] = useState(null);
+
+  const classes = roster.classes||{};
+  const classKeys = Object.keys(classes).sort();
+
+  const SPORT_COLS = ["줄다리기","장애물달리기","계주","태풍의눈","8자마라톤","피지컬100","미션달리기","골때녀"];
+
+  // 종목별 참가자 집계
+  const sportRoster = {};
+  for(const sp of SPORT_COLS) sportRoster[sp] = {};
+  for(const [cls, c] of Object.entries(classes)) {
+    for(const st of c.students||[]) {
+      for(const sp of st.sports||[]) {
+        if(!sportRoster[sp][cls]) sportRoster[sp][cls] = [];
+        sportRoster[sp][cls].push({...st});
+      }
+    }
+  }
+
+  if(classKeys.length===0) return(
+    <div className="card" style={{textAlign:"center",color:"#9b9a97",padding:50}}>
+      📋 선수 명단 준비 중<br/>
+      <span style={{fontSize:12,marginTop:6,display:"block"}}>곧 공개됩니다</span>
+    </div>
+  );
+
+  return(<>
+    <div className="page-title">📋 선수 명단</div>
+
+    {/* 보기 모드 */}
+    <div style={{display:"flex",gap:6,marginBottom:14}}>
+      <button onClick={()=>{setView("class");setSelSport(null);}}
+        className={`obtn${view==="class"?" on":""}`} style={{flex:1,padding:"8px 0"}}>
+        🏫 학급별
+      </button>
+      <button onClick={()=>{setView("sport");setSelClass(null);}}
+        className={`obtn${view==="sport"?" on":""}`} style={{flex:1,padding:"8px 0"}}>
+        🏆 종목별
+      </button>
+    </div>
+
+    {view==="class" ? (
+      // ── 학급별 ──
+      <>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}}>
+          {classKeys.map(cls=>{
+            const team = classToTeam(cls);
+            const c = classes[cls];
+            return(
+              <button key={cls} onClick={()=>setSelClass(selClass===cls?null:cls)}
+                style={{
+                  padding:"10px 8px",borderRadius:8,
+                  border:`2px solid ${selClass===cls?TEAM_COLORS[team]:"#e7e7e5"}`,
+                  background:selClass===cls?TEAM_BG[team]:"#fff",
+                  cursor:"pointer",fontFamily:"inherit",textAlign:"center"
+                }}>
+                <div style={{fontWeight:800,fontSize:14,color:TEAM_COLORS[team]}}>{cls}반</div>
+                <div style={{fontSize:11,color:"#9b9a97",marginTop:2}}>
+                  {team}팀 · {c.students?.length||0}명
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {selClass && (() => {
+          const c = classes[selClass];
+          const team = classToTeam(selClass);
+          return(
+            <div className="card" style={{borderColor:TEAM_COLORS[team],borderWidth:2}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,
+                paddingBottom:10,borderBottom:`1px solid ${TEAM_BG[team]}`}}>
+                <TeamBadge team={team} size={28}/>
+                <div style={{fontSize:17,fontWeight:900,color:"#37352f"}}>{selClass}반</div>
+              </div>
+
+              {c.intro && (
+                <div style={{background:"#fff7ed",border:"1px solid #fed7aa",
+                  borderRadius:8,padding:"10px 12px",marginBottom:12,
+                  fontSize:13,color:"#78350f",lineHeight:1.6}}>
+                  📣 {c.intro}
+                </div>
+              )}
+
+              <div style={{fontSize:12,color:"#787671",lineHeight:1.7,marginBottom:12}}>
+                {c.teacher  && <div>📝 담임 {c.teacher} 선생님</div>}
+                {c.leader   && <div>👨‍🎓 반장 {c.leader}</div>}
+                {c.vleader  && <div>👩‍🎓 부반장 {c.vleader}</div>}
+                {c.sportLead&& <div>🏅 체육부장 {c.sportLead}</div>}
+              </div>
+
+              <div className="sl">참가 선수 ({c.students?.length||0}명)</div>
+              {(c.students||[]).map((st,i)=>(
+                <div key={i} className="rrow" style={{padding:"6px 10px"}}>
+                  <span style={{fontWeight:600,color:"#37352f",fontSize:13}}>
+                    {st.gender==="남"?"👦":"👧"} {st.name}
+                  </span>
+                  <span style={{flex:1}}/>
+                  <span style={{fontSize:11,color:"#9b9a97"}}>
+                    {(st.sports||[]).join(", ")||"-"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+      </>
+    ) : (
+      // ── 종목별 ──
+      <>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
+          {SPORT_COLS.map(sp=>{
+            const cnt = Object.values(sportRoster[sp]||{}).reduce((n,arr)=>n+arr.length,0);
+            return(
+              <button key={sp} onClick={()=>setSelSport(selSport===sp?null:sp)}
+                style={{
+                  padding:"8px 12px",borderRadius:6,
+                  border:`1.5px solid ${selSport===sp?"#37352f":"#e7e7e5"}`,
+                  background:selSport===sp?"#37352f":"#fff",
+                  color:selSport===sp?"#fff":"#37352f",
+                  cursor:"pointer",fontFamily:"inherit",fontWeight:600,fontSize:13
+                }}>
+                {sp} ({cnt})
+              </button>
+            );
+          })}
+        </div>
+
+        {selSport && (
+          <div className="card">
+            <div style={{fontWeight:800,fontSize:15,color:"#37352f",marginBottom:10}}>
+              🏆 {selSport} 참가자
+            </div>
+            {Object.entries(sportRoster[selSport]||{}).sort().map(([cls, students])=>{
+              const team = classToTeam(cls);
+              return(
+                <div key={cls} style={{marginBottom:10,paddingBottom:10,
+                  borderBottom:"1px solid #f5f5f3"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                    <TeamBadge team={team} size={20}/>
+                    <span style={{fontWeight:700,fontSize:13,color:"#37352f"}}>
+                      {cls}반 ({students.length}명)
+                    </span>
+                  </div>
+                  <div style={{fontSize:12,color:"#787671",paddingLeft:26,lineHeight:1.6}}>
+                    {students.map(s=>`${s.gender==="남"?"👦":"👧"} ${s.name}`).join(" · ")}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </>
     )}
   </>);
 }
