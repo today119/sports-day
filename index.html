@@ -202,7 +202,7 @@ function getBracketRanks(rounds) {
 }
 
 // ─── 스토리지 (Firebase Realtime Database) ───
-const SK = "hanmaeum_v5";
+const SK = "hanmaeum_v6";
 const INIT = () => ({
   schedule: SCHED_DEFAULT,
   scores: {},
@@ -288,13 +288,13 @@ function calcScores(state) {
   }
 
   for(const sp of SPORTS) {
-    const br = state.brackets[sp];
+    const br = state.brackets?.[sp];
     let rankMap = {};
     if(br?.drawn) {
       const rounds = computeBracket(br.seeds||[], br.results||{});
       rankMap = getBracketRanks(rounds);
     } else {
-      rankMap = state.scores[sp]||{};
+      rankMap = state.scores?.[sp]||{};
     }
     for(const [cls,rank] of Object.entries(rankMap))
       classPts[cls]=(classPts[cls]||0)+(SPORT_PTS[sp][rank-1]||0);
@@ -409,13 +409,22 @@ function useStore(isOp) {
             const data = await res.json();
             if(data){
               luRef.current = data.lu||0;
-              setState(()=>({...INIT(),...data}));
+              const merged = {...INIT(),...data};
+              // schedule: Firebase에 없거나 빈 배열이면 SCHED_DEFAULT 사용
+              if(!data.schedule || data.schedule.length===0) {
+                merged.schedule = SCHED_DEFAULT;
+              }
+              setState(()=>merged);
             }
           } else if(!ready) {
-            // 첫 로딩인데 lu 같으면 빈 상태로 진행
             const res = await fetch(`${base}/${SK}.json`, {cache:"no-store"});
             const data = await res.json();
-            if(data){ luRef.current=data.lu||0; setState(()=>({...INIT(),...data})); }
+            if(data){
+              luRef.current=data.lu||0;
+              const merged = {...INIT(),...data};
+              if(!data.schedule || data.schedule.length===0) merged.schedule=SCHED_DEFAULT;
+              setState(()=>merged);
+            }
           }
           setOnline(true);
           setReady(true);
@@ -2750,7 +2759,7 @@ function OperatorPage({ state, update, role, onLogout, onRoleClick }) {
       {id:"seat",      icon:"💺", l:"좌석",          roles:["operator"]},
     ]},
     {section:"시스템", items:[
-      {id:"roles", icon:"🔑", l:"비밀번호 설정", roles:["operator"]},
+      {id:"rolesetup", icon:"🔑", l:"비밀번호 설정", roles:["operator"]},
     ]},
   ].map(sec=>({...sec, items:sec.items.filter(it=>!it.roles||it.roles.includes(role))}))
    .filter(sec=>sec.items.length>0);
@@ -2817,7 +2826,7 @@ function OperatorPage({ state, update, role, onLogout, onRoleClick }) {
             {tab==="call"     && <OCall        state={state} update={update}/>}
             {tab==="music"    && <OMusic       state={state} update={update} playTrack={playTrack} playingId={playingId}/>}
             {tab==="seat"     && <OSeat        state={state} update={update}/>}
-            {tab==="roles"    && <ORoles       state={state} update={update}/>}
+            {tab==="rolesetup" && <ORoleSetup   state={state} update={update}/>}
           </div>
         </main>
       </div>
@@ -2832,7 +2841,7 @@ function OCard({children, style={}, ...rest}) {
 
 function OBracket({state,update}) {
   const [sel,setSel]=useState(SPORTS[0]);
-  const br=state.brackets[sel]||{};
+  const br=state.brackets?.[sel]||{};
   const [selected,setSelected]=useState(ALL_CLASSES);
   const [openRound,setOpenRound]=useState(null);
 
@@ -2866,7 +2875,7 @@ function OBracket({state,update}) {
     {/* 종목 선택 (8자마라톤 제외) */}
     <div style={{display:"flex",overflowX:"auto",gap:6,paddingBottom:12,scrollbarWidth:"none"}}>
       {SPORTS.map(s=>{
-        const hasBr=state.brackets[s]?.drawn;
+        const hasBr=state.brackets?.[s]?.drawn;
         return(<button key={s} onClick={()=>setSel(s)} className={`pill${sel===s?" on":""}`}
           style={{position:"relative"}}>
           {s}
