@@ -195,6 +195,10 @@ function INIT() {
   eightAudio:   {},     // { "1학년 8자마라톤": "url", ... }
   groupScores:  {},     // { "장애물달리기": {g1:{"1-1":1,...}, ...} }
   relayFinals:  {},     // { grade1:{"1-1":1,...}, grade2:{...} }
+  golddanya: {
+    half1: { teacher:{formation:"4-3-3",players:[]}, student:{grade:"1",formation:"4-4-2",players:[]}, score:{teacher:0,student:0}, goals:[], status:"upcoming" },
+    half2: { teacher:{formation:"4-3-3",players:[]}, student:{grade:"2",formation:"4-4-2",players:[]}, score:{teacher:0,student:0}, goals:[], status:"upcoming" }
+  },
   p100: {               // 피지컬100
     roster: {},         // 사전 명단
     r1:    {m:{}, f:{}},
@@ -886,6 +890,7 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
     if(sbTab==="roster")    return <VRoster state={state}/>;
     if(sbTab==="좌석")      return <VSeat state={state}/>;
     if(sbTab==="피지컬100") return <VSportDetail sel="피지컬100" state={state}/>;
+    if(sbTab==="골때녀") return <VGolddanya state={state}/>;
     if(sbTab && [...TIME_TRIAL_SPORTS,...SPORTS,...EVENT_SPORTS].includes(sbTab))
       return <VSportDetail sel={sbTab} state={state}/>;
     return <VDash cur={cur} next={next} ranked={ranked} state={state}/>;
@@ -4216,6 +4221,425 @@ function SafeTab({children}) {
   return <ErrorBoundary>{children}</ErrorBoundary>;
 }
 
+// ════════════════════════════════════════════════════════
+//  FootballPitch: 프리미어리그 스타일 라인업 피치
+// ════════════════════════════════════════════════════════
+function FootballPitch({ half }) {
+  const teacher = half?.teacher || { formation:"4-3-3", players:[] };
+  const student = half?.student || { grade:"1", formation:"4-4-2", players:[] };
+  const score   = half?.score   || { teacher:0, student:0 };
+  const goals   = half?.goals   || [];
+  const status  = half?.status  || "upcoming";
+  const grade   = student.grade || "1";
+
+  const parseRows = (formation, players) => {
+    const counts = [1, ...formation.split("-").map(n=>parseInt(n)||0)];
+    let idx=0;
+    return counts.map(count => {
+      const row = [];
+      for(let i=0;i<count;i++) row.push(players[idx++]||null);
+      return row;
+    });
+  };
+
+  const teacherRows = parseRows(teacher.formation||"4-3-3", teacher.players||[]);
+  const studentRows = parseRows(student.formation||"4-4-2", student.players||[]);
+
+  const T_BG="#1e3a8a", S_BG="#9f1239";
+
+  const PlayerDot = ({player,color}) => (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",
+      margin:"2px 3px",minWidth:40,maxWidth:52}}>
+      <div style={{width:32,height:32,borderRadius:"50%",background:color,
+        border:"2.5px solid rgba(255,255,255,.9)",
+        display:"flex",alignItems:"center",justifyContent:"center",
+        fontSize:11,fontWeight:800,color:"#fff",
+        boxShadow:"0 2px 8px rgba(0,0,0,.45)",flexShrink:0}}>
+        {player?.number||"?"}
+      </div>
+      <div style={{fontSize:9,color:"#fff",marginTop:2,width:44,textAlign:"center",
+        fontWeight:700,lineHeight:1.15,
+        textShadow:"0 1px 4px rgba(0,0,0,.95)",
+        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",padding:"0 1px"}}>
+        {player?.name||""}
+      </div>
+    </div>
+  );
+
+  const TeamRows = ({rows,color,rev}) => {
+    const dr = rev ? [...rows].reverse() : rows;
+    return (
+      <div style={{display:"flex",flexDirection:"column",justifyContent:"space-evenly",
+        padding:"10px 6px",gap:4,minHeight:180}}>
+        {dr.map((row,ri)=>(
+          <div key={ri} style={{display:"flex",justifyContent:"center",alignItems:"center",flexWrap:"wrap"}}>
+            {row.map((p,pi)=><PlayerDot key={pi} player={p} color={color}/>)}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const goalsByTeam = (t) => goals.filter(g=>g.team===t);
+
+  return (
+    <div style={{borderRadius:12,overflow:"hidden",fontFamily:"'Noto Sans KR',sans-serif",
+      boxShadow:"0 4px 20px rgba(0,0,0,.25)"}}>
+
+      {/* 교사팀 헤더 (Away - 상단) */}
+      <div style={{background:T_BG,padding:"10px 14px 6px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{color:"#fff",fontWeight:800,fontSize:14}}>👨‍🏫 교사팀</div>
+          <div style={{color:"#93c5fd",fontSize:12,fontWeight:700,
+            background:"rgba(255,255,255,.12)",padding:"2px 8px",borderRadius:10}}>
+            {teacher.formation}
+          </div>
+        </div>
+        {goalsByTeam("teacher").length>0 && (
+          <div style={{fontSize:10,color:"#93c5fd",marginTop:4,lineHeight:1.5}}>
+            ⚽ {goalsByTeam("teacher").map(g=>`${g.name}${g.time?" "+g.time:""}`).join("  ·  ")}
+          </div>
+        )}
+      </div>
+
+      {/* 피치 (초록 배경) */}
+      <div style={{background:"linear-gradient(180deg,#14532d 0%,#166534 25%,#15803d 50%,#166534 75%,#14532d 100%)",
+        position:"relative"}}>
+        {/* 필드 라인 장식 */}
+        <div style={{position:"absolute",inset:0,pointerEvents:"none",overflow:"hidden"}}>
+          <div style={{position:"absolute",left:"10%",right:"10%",top:"50%",
+            borderTop:"1px dashed rgba(255,255,255,.18)",transform:"translateY(-50%)"}}>
+            <div style={{position:"absolute",left:"50%",top:"-12px",width:24,height:24,
+              borderRadius:"50%",border:"1px dashed rgba(255,255,255,.18)",
+              transform:"translateX(-50%)"}}/>
+          </div>
+          <div style={{position:"absolute",left:"20%",right:"20%",top:"8%",
+            bottom:"auto",height:28,border:"1px dashed rgba(255,255,255,.1)",
+            borderTop:"none",borderRadius:"0 0 4px 4px"}}/>
+          <div style={{position:"absolute",left:"20%",right:"20%",bottom:"8%",
+            top:"auto",height:28,border:"1px dashed rgba(255,255,255,.1)",
+            borderBottom:"none",borderRadius:"4px 4px 0 0"}}/>
+        </div>
+        {/* 교사팀 라인업 (위쪽: GK위→FW아래) */}
+        <TeamRows rows={teacherRows} color={T_BG} rev={false}/>
+        {/* 학생팀 라인업 (아래쪽: FW위→GK아래) */}
+        <TeamRows rows={studentRows} color={S_BG} rev={true}/>
+      </div>
+
+      {/* 스코어 배너 */}
+      <div style={{background:"#0f172a",padding:"12px 20px",
+        display:"flex",alignItems:"center",gap:0}}>
+        <div style={{flex:1,textAlign:"center"}}>
+          <div style={{fontSize:10,color:"#93c5fd",fontWeight:700,marginBottom:3,letterSpacing:".5px"}}>교사팀</div>
+          <div style={{fontSize:36,fontWeight:900,color:"#fff",lineHeight:1}}>{score.teacher}</div>
+        </div>
+        <div style={{padding:"0 16px",textAlign:"center"}}>
+          <div style={{fontSize:10,color:"#475569",fontWeight:600,marginBottom:3}}>
+            {status==="live"
+              ? <span style={{color:"#ef4444",animation:"blink 1.2s infinite",display:"inline-block"}}>● LIVE</span>
+              : status==="done"?"FINAL":"PREVIEW"}
+          </div>
+          <div style={{fontSize:24,color:"#334155",fontWeight:300}}>-</div>
+        </div>
+        <div style={{flex:1,textAlign:"center"}}>
+          <div style={{fontSize:10,color:"#fca5a5",fontWeight:700,marginBottom:3,letterSpacing:".5px"}}>{grade}학년</div>
+          <div style={{fontSize:36,fontWeight:900,color:"#fff",lineHeight:1}}>{score.student}</div>
+        </div>
+      </div>
+
+      {/* 학생팀 헤더 (Home - 하단) */}
+      <div style={{background:S_BG,padding:"6px 14px 10px"}}>
+        {goalsByTeam("student").length>0 && (
+          <div style={{fontSize:10,color:"#fca5a5",marginBottom:4,lineHeight:1.5}}>
+            ⚽ {goalsByTeam("student").map(g=>`${g.name}${g.time?" "+g.time:""}`).join("  ·  ")}
+          </div>
+        )}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{color:"#fff",fontWeight:800,fontSize:14}}>🎓 {grade}학년</div>
+          <div style={{color:"#fca5a5",fontSize:12,fontWeight:700,
+            background:"rgba(255,255,255,.12)",padding:"2px 8px",borderRadius:10}}>
+            {student.formation}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════
+//  VGolddanya: 학생 뷰 - 골때녀 라인업 + 스코어
+// ════════════════════════════════════════════════════════
+function VGolddanya({ state }) {
+  const [halfTab, setHalfTab] = useState("half1");
+  const gd   = state.golddanya || {};
+  const half = gd[halfTab] || {};
+  const isEmpty = !(half.teacher?.players?.length) && !(half.student?.players?.length);
+
+  return (<>
+    <div className="card" style={{background:"linear-gradient(135deg,#fef3c7,#fff7ed)",
+      border:"1px solid #fde68a",marginBottom:12}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+        <span style={{fontSize:28}}>⚽</span>
+        <div>
+          <div style={{fontWeight:800,fontSize:17,color:"#92400e"}}>골때녀</div>
+          <div style={{fontSize:12,color:"#a16207"}}>이벤트 경기 · 종합점수 미반영</div>
+        </div>
+      </div>
+      <div style={{fontSize:12,color:"#78350f",lineHeight:1.7}}>
+        ⚽ 전반전: 교사팀 vs 1학년 · 후반전: 교사팀 vs 2학년
+      </div>
+    </div>
+
+    {/* 전/후반 탭 */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:14}}>
+      {["half1","half2"].map(h=>{
+        const s=(gd[h]||{}).status||"upcoming";
+        return(
+          <button key={h} onClick={()=>setHalfTab(h)}
+            className={`obtn${halfTab===h?" on":""}`}
+            style={{padding:"10px 8px",fontSize:13,fontWeight:700,
+              borderColor:halfTab===h?"#37352f":s==="live"?"#ef4444":"#e7e7e5",
+              position:"relative"}}>
+            {h==="half1"?"⚽ 전반전 (1학년)":"⚽ 후반전 (2학년)"}
+            {s==="live"&&<span style={{marginLeft:5,fontSize:10,color:"#ef4444",
+              fontWeight:800,display:"inline-block",animation:"blink 1.2s infinite"}}>LIVE</span>}
+          </button>
+        );
+      })}
+    </div>
+
+    {isEmpty && half.status==="upcoming" ? (
+      <div className="card" style={{textAlign:"center",padding:"48px 20px"}}>
+        <div style={{fontSize:36,marginBottom:10}}>⏳</div>
+        <div style={{fontWeight:700,fontSize:15,color:"#37352f",marginBottom:4}}>엔트리 공개 전</div>
+        <div style={{fontSize:12,color:"#9ca3af"}}>운영자가 라인업을 등록하면 표시됩니다</div>
+      </div>
+    ) : (
+      <FootballPitch half={half}/>
+    )}
+  </>);
+}
+
+// ════════════════════════════════════════════════════════
+//  OGolddanya: 운영자 - 골때녀 엔트리/점수/득점 관리
+// ════════════════════════════════════════════════════════
+function OGolddanya({ state, update }) {
+  const [halfTab,   setHalfTab]  = useState("half1");
+  const [goalTeam,  setGoalTeam] = useState("teacher");
+  const [goalName,  setGoalName] = useState("");
+  const [goalTime,  setGoalTime] = useState("");
+  const gd   = state.golddanya || {};
+  const half = gd[halfTab] || {};
+  const grade = halfTab==="half1" ? "1" : "2";
+
+  const FORMATIONS = ["4-3-3","4-4-2","4-2-3-1","3-5-2","3-4-3","4-1-4-1","5-3-2"];
+  const STATUS_OPTS = [
+    {id:"upcoming",label:"⏳ 예정",   color:"#6b7280"},
+    {id:"live",    label:"🔴 진행 중", color:"#ef4444"},
+    {id:"done",    label:"✅ 종료",   color:"#16a34a"},
+  ];
+
+  const upd = (patch) => update(s=>({
+    ...s, golddanya:{...(s.golddanya||{}),
+      [halfTab]:{...(s.golddanya?.[halfTab]||{}),...patch}}
+  }));
+  const updTeam = (team,patch) => upd({[team]:{...(half[team]||{}),...patch}});
+  const updScore = (team,delta) => {
+    const c = half.score||{teacher:0,student:0};
+    upd({score:{...c,[team]:Math.max(0,(c[team]||0)+delta)}});
+  };
+  const setPlayerField = (team,idx,field,val) => {
+    const ps=[...((half[team]?.players)||[])];
+    if(!ps[idx]) ps[idx]={};
+    ps[idx]={...ps[idx],[field]:val};
+    updTeam(team,{players:ps});
+  };
+  const getPlayers = (team) => {
+    const ps=[...((half[team]?.players)||[])];
+    while(ps.length<11) ps.push({name:"",number:""});
+    return ps.slice(0,11);
+  };
+  const submitGoal = () => {
+    if(!goalName.trim()) return;
+    upd({goals:[...(half.goals||[]),{team:goalTeam,name:goalName.trim(),time:goalTime.trim(),id:Date.now()}]});
+    setGoalName(""); setGoalTime("");
+  };
+  const removeGoal = (id) => upd({goals:(half.goals||[]).filter(g=>g.id!==id)});
+
+  const POS_LABELS = ["GK","DF","DF","DF","DF","MF","MF","MF","FW","FW","FW"];
+
+  const PlayerInputGrid = ({team,label,color}) => {
+    const players = getPlayers(team);
+    return(
+      <div>
+        <div style={{fontWeight:700,fontSize:13,color:"#37352f",marginBottom:6,
+          display:"flex",alignItems:"center",gap:6}}>
+          <div style={{width:10,height:10,borderRadius:"50%",background:color}}/>
+          {label}
+        </div>
+        {players.map((p,i)=>(
+          <div key={i} style={{display:"flex",gap:4,marginBottom:3,alignItems:"center"}}>
+            <div style={{width:28,flexShrink:0,fontSize:9,color:"#9b9a97",
+              fontWeight:600,textAlign:"center",lineHeight:1}}>{POS_LABELS[i]||i+1}</div>
+            <input value={p.number||""} onChange={e=>setPlayerField(team,i,"number",e.target.value)}
+              placeholder="#" className="oinput"
+              style={{width:34,padding:"5px 3px",textAlign:"center",fontSize:12,flexShrink:0}}/>
+            <input value={p.name||""} onChange={e=>setPlayerField(team,i,"name",e.target.value)}
+              placeholder={`선수 ${i+1}`} className="oinput"
+              style={{flex:1,padding:"5px 7px",fontSize:12}}/>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  return(<>
+    <div className="page-title">⚽ 골때녀 관리</div>
+    <div className="page-desc">전/후반 라인업 등록 · 득점 입력 · 학생 화면 실시간 반영</div>
+
+    {/* 전/후반 탭 */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:14}}>
+      <button onClick={()=>setHalfTab("half1")} className={`obtn${halfTab==="half1"?" on":""}`}
+        style={{padding:"10px",fontSize:13}}>⚽ 전반전 (1학년)</button>
+      <button onClick={()=>setHalfTab("half2")} className={`obtn${halfTab==="half2"?" on":""}`}
+        style={{padding:"10px",fontSize:13}}>⚽ 후반전 (2학년)</button>
+    </div>
+
+    {/* 경기 상태 */}
+    <div className="card" style={{marginBottom:12,padding:"12px 14px"}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:8}}>경기 상태</div>
+      <div style={{display:"flex",gap:6}}>
+        {STATUS_OPTS.map(o=>{
+          const on=(half.status||"upcoming")===o.id;
+          return(
+            <button key={o.id} onClick={()=>upd({status:o.id})} className="obtn"
+              style={{flex:1,padding:"8px 4px",fontSize:12,fontWeight:700,
+                background:on?o.color:"#fff",color:on?"#fff":"#37352f",
+                borderColor:on?o.color:"#e7e7e5"}}>
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+
+    {/* 라인업 미리보기 */}
+    <div className="sl">📺 라인업 미리보기</div>
+    <div style={{borderRadius:12,overflow:"hidden",marginBottom:14}}>
+      <FootballPitch half={half}/>
+    </div>
+
+    {/* 포메이션 선택 */}
+    <div className="card" style={{marginBottom:12}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:10}}>포메이션 설정</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        {["teacher","student"].map(team=>(
+          <div key={team}>
+            <div style={{fontSize:11,color:"#9b9a97",fontWeight:600,marginBottom:4}}>
+              {team==="teacher"?"👨‍🏫 교사팀":`🎓 ${grade}학년`}
+            </div>
+            <select value={half[team]?.formation||"4-4-2"}
+              onChange={e=>updTeam(team,{formation:e.target.value})}
+              className="oinput" style={{fontSize:13}}>
+              {FORMATIONS.map(f=><option key={f} value={f}>{f}</option>)}
+            </select>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    {/* 선수 명단 입력 */}
+    <div className="card" style={{marginBottom:12}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:12}}>선수 명단 (각 11명)</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+        <PlayerInputGrid team="teacher" label="교사팀" color="#1e3a8a"/>
+        <PlayerInputGrid team="student" label={`${grade}학년`} color="#9f1239"/>
+      </div>
+    </div>
+
+    {/* 득점 관리 */}
+    <div className="card" style={{marginBottom:12}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:12}}>득점 관리</div>
+
+      {/* 스코어 +/- */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:10,
+        alignItems:"center",marginBottom:14}}>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:11,color:"#787671",fontWeight:700,marginBottom:6}}>교사팀</div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+            <button onClick={()=>updScore("teacher",-1)} className="obtn"
+              style={{width:36,height:36,padding:0,fontSize:20,fontWeight:700}}>−</button>
+            <span style={{fontSize:32,fontWeight:900,color:"#1e3a8a",minWidth:42,textAlign:"center",lineHeight:1}}>
+              {half.score?.teacher||0}
+            </span>
+            <button onClick={()=>updScore("teacher",1)} className="obtn primary"
+              style={{width:36,height:36,padding:0,fontSize:20,fontWeight:700}}>+</button>
+          </div>
+        </div>
+        <div style={{fontSize:20,color:"#d1d5db",fontWeight:300,textAlign:"center"}}>-</div>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:11,color:"#787671",fontWeight:700,marginBottom:6}}>{grade}학년</div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+            <button onClick={()=>updScore("student",-1)} className="obtn"
+              style={{width:36,height:36,padding:0,fontSize:20,fontWeight:700}}>−</button>
+            <span style={{fontSize:32,fontWeight:900,color:"#9f1239",minWidth:42,textAlign:"center",lineHeight:1}}>
+              {half.score?.student||0}
+            </span>
+            <button onClick={()=>updScore("student",1)} className="obtn primary"
+              style={{width:36,height:36,padding:0,fontSize:20,fontWeight:700}}>+</button>
+          </div>
+        </div>
+      </div>
+
+      {/* 득점자 추가 */}
+      <div style={{background:"#f9fafb",borderRadius:8,padding:10,marginBottom:8}}>
+        <div style={{fontSize:12,fontWeight:700,color:"#37352f",marginBottom:8}}>⚽ 득점자 추가</div>
+        <div style={{display:"flex",gap:5,marginBottom:6}}>
+          {[{id:"teacher",label:"교사팀",c:"#1e3a8a"},{id:"student",label:`${grade}학년`,c:"#9f1239"}].map(o=>(
+            <button key={o.id} onClick={()=>setGoalTeam(o.id)}
+              style={{flex:1,padding:"6px 4px",fontSize:12,borderRadius:6,
+                border:`1.5px solid ${goalTeam===o.id?o.c:"#e7e7e5"}`,
+                background:goalTeam===o.id?o.c:"#fff",
+                color:goalTeam===o.id?"#fff":"#37352f",
+                fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:5}}>
+          <input value={goalName} onChange={e=>setGoalName(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&submitGoal()}
+            placeholder="득점자 이름" className="oinput" style={{flex:2,padding:"6px 8px",fontSize:12}}/>
+          <input value={goalTime} onChange={e=>setGoalTime(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&submitGoal()}
+            placeholder="시간 (예: 32')" className="oinput" style={{flex:1,padding:"6px 8px",fontSize:12}}/>
+          <button onClick={submitGoal} className="obtn primary"
+            style={{padding:"6px 12px",fontSize:12,fontWeight:700,flexShrink:0}}>추가</button>
+        </div>
+      </div>
+
+      {/* 득점자 목록 */}
+      {(half.goals||[]).length>0 && (half.goals||[]).map(g=>(
+        <div key={g.id} style={{display:"flex",alignItems:"center",gap:8,
+          padding:"6px 10px",background:"#fff",borderRadius:6,marginBottom:3,
+          border:"1px solid #e7e7e5"}}>
+          <span style={{fontSize:14}}>⚽</span>
+          <span style={{fontSize:11,fontWeight:700,minWidth:36,
+            color:g.team==="teacher"?"#1e3a8a":"#9f1239"}}>
+            {g.team==="teacher"?"교사":"학생"}
+          </span>
+          <span style={{flex:1,fontSize:13,fontWeight:600,color:"#37352f"}}>{g.name}</span>
+          {g.time&&<span style={{fontSize:11,color:"#9b9a97",fontWeight:600}}>{g.time}</span>}
+          <button onClick={()=>removeGoal(g.id)}
+            style={{width:22,height:22,border:"none",background:"#fef2f2",
+              borderRadius:"50%",cursor:"pointer",fontSize:12,color:"#ef4444",
+              display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>×</button>
+        </div>
+      ))}
+    </div>
+  </>);
+}
+
 function OperatorPage({ state, update, role, onLogout }) {
   const [tab, setTab] = useState("sched");
   const [sbOpen, setSbOpen] = useState(false);
@@ -4243,6 +4667,7 @@ function OperatorPage({ state, update, role, onLogout }) {
     {section:"행사 운영", items:[
       {id:"entry",     icon:"🚶", l:"입장식 진행",    roles:["operator","mc"]},
       {id:"cheershow", icon:"📣", l:"응원전 진행",    roles:["operator","mc"]},
+      {id:"golddanya", icon:"⚽", l:"골때녀 관리",    roles:["operator","score","mc"]},
       {id:"sched",     icon:"📅", l:"일정 관리",      roles:["operator"]},
       {id:"call",      icon:"📢", l:"공지·호출",      roles:["operator","mc"]},
       {id:"music",     icon:"🎵", l:"BGM",            roles:["operator","mc"]},
@@ -4309,6 +4734,7 @@ function OperatorPage({ state, update, role, onLogout }) {
               {tab==="bracket"   && <OBracket     state={state} update={update}/>}
               {tab==="entry"     && <OEntry       state={state} update={update}/>}
               {tab==="cheershow" && <OCheerShow   state={state} update={update}/>}
+              {tab==="golddanya" && <OGolddanya   state={state} update={update}/>}
               {tab==="cheer"     && <OCheer       state={state} update={update}/>}
               {tab==="sched"     && <OSched       state={state} update={update}/>}
               {tab==="call"      && <OCall        state={state} update={update}/>}
