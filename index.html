@@ -663,22 +663,25 @@ const BASE_CSS = `
   /* 새로고침 버튼 */
   .refresh-btn{font-size:18px}
 
-  /* ── 학생용 상단 고정 탭 (대시보드/순위) ── */
-  .v-topbar{display:flex;align-items:center;gap:2px;padding:0 2px;
+  /* ── 학생용 상단 고정 탭 (이모지: 텍스트 가로 배치) ── */
+  .v-topbar{display:flex;align-items:center;gap:0;padding:0 2px;
     border-bottom:1px solid #ebebea;background:#fff;
-    position:sticky;top:0;z-index:30;height:62px}
+    position:sticky;top:0;z-index:30;height:56px}
   .v-main-tab{flex:1;display:flex;flex-direction:row;align-items:center;
     justify-content:center;gap:5px;padding:6px 2px;border:none;background:transparent;
     cursor:pointer;border-bottom:3px solid transparent;font-family:inherit;
     color:#787671;font-weight:600;transition:all .15s;height:100%;
-    min-width:0}
+    min-width:0;overflow:hidden}
   .v-main-tab.on{color:#37352f;border-bottom-color:#37352f;font-weight:800}
-  .v-main-tab .vt-icon{font-size:22px;line-height:1;flex-shrink:0}
-  .v-main-tab .vt-l{font-size:14px;letter-spacing:-.3px;white-space:nowrap;
-    font-weight:700;line-height:1}
-  @media (max-width: 480px) {
-    .v-main-tab{flex-direction:column;gap:2px}
-    .v-main-tab .vt-icon{font-size:20px}
+  .v-main-tab .vt-icon{font-size:18px;line-height:1;flex-shrink:0}
+  .v-main-tab .vt-l{font-size:14px;letter-spacing:-.5px;white-space:nowrap;
+    font-weight:700;line-height:1;overflow:hidden;text-overflow:ellipsis}
+  @media (max-width: 420px) {
+    .v-main-tab{gap:3px;padding:6px 1px}
+    .v-main-tab .vt-icon{font-size:16px}
+    .v-main-tab .vt-l{font-size:12px}
+  }
+  @media (max-width: 340px) {
     .v-main-tab .vt-l{font-size:11px}
   }
 
@@ -4006,80 +4009,73 @@ function TugBracket({state, update}) {
 //  TugTreeSVG: 줄다리기 한국 전통 토너먼트 SVG
 // ════════════════════════════════════════════════════════
 function TugTreeSVG({seeds, results, onPick}) {
-  // ───────────────────────────────────────────────────
-  //  줄다리기 5팀 토너먼트 (이미지1 정확 재현)
-  //  - 위에서 아래: 결승 / 준결승 / 1라운드 / 시드
-  //  - 1번 시드 부전승, 2vs3 1라운드, 4vs5 준결승
-  //  - onPick(matchId, winnerTeam): 결과 입력 (null이면 readonly)
-  // ───────────────────────────────────────────────────
-  const safeSeeds = (seeds && seeds.length===5) ? seeds : [null,null,null,null,null];
-  const hasSeeds = safeSeeds[0]!==null;
-
-  const computed = hasSeeds
-    ? compute5SpecialBracket(safeSeeds, results||{})
+  // 5팀 토너먼트 - 시안 그대로
+  const computed = seeds.length===5
+    ? compute5SpecialBracket(seeds, results||{})
     : {matches:[{},{},{},{}], ranks:{}};
-  const [m1, sf1, sf2, mF] = computed.matches;
+  const { matches } = computed;
+  const [m1, sf1, sf2, mF] = matches;
 
+  // 시드 X 좌표 (시안 기준)
+  const X = { s5:130, s4:230, s3:590, s2:490, s1:740 };
   const stroke = "#1f2937";
   const sw = 2.5;
 
   // 시드 박스 (노란 라벨 + 흰 학급 박스)
-  const SeedBox = ({x, n, team, canPick, matchId, isWinner, isLoser}) => (
+  const Seed = ({x, n, team, isWinner, isLoser, canPick, matchId}) => (
     <g onClick={()=>canPick&&onPick&&onPick(matchId, team)}
       style={{cursor:canPick?"pointer":"default"}}>
-      <rect x={x} y={445} width={70} height={35}
+      <rect x={x-35} y={445} width={70} height={35}
         fill="#fde047" stroke={stroke} strokeWidth={sw}/>
-      <text x={x+35} y={470} textAnchor="middle"
-        fontSize="18" fontWeight="900" fill={stroke}>{n}</text>
-      <rect x={x} y={480} width={70} height={60}
+      <text x={x} y={470} textAnchor="middle"
+        fontSize="18" fontWeight="800" fill="#1f2937">{n}</text>
+      <rect x={x-35} y={480} width={70} height={60}
         fill={team?TEAM_BG[team]:"#fff"}
         stroke={team?TEAM_COLORS[team]:stroke}
-        strokeWidth={isWinner?3.5:sw}
+        strokeWidth={isWinner?3:sw}
         opacity={isLoser?0.4:1}/>
-      {team && (
-        <text x={x+35} y={515} textAnchor="middle"
-          fontSize="16" fontWeight="900"
-          fill={TEAM_COLORS[team]} opacity={isLoser?0.5:1}>
-          {team}팀
-        </text>
+      {team ? (
+        <text x={x} y={517} textAnchor="middle" fontSize="16" fontWeight="900"
+          fill={TEAM_COLORS[team]} opacity={isLoser?0.5:1}>{team}팀</text>
+      ) : (
+        <text x={x} y={517} textAnchor="middle" fontSize="14" fill="#9b9a97">-</text>
       )}
     </g>
   );
 
-  // 매치 박스 (결승/준결승/1라운드)
-  const MatchBox = ({x, y, w, h, winner, canPick, matchId, c1, c2, label}) => {
-    const cx = x+w/2, cy = y+h/2;
+  // 매치 박스 (가로로 긴 라운드 박스)
+  const Match = ({x, y, w, h, winner, label, candidate1, candidate2, canPick, matchId}) => {
+    const cx = x + w/2;
     return (
       <g>
         <rect x={x} y={y} width={w} height={h}
           fill={winner?"#dcfce7":"#fff"}
-          stroke={winner?"#16a34a":stroke}
-          strokeWidth={sw}/>
+          stroke={winner?"#16a34a":stroke} strokeWidth={sw}/>
         {winner ? (
-          <text x={cx} y={cy+6} textAnchor="middle"
-            fontSize="17" fontWeight="900" fill="#16a34a">
-            {winner}팀 {label==="결승" ? "🏆" : "✓"}
+          <text x={cx} y={y+h/2+6} textAnchor="middle"
+            fontSize="16" fontWeight="900" fill="#16a34a">
+            {winner}팀 {label==="결승" && "🏆"}
           </text>
-        ) : c1 && c2 ? (
+        ) : candidate1 && candidate2 ? (
           <g>
-            <text x={cx-w/4} y={cy+5} textAnchor="middle"
+            <text x={cx - w/4} y={y+h/2+5} textAnchor="middle"
               fontSize="14" fontWeight="800" fill="#3b82f6"
-              onClick={()=>canPick&&onPick&&onPick(matchId, c1)}
+              onClick={()=>canPick&&onPick(matchId, candidate1)}
               style={{cursor:canPick?"pointer":"default"}}>
-              ◀ {c1}팀
+              ◀ {candidate1}팀
             </text>
-            <text x={cx} y={cy+5} textAnchor="middle"
-              fontSize="13" fontWeight="900" fill={stroke}>VS</text>
-            <text x={cx+w/4} y={cy+5} textAnchor="middle"
+            <text x={cx} y={y+h/2+5} textAnchor="middle"
+              fontSize="13" fontWeight="900" fill="#1f2937">VS</text>
+            <text x={cx + w/4} y={y+h/2+5} textAnchor="middle"
               fontSize="14" fontWeight="800" fill="#3b82f6"
-              onClick={()=>canPick&&onPick&&onPick(matchId, c2)}
+              onClick={()=>canPick&&onPick(matchId, candidate2)}
               style={{cursor:canPick?"pointer":"default"}}>
-              {c2}팀 ▶
+              {candidate2}팀 ▶
             </text>
           </g>
         ) : (
-          <text x={cx} y={cy+5} textAnchor="middle"
-            fontSize="14" fontWeight="600" fill="#9b9a97">{label}</text>
+          <text x={cx} y={y+h/2+5} textAnchor="middle"
+            fontSize="14" fontWeight="500" fill="#9b9a97">{label}</text>
         )}
       </g>
     );
@@ -4088,18 +4084,22 @@ function TugTreeSVG({seeds, results, onPick}) {
   return (
     <div style={{overflowX:"auto",background:"#fff",borderRadius:8,
       border:"1px solid #e7e7e5",padding:10}}>
-      <svg viewBox="0 0 800 580" style={{width:"100%",minWidth:680,height:"auto"}}>
+      <svg viewBox="0 0 800 580" style={{width:"100%",minWidth:700,height:"auto"}}>
+
         {/* 라운드 라벨 */}
-        <text x="20" y="60" fontSize="13" fontWeight="800" fill="#9b9a97">결승</text>
-        <text x="20" y="220" fontSize="13" fontWeight="800" fill="#9b9a97">준결승</text>
-        <text x="20" y="360" fontSize="13" fontWeight="800" fill="#9b9a97">1라운드</text>
-        <text x="20" y="475" fontSize="13" fontWeight="800" fill="#9b9a97">시드</text>
+        <text x="20" y="60" fontSize="13" fontWeight="600" fill="#9b9a97">결승</text>
+        <text x="20" y="220" fontSize="13" fontWeight="600" fill="#9b9a97">준결승</text>
+        <text x="20" y="360" fontSize="13" fontWeight="600" fill="#9b9a97">1라운드</text>
+        <text x="20" y="475" fontSize="13" fontWeight="600" fill="#9b9a97">시드</text>
 
         {/* 결승 박스 */}
-        <MatchBox x={320} y={50} w={320} h={40}
+        <Match x={320} y={50} w={320} h={40}
           winner={mF.winner}
+          label="결승 (1위 / 2위)"
+          candidate1={sf1.winner}
+          candidate2={sf2.winner}
           canPick={!mF.winner && sf1.winner && sf2.winner}
-          matchId="f" c1={sf2.winner} c2={sf1.winner} label="결승"/>
+          matchId="f"/>
 
         {/* 결승 → 준결승 좌 연결선 */}
         <line x1="320" y1="90" x2="320" y2="180" stroke={stroke} strokeWidth={sw}/>
@@ -4108,60 +4108,65 @@ function TugTreeSVG({seeds, results, onPick}) {
 
         {/* 결승 → 준결승 우 연결선 */}
         <line x1="640" y1="90" x2="640" y2="180" stroke={stroke} strokeWidth={sw}/>
-        <line x1="640" y1="180" x2="600" y2="180" stroke={stroke} strokeWidth={sw}/>
-        <line x1="600" y1="180" x2="600" y2="210" stroke={stroke} strokeWidth={sw}/>
+        <line x1="640" y1="180" x2="640" y2="210" stroke={stroke} strokeWidth={sw}/>
 
         {/* 준결승 좌 (5 vs 4) */}
-        <MatchBox x={80} y={210} w={200} h={40}
+        <Match x={80} y={210} w={200} h={40}
           winner={sf2.winner}
-          canPick={!sf2.winner && safeSeeds[3] && safeSeeds[4]}
-          matchId="sf2" c1={safeSeeds[4]} c2={safeSeeds[3]} label="5 vs 4"/>
+          label="5 vs 4"
+          candidate1={seeds[4]} candidate2={seeds[3]}
+          canPick={!sf2.winner && seeds[4] && seeds[3]}
+          matchId="sf2"/>
 
-        {/* 준결승 우 (1 vs R1승자) */}
-        <MatchBox x={480} y={210} w={320} h={40}
+        {/* 준결승 우 (1 vs 1R승자) */}
+        <Match x={480} y={210} w={320} h={40}
           winner={sf1.winner}
-          canPick={!sf1.winner && safeSeeds[0] && m1.winner}
-          matchId="sf1" c1={m1.winner} c2={safeSeeds[0]} label="1 vs 1라운드 승자"/>
+          label="1 vs 1라운드 승자"
+          candidate1={seeds[0]} candidate2={m1.winner}
+          canPick={!sf1.winner && seeds[0] && m1.winner}
+          matchId="sf1"/>
 
         {/* 준결승 좌 → 시드 5, 4 연결선 */}
         <line x1="130" y1="250" x2="130" y2="445" stroke={stroke} strokeWidth={sw}/>
         <line x1="230" y1="250" x2="230" y2="445" stroke={stroke} strokeWidth={sw}/>
 
-        {/* 준결승 우 → 시드 1, 1라운드 승자 연결선 */}
+        {/* 준결승 우 → 시드 1, 1R승자 연결선 */}
         <line x1="740" y1="250" x2="740" y2="445" stroke={stroke} strokeWidth={sw}/>
         <line x1="540" y1="250" x2="540" y2="350" stroke={stroke} strokeWidth={sw}/>
 
         {/* 1라운드 (2 vs 3) */}
-        <MatchBox x={440} y={350} w={200} h={40}
+        <Match x={440} y={350} w={200} h={40}
           winner={m1.winner}
-          canPick={!m1.winner && safeSeeds[1] && safeSeeds[2]}
-          matchId="m1" c1={safeSeeds[2]} c2={safeSeeds[1]} label="2 vs 3"/>
+          label="2 vs 3"
+          candidate1={seeds[1]} candidate2={seeds[2]}
+          canPick={!m1.winner && seeds[1] && seeds[2]}
+          matchId="m1"/>
 
-        {/* 1라운드 → 시드 2, 3 */}
+        {/* 1라운드 → 시드 2, 3 연결선 */}
         <line x1="490" y1="390" x2="490" y2="445" stroke={stroke} strokeWidth={sw}/>
         <line x1="590" y1="390" x2="590" y2="445" stroke={stroke} strokeWidth={sw}/>
 
         {/* 시드 박스들 */}
-        <SeedBox x={95}  n="5" team={safeSeeds[4]}
-          canPick={!sf2.winner && safeSeeds[3] && safeSeeds[4]} matchId="sf2"
-          isWinner={sf2.winner===safeSeeds[4]}
-          isLoser={sf2.winner && sf2.winner!==safeSeeds[4]}/>
-        <SeedBox x={195} n="4" team={safeSeeds[3]}
-          canPick={!sf2.winner && safeSeeds[3] && safeSeeds[4]} matchId="sf2"
-          isWinner={sf2.winner===safeSeeds[3]}
-          isLoser={sf2.winner && sf2.winner!==safeSeeds[3]}/>
-        <SeedBox x={455} n="2" team={safeSeeds[1]}
-          canPick={!m1.winner && safeSeeds[1] && safeSeeds[2]} matchId="m1"
-          isWinner={m1.winner===safeSeeds[1]}
-          isLoser={m1.winner && m1.winner!==safeSeeds[1]}/>
-        <SeedBox x={555} n="3" team={safeSeeds[2]}
-          canPick={!m1.winner && safeSeeds[1] && safeSeeds[2]} matchId="m1"
-          isWinner={m1.winner===safeSeeds[2]}
-          isLoser={m1.winner && m1.winner!==safeSeeds[2]}/>
-        <SeedBox x={705} n="1" team={safeSeeds[0]}
-          canPick={false}
-          isWinner={sf1.winner===safeSeeds[0]}
-          isLoser={sf1.winner && sf1.winner!==safeSeeds[0]}/>
+        <Seed x={X.s5} n="5" team={seeds[4]}
+          isWinner={sf2.winner===seeds[4]}
+          isLoser={sf2.winner&&sf2.winner!==seeds[4]}
+          canPick={!sf2.winner && seeds[4] && seeds[3]} matchId="sf2"/>
+        <Seed x={X.s4} n="4" team={seeds[3]}
+          isWinner={sf2.winner===seeds[3]}
+          isLoser={sf2.winner&&sf2.winner!==seeds[3]}
+          canPick={!sf2.winner && seeds[4] && seeds[3]} matchId="sf2"/>
+        <Seed x={X.s2} n="2" team={seeds[1]}
+          isWinner={m1.winner===seeds[1]}
+          isLoser={m1.winner&&m1.winner!==seeds[1]}
+          canPick={!m1.winner && seeds[1] && seeds[2]} matchId="m1"/>
+        <Seed x={X.s3} n="3" team={seeds[2]}
+          isWinner={m1.winner===seeds[2]}
+          isLoser={m1.winner&&m1.winner!==seeds[2]}
+          canPick={!m1.winner && seeds[1] && seeds[2]} matchId="m1"/>
+        <Seed x={X.s1} n="1" team={seeds[0]}
+          isWinner={sf1.winner===seeds[0]}
+          isLoser={sf1.winner&&sf1.winner!==seeds[0]}
+          canPick={false}/>
       </svg>
     </div>
   );
@@ -4169,110 +4174,107 @@ function TugTreeSVG({seeds, results, onPick}) {
 
 
 function GroupBracketSVG({ groupAssignment, sport, results }) {
-  // ───────────────────────────────────────────────────
-  //  4조 × 5학급 대진표 (이미지2,3 정확 재현)
-  //  - 위: 1조/2조/3조/4조 박스 (1위~5위 결과)
-  //  - 아래: 노란 번호 라벨(1~20) + 학급 박스
-  //  - 연결선: 첫/마지막 학급 → 조 박스 좌/우로
-  // ───────────────────────────────────────────────────
+  // 4조 × 5학급 - 시안 그대로
   const groups = ["g1","g2","g3","g4"];
-  const groupNames = {g1:"1조", g2:"2조", g3:"3조", g4:"4조"};
+  const groupLabels = {g1:"1조", g2:"2조", g3:"3조", g4:"4조"};
 
-  // 조 영역 위치 (이미지처럼 4개 균등 배치)
-  const groupConfigs = [
-    { gk:"g1", boxX:55,  boxW:250, slotStart:15  },
-    { gk:"g2", boxX:335, boxW:250, slotStart:300 },
-    { gk:"g3", boxX:615, boxW:250, slotStart:585 },
-    { gk:"g4", boxX:895, boxW:195, slotStart:870 },
-  ];
+  // 조 X 좌표 (시안 기준)
+  // 1조: x=15~305 (학급 박스), 2조: x=320~610, 3조: x=600~890, 4조: x=880~1110
+  const GROUP_X = {
+    g1: { boxX: 55,  boxW: 220, slotStart: 15,   labelOffset: 0 },
+    g2: { boxX: 335, boxW: 220, slotStart: 320,  labelOffset: 0 },
+    g3: { boxX: 615, boxW: 220, slotStart: 600,  labelOffset: 0 },
+    g4: { boxX: 895, boxW: 195, slotStart: 880,  labelOffset: 0 },
+  };
 
   const stroke = "#1f2937";
   const sw = 2.5;
+  const SLOT_W = 50;
+  const SLOT_GAP = 10;
 
   return (
     <div style={{overflowX:"auto",background:"#fff",borderRadius:8,
       border:"1px solid #e7e7e5",padding:10}}>
-      <svg viewBox="0 0 1110 510" style={{width:"100%",minWidth:1000,height:"auto"}}>
-        {groupConfigs.map((cfg, gi)=>{
-          const cls = groupAssignment[cfg.gk] || [];
-          const ranks = results?.[cfg.gk] || {};
+      <svg viewBox="0 0 1110 510" style={{width:"100%",minWidth:1050,height:"auto"}}>
 
-          // 학급 박스 5개 위치
-          const slotXs = [];
-          for(let i=0; i<5; i++) {
-            slotXs.push(cfg.slotStart + i*60);  // 50px + 10gap
-          }
-          const firstX = slotXs[0];
-          const lastX = slotXs[4];
+        {groups.map((gk, gi) => {
+          const cls = groupAssignment[gk] || [];
+          const ranks = results?.[gk] || {};
+          const cfg = GROUP_X[gk];
+
+          // 첫 박스 / 마지막 박스 중심 X
+          const firstSlotX = cfg.slotStart + SLOT_W/2;
+          const lastSlotIdx = 4; // 5개 박스의 인덱스 4
+          const lastSlotX = cfg.slotStart + lastSlotIdx*(SLOT_W + SLOT_GAP) + SLOT_W/2;
           const boxRight = cfg.boxX + cfg.boxW;
 
           return (
-            <g key={cfg.gk}>
-              {/* 조 박스 */}
+            <g key={gk}>
+              {/* 조 박스 (상단) */}
               <rect x={cfg.boxX} y={20} width={cfg.boxW} height={170}
                 fill="#fff" stroke={stroke} strokeWidth={sw}/>
-              <text x={cfg.boxX + cfg.boxW/2} y={48} textAnchor="middle"
-                fontSize="22" fontWeight="900" fill={stroke}>
-                {groupNames[cfg.gk]}
+              <text x={cfg.boxX + cfg.boxW/2} y={48}
+                textAnchor="middle" fontSize="22" fontWeight="800" fill={stroke}>
+                {groupLabels[gk]}
               </text>
-              {/* 1위~5위 */}
+
+              {/* 1~5위 표시 */}
               {[1,2,3,4,5].map((rank,ri)=>{
-                const winnerCls = Object.entries(ranks).find(([c,r])=>r===rank)?.[0];
-                const team = winnerCls ? classToTeam(winnerCls) : null;
+                const winner = Object.entries(ranks).find(([c,r])=>r===rank)?.[0];
+                const team = winner ? classToTeam(winner) : null;
                 return (
                   <g key={rank}>
-                    <text x={cfg.boxX+20} y={80+ri*24}
+                    <text x={cfg.boxX + 20} y={80 + ri*24}
                       fontSize="14" fontWeight="800" fill={stroke}>
                       {rank}위:
                     </text>
-                    {winnerCls && (
-                      <text x={cfg.boxX+60} y={80+ri*24}
-                        fontSize="14" fontWeight="900"
-                        fill={TEAM_COLORS[team]||stroke}>
-                        {winnerCls}
+                    {winner && (
+                      <text x={cfg.boxX + 60} y={80 + ri*24}
+                        fontSize="14" fontWeight="800"
+                        fill={team?TEAM_COLORS[team]:stroke}>
+                        {winner}
                       </text>
                     )}
                   </g>
                 );
               })}
 
-              {/* 연결선: 첫 학급 → 조 박스 왼쪽 */}
-              <line x1={firstX+25} y1={285} x2={firstX+25} y2={250}
-                stroke={stroke} strokeWidth={sw}/>
-              <line x1={firstX+25} y1={250} x2={cfg.boxX} y2={250}
-                stroke={stroke} strokeWidth={sw}/>
-              <line x1={cfg.boxX} y1={250} x2={cfg.boxX} y2={190}
-                stroke={stroke} strokeWidth={sw}/>
+              {/* 연결선: 조 박스 양 끝 → 첫/마지막 학급 박스 */}
+              <g stroke={stroke} strokeWidth={sw} fill="none">
+                {/* 왼쪽 가지: 박스 좌하단 → 첫 학급 */}
+                <line x1={cfg.boxX} y1={190} x2={cfg.boxX} y2={285}/>
+                <line x1={cfg.boxX} y1={285} x2={firstSlotX} y2={285}/>
+                <line x1={firstSlotX} y1={285} x2={firstSlotX} y2={285}/>
+                {/* 오른쪽 가지: 박스 우하단 → 마지막 학급 */}
+                <line x1={boxRight} y1={190} x2={boxRight} y2={285}/>
+                <line x1={boxRight} y1={285} x2={lastSlotX} y2={285}/>
+              </g>
 
-              {/* 연결선: 마지막 학급 → 조 박스 오른쪽 */}
-              <line x1={lastX+25} y1={285} x2={lastX+25} y2={250}
-                stroke={stroke} strokeWidth={sw}/>
-              <line x1={lastX+25} y1={250} x2={boxRight} y2={250}
-                stroke={stroke} strokeWidth={sw}/>
-              <line x1={boxRight} y1={250} x2={boxRight} y2={190}
-                stroke={stroke} strokeWidth={sw}/>
-
-              {/* 학급 박스들 */}
-              {slotXs.map((sx,ci)=>{
+              {/* 학급 박스 5개 (노란 라벨 + 흰 박스) */}
+              {[0,1,2,3,4].map(ci => {
                 const c = cls[ci];
+                const slotX = cfg.slotStart + ci*(SLOT_W + SLOT_GAP);
+                const slotCenterX = slotX + SLOT_W/2;
                 const team = c ? classToTeam(c) : null;
                 const globalNum = gi*5 + ci + 1;
+
                 return (
                   <g key={ci}>
                     {/* 노란 번호 라벨 */}
-                    <rect x={sx} y={285} width={50} height={35}
+                    <rect x={slotX} y={285} width={SLOT_W} height={35}
                       fill="#fde047" stroke={stroke} strokeWidth={sw}/>
-                    <text x={sx+25} y={310} textAnchor="middle"
-                      fontSize="16" fontWeight="900" fill={stroke}>
+                    <text x={slotCenterX} y={310}
+                      textAnchor="middle" fontSize="16" fontWeight="800" fill={stroke}>
                       {globalNum}
                     </text>
                     {/* 학급 박스 */}
-                    <rect x={sx} y={320} width={50} height={160}
+                    <rect x={slotX} y={320} width={SLOT_W} height={160}
                       fill={team?TEAM_BG[team]:"#fff"}
                       stroke={stroke} strokeWidth={sw}/>
                     {c && (
-                      <text x={sx+25} y={405} textAnchor="middle"
-                        fontSize="15" fontWeight="900" fill={TEAM_COLORS[team]}>
+                      <text x={slotCenterX} y={405}
+                        textAnchor="middle" fontSize="14" fontWeight="900"
+                        fill={TEAM_COLORS[team]}>
                         {c}
                       </text>
                     )}
