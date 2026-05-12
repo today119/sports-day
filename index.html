@@ -604,14 +604,14 @@ const BASE_CSS = `
     transition:transform .25s ease;
   }
   .sb-header{padding:10px 12px 16px;border-bottom:1px solid #ebebea;margin-bottom:8px}
-  .sb-school{font-size:11px;color:#9b9a97;font-weight:500;letter-spacing:.5px;margin-bottom:3px}
-  .sb-title{font-size:15px;font-weight:700;color:#37352f;display:flex;align-items:center;gap:6px}
-  .sb-section{font-size:11px;color:#9b9a97;font-weight:600;letter-spacing:.5px;
-    padding:6px 14px 4px;text-transform:uppercase}
+  .sb-school{font-size:13px;color:#787671;font-weight:600;letter-spacing:.3px;margin-bottom:4px}
+  .sb-title{font-size:17px;font-weight:800;color:#37352f;display:flex;align-items:center;gap:6px}
+  .sb-section{font-size:12px;color:#787671;font-weight:700;letter-spacing:.5px;
+    padding:10px 16px 6px;text-transform:uppercase}
   .sb-item{
-    display:flex;align-items:center;gap:8px;padding:5px 14px;margin:1px 6px;
-    border-radius:5px;cursor:pointer;font-size:14px;color:#37352f;
-    user-select:none;font-weight:500;transition:background .1s;
+    display:flex;align-items:center;gap:10px;padding:9px 16px;margin:2px 6px;
+    border-radius:6px;cursor:pointer;font-size:16px;color:#37352f;
+    user-select:none;font-weight:600;transition:background .1s;
   }
   .sb-item:hover{background:rgba(55,53,47,.08)}
   .sb-item.active{background:rgba(55,53,47,.10);font-weight:600}
@@ -663,18 +663,18 @@ const BASE_CSS = `
   .refresh-btn{font-size:18px}
 
   /* ── 학생용 상단 고정 탭 (대시보드/순위) ── */
-  .v-topbar{display:flex;align-items:center;gap:2px;padding:0 4px;
+  .v-topbar{display:flex;align-items:center;gap:6px;padding:0 6px;
     border-bottom:1px solid #ebebea;background:#fff;
-    position:sticky;top:0;z-index:30;height:58px}
+    position:sticky;top:0;z-index:30;height:64px}
   .v-main-tab{flex:1;display:flex;flex-direction:column;align-items:center;
-    justify-content:center;gap:2px;padding:6px 2px;border:none;background:transparent;
-    cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;
-    color:#9b9a97;font-weight:500;transition:all .15s;height:100%;
+    justify-content:center;gap:3px;padding:8px 4px;border:none;background:transparent;
+    cursor:pointer;border-bottom:3px solid transparent;font-family:inherit;
+    color:#787671;font-weight:600;transition:all .15s;height:100%;
     min-width:0;overflow:hidden}
   .v-main-tab.on{color:#37352f;border-bottom-color:#37352f;font-weight:800}
-  .v-main-tab .vt-icon{font-size:22px;line-height:1}
-  .v-main-tab .vt-l{font-size:11px;letter-spacing:-.3px;white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .v-main-tab .vt-icon{font-size:26px;line-height:1}
+  .v-main-tab .vt-l{font-size:13px;letter-spacing:-.2px;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;max-width:100%;font-weight:700}
 
   /* ── 공지 배너 ── */
   .callout-bar{position:sticky;top:52px;z-index:29;
@@ -693,11 +693,11 @@ const BASE_CSS = `
   /* ── 사이드바 종목 그룹 ── */
   .sb-sport-group{margin:0 6px 4px;border-radius:6px;overflow:hidden;
     border:1px solid #ebebea;background:#fff}
-  .sb-sport-item{display:flex;align-items:center;gap:8px;padding:6px 12px;
-    cursor:pointer;font-size:13px;color:#37352f;font-weight:500;transition:background .1s}
+  .sb-sport-item{display:flex;align-items:center;gap:10px;padding:9px 14px;
+    cursor:pointer;font-size:15px;color:#37352f;font-weight:600;transition:background .1s}
   .sb-sport-item:hover{background:#f4f4f3}
   .sb-sport-item.active{background:#37352f;color:#fff;font-weight:700}
-  .sb-sport-icon{font-size:14px;width:18px;text-align:center;flex-shrink:0}
+  .sb-sport-icon{font-size:16px;width:20px;text-align:center;flex-shrink:0}
 
 
   .menu-btn{background:none;border:none;cursor:pointer;padding:10px;border-radius:8px;
@@ -711,23 +711,23 @@ const BASE_CSS = `
   .content{flex:1;padding:24px 28px 80px;max-width:960px;width:100%;margin:0 auto}
 
   /* ── 카드 (Notion 블록 스타일) ── */
-  .card{background:#fff;border:1px solid #ebebea;border-radius:6px;padding:14px 16px;
-    margin-bottom:8px;transition:border-color .1s}
+  .card{background:#fff;border:1px solid #ebebea;border-radius:8px;padding:16px 18px;
+    margin-bottom:10px;transition:border-color .1s;font-size:15px}
   .card:hover{border-color:#d4d4d2}
   .card.hl{border-color:#37352f;border-width:1.5px;background:#fafaf9}
-  .card-flat{background:#fafaf9;border-radius:6px;padding:12px 14px;margin-bottom:6px}
+  .card-flat{background:#fafaf9;border-radius:8px;padding:14px 16px;margin-bottom:8px}
 
   /* ── 섹션 헤더 ── */
-  .sl{font-size:14px;font-weight:700;color:#787671;letter-spacing:.3px;
-    margin:24px 0 10px;text-transform:uppercase}
+  .sl{font-size:16px;font-weight:800;color:#37352f;letter-spacing:.2px;
+    margin:26px 0 12px}
   .sl:first-child{margin-top:0}
-  .page-title{font-size:28px;font-weight:800;color:#37352f;margin-bottom:6px;
+  .page-title{font-size:30px;font-weight:800;color:#37352f;margin-bottom:8px;
     letter-spacing:-.5px;display:flex;align-items:center;gap:10px}
-  .page-desc{font-size:14px;color:#787671;margin-bottom:20px;font-weight:500}
+  .page-desc{font-size:15px;color:#787671;margin-bottom:22px;font-weight:600}
 
   /* ── Row (테이블 같은 행) ── */
-  .rrow{display:flex;align-items:center;gap:12px;padding:12px 4px;
-    border-bottom:1px solid #f1f1ef;font-size:15px;font-weight:600}
+  .rrow{display:flex;align-items:center;gap:14px;padding:14px 6px;
+    border-bottom:1px solid #f1f1ef;font-size:17px;font-weight:700}
   .rrow:last-child{border-bottom:none}
 
   /* ── 버튼 ── */
@@ -1069,20 +1069,20 @@ function VSportDetail({sel, state}) {
           </div>
         </div>
         <div className="card">
-          <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:8}}>조 편성 (예정)</div>
+          <div style={{fontSize:15,fontWeight:800,color:"#37352f",marginBottom:12}}>조 편성 (예정)</div>
           {GRP_KEYS.map(gk=>{
             const g=GRP_DEF[gk];
             return(
-              <div key={gk} style={{padding:"8px 10px",borderBottom:"1px solid #f5f5f3"}}>
-                <div style={{fontSize:12,fontWeight:700,color:"#37352f",marginBottom:4}}>{g.name}</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+              <div key={gk} style={{padding:"12px 12px",borderBottom:"1px solid #f5f5f3"}}>
+                <div style={{fontSize:15,fontWeight:800,color:"#37352f",marginBottom:8}}>{g.name}</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                   {g.cls.map(c=>{
                     const team=classToTeam(c);
                     return(
                       <span key={c} style={{
-                        fontSize:11, padding:"3px 7px", borderRadius:4,
+                        fontSize:15, padding:"6px 12px", borderRadius:6,
                         background:TEAM_BG[team], color:TEAM_COLORS[team],
-                        fontWeight:600,
+                        fontWeight:800,
                       }}>{c}반</span>
                     );
                   })}
@@ -1146,20 +1146,20 @@ function VSportDetail({sel, state}) {
           </div>
         </div>
         <div className="card">
-          <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:8}}>조 편성 (예정)</div>
+          <div style={{fontSize:15,fontWeight:800,color:"#37352f",marginBottom:12}}>조 편성 (예정)</div>
           {GRP_KEYS.map(gk=>{
             const g=GRP_DEF[gk];
             return(
-              <div key={gk} style={{padding:"8px 10px",borderBottom:"1px solid #f5f5f3"}}>
-                <div style={{fontSize:12,fontWeight:700,color:"#37352f",marginBottom:4}}>{g.name}</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+              <div key={gk} style={{padding:"12px 12px",borderBottom:"1px solid #f5f5f3"}}>
+                <div style={{fontSize:15,fontWeight:800,color:"#37352f",marginBottom:8}}>{g.name}</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                   {g.cls.map(c=>{
                     const team=classToTeam(c);
                     return(
                       <span key={c} style={{
-                        fontSize:11, padding:"3px 7px", borderRadius:4,
+                        fontSize:15, padding:"6px 12px", borderRadius:6,
                         background:TEAM_BG[team], color:TEAM_COLORS[team],
-                        fontWeight:600,
+                        fontWeight:800,
                       }}>{c}반</span>
                     );
                   })}
@@ -1375,7 +1375,7 @@ function VDash({cur, next, ranked, state}) {
               }}>
                 <span style={{
                   fontSize:16,fontWeight:900,fontFamily:"monospace",
-                  color:isCur?"#fff":isDone?"#787671":"#37352f",
+                  color:isDone?"#787671":"#fff",
                   background:isCur?"#eb5757":isDone?"#f3f4f6":"#1f2937",
                   padding:"6px 10px",
                   borderRadius:8,
