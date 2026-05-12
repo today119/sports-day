@@ -4222,7 +4222,47 @@ function SafeTab({children}) {
 }
 
 // ════════════════════════════════════════════════════════
-//  FootballPitch: 프리미어리그 스타일 라인업 피치
+//  PlayerInputGrid: 선수 명단 입력 (OGolddanya 내부 컴포넌트를 분리)
+// ════════════════════════════════════════════════════════
+const POS_LABELS_11 = ["GK","DF","DF","DF","DF","MF","MF","MF","FW","FW","FW"];
+
+function PlayerInputGrid({team, label, color, players, onFieldChange}) {
+  return(
+    <div>
+      <div style={{fontWeight:700,fontSize:13,color:"#37352f",marginBottom:8,
+        display:"flex",alignItems:"center",gap:6}}>
+        <div style={{width:10,height:10,borderRadius:"50%",background:color,flexShrink:0}}/>
+        {label}
+      </div>
+      {players.map((p,i)=>(
+        <div key={i} style={{marginBottom:5,paddingBottom:5,
+          borderBottom:i<10?"1px solid #f3f4f6":"none"}}>
+          {/* 번호 + 이름 */}
+          <div style={{display:"flex",gap:3,alignItems:"center",marginBottom:2}}>
+            <div style={{width:26,flexShrink:0,fontSize:9,color:"#9b9a97",
+              fontWeight:700,textAlign:"center",letterSpacing:0}}>{POS_LABELS_11[i]||i+1}</div>
+            <input value={p.number||""} onChange={e=>onFieldChange(team,i,"number",e.target.value)}
+              placeholder="#" className="oinput"
+              style={{width:32,padding:"4px 2px",textAlign:"center",fontSize:12,flexShrink:0}}/>
+            <input value={p.name||""} onChange={e=>onFieldChange(team,i,"name",e.target.value)}
+              placeholder={`선수 ${i+1}`} className="oinput"
+              style={{flex:1,padding:"4px 6px",fontSize:12}}/>
+          </div>
+          {/* 사진 URL */}
+          <div style={{display:"flex",gap:3,alignItems:"center"}}>
+            <div style={{width:26,flexShrink:0,fontSize:10,color:"#d1d5db",textAlign:"center"}}>📷</div>
+            <input value={p.photo||""} onChange={e=>onFieldChange(team,i,"photo",e.target.value)}
+              placeholder="사진 URL (구글드라이브 직접링크 등)" className="oinput"
+              style={{flex:1,padding:"3px 6px",fontSize:10,color:"#6b7280",background:"#f9fafb"}}/>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════
+//  FootballPitch: 프리미엄 다크 라인업 (Best XI 스타일)
 // ════════════════════════════════════════════════════════
 function FootballPitch({ half }) {
   const teacher = half?.teacher || { formation:"4-3-3", players:[] };
@@ -4236,7 +4276,7 @@ function FootballPitch({ half }) {
     const counts = [1, ...formation.split("-").map(n=>parseInt(n)||0)];
     let idx=0;
     return counts.map(count => {
-      const row = [];
+      const row=[];
       for(let i=0;i<count;i++) row.push(players[idx++]||null);
       return row;
     });
@@ -4244,127 +4284,169 @@ function FootballPitch({ half }) {
 
   const teacherRows = parseRows(teacher.formation||"4-3-3", teacher.players||[]);
   const studentRows = parseRows(student.formation||"4-4-2", student.players||[]);
+  const T_BG="#1e3a8a", S_BG="#9f1239", GOLD="#d4af37";
+  const goalsByTeam = (t) => goals.filter(g=>g.team===t);
 
-  const T_BG="#1e3a8a", S_BG="#9f1239";
-
-  const PlayerDot = ({player,color}) => (
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",
-      margin:"2px 3px",minWidth:40,maxWidth:52}}>
-      <div style={{width:32,height:32,borderRadius:"50%",background:color,
-        border:"2.5px solid rgba(255,255,255,.9)",
-        display:"flex",alignItems:"center",justifyContent:"center",
-        fontSize:11,fontWeight:800,color:"#fff",
-        boxShadow:"0 2px 8px rgba(0,0,0,.45)",flexShrink:0}}>
-        {player?.number||"?"}
+  // 선수 카드
+  const PCard = ({player, color}) => {
+    if(!player) return <div style={{width:50,height:72,margin:"2px 3px"}}/>;
+    const photo = player?.photo?.trim();
+    const num   = player?.number || "?";
+    const name  = player?.name   || "";
+    return (
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",margin:"2px 3px",
+        minWidth:50,maxWidth:62}}>
+        <div style={{width:46,height:54,borderRadius:8,overflow:"hidden",position:"relative",
+          border:"2px solid rgba(255,255,255,.5)",
+          boxShadow:"0 4px 16px rgba(0,0,0,.7)",
+          background:photo?"#0a0a0a":`linear-gradient(150deg,${color}99 0%,${color} 60%,${color}ee 100%)`}}>
+          {photo ? (
+            <img src={photo} alt={name}
+              style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"top center"}}
+              onError={e=>{
+                e.target.style.display="none";
+                e.target.parentElement.style.background=`linear-gradient(150deg,${color}99,${color})`;
+              }}/>
+          ) : (
+            <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",
+              alignItems:"center",justifyContent:"center",gap:1}}>
+              <div style={{fontSize:15,opacity:.3,lineHeight:1}}>👤</div>
+              <div style={{fontSize:17,fontWeight:900,color:"rgba(255,255,255,.95)",lineHeight:1}}>{num}</div>
+            </div>
+          )}
+          {photo && (
+            <div style={{position:"absolute",bottom:0,left:0,right:0,
+              background:"linear-gradient(transparent,rgba(0,0,0,.85))",
+              padding:"12px 3px 2px",textAlign:"center",
+              fontSize:9,fontWeight:900,color:"#fff",letterSpacing:.5}}>{num}</div>
+          )}
+          <div style={{position:"absolute",top:0,left:0,right:0,height:3,
+            background:`linear-gradient(90deg,${GOLD}99,transparent)`}}/>
+        </div>
+        <div style={{fontSize:9,color:"#e2e8f0",marginTop:3,width:54,textAlign:"center",
+          fontWeight:700,lineHeight:1.15,
+          textShadow:"0 1px 6px rgba(0,0,0,1)",
+          overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",padding:"0 2px"}}>
+          {name||num}
+        </div>
       </div>
-      <div style={{fontSize:9,color:"#fff",marginTop:2,width:44,textAlign:"center",
-        fontWeight:700,lineHeight:1.15,
-        textShadow:"0 1px 4px rgba(0,0,0,.95)",
-        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",padding:"0 1px"}}>
-        {player?.name||""}
-      </div>
-    </div>
-  );
+    );
+  };
 
-  const TeamRows = ({rows,color,rev}) => {
+  const TRows = ({rows, color, rev}) => {
     const dr = rev ? [...rows].reverse() : rows;
     return (
-      <div style={{display:"flex",flexDirection:"column",justifyContent:"space-evenly",
-        padding:"10px 6px",gap:4,minHeight:180}}>
+      <div style={{display:"flex",flexDirection:"column",gap:6,padding:"10px 2px"}}>
         {dr.map((row,ri)=>(
-          <div key={ri} style={{display:"flex",justifyContent:"center",alignItems:"center",flexWrap:"wrap"}}>
-            {row.map((p,pi)=><PlayerDot key={pi} player={p} color={color}/>)}
+          <div key={ri} style={{display:"flex",justifyContent:"center",alignItems:"flex-end",flexWrap:"wrap"}}>
+            {row.map((p,pi)=><PCard key={pi} player={p} color={color}/>)}
           </div>
         ))}
       </div>
     );
   };
 
-  const goalsByTeam = (t) => goals.filter(g=>g.team===t);
+  const statusEl = status==="live"
+    ? <span style={{color:"#ef4444",fontWeight:900,fontSize:10,letterSpacing:1,
+        animation:"blink 1.2s infinite",display:"inline-block"}}>● LIVE</span>
+    : status==="done"
+    ? <span style={{color:GOLD,fontWeight:800,fontSize:10,letterSpacing:2}}>FULL TIME</span>
+    : <span style={{color:"#334155",fontWeight:600,fontSize:9,letterSpacing:2}}>PREVIEW</span>;
 
   return (
-    <div style={{borderRadius:12,overflow:"hidden",fontFamily:"'Noto Sans KR',sans-serif",
-      boxShadow:"0 4px 20px rgba(0,0,0,.25)"}}>
+    <div style={{borderRadius:14,overflow:"hidden",fontFamily:"'Inter','Noto Sans KR',sans-serif",
+      boxShadow:"0 10px 50px rgba(0,0,0,.6)"}}>
 
-      {/* 교사팀 헤더 (Away - 상단) */}
-      <div style={{background:T_BG,padding:"10px 14px 6px"}}>
+      {/* 타이틀 */}
+      <div style={{background:"linear-gradient(180deg,#050c1a 0%,#0c1a35 100%)",
+        padding:"12px 16px 10px",textAlign:"center",
+        borderBottom:`2px solid ${GOLD}`}}>
+        <div style={{fontSize:9,color:GOLD,fontWeight:700,letterSpacing:4,marginBottom:5,
+          textTransform:"uppercase"}}>한마음 스포츠데이 · 골때녀</div>
+        <div style={{fontSize:18,color:"#fff",fontWeight:900,letterSpacing:2,
+          textShadow:`0 0 20px ${GOLD}55`}}>
+          교사팀 &nbsp;⚔️&nbsp; {grade}학년
+        </div>
+      </div>
+
+      {/* 교사팀 헤더 */}
+      <div style={{background:`linear-gradient(135deg,#111827,${T_BG})`,padding:"7px 14px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{color:"#fff",fontWeight:800,fontSize:14}}>👨‍🏫 교사팀</div>
-          <div style={{color:"#93c5fd",fontSize:12,fontWeight:700,
-            background:"rgba(255,255,255,.12)",padding:"2px 8px",borderRadius:10}}>
+          <span style={{color:"#fff",fontWeight:800,fontSize:13}}>👨‍‍🏫 교사팀</span>
+          <span style={{color:"#93c5fd",fontSize:11,fontWeight:700,
+            background:"rgba(255,255,255,.1)",padding:"2px 9px",borderRadius:10}}>
             {teacher.formation}
-          </div>
+          </span>
         </div>
         {goalsByTeam("teacher").length>0 && (
-          <div style={{fontSize:10,color:"#93c5fd",marginTop:4,lineHeight:1.5}}>
-            ⚽ {goalsByTeam("teacher").map(g=>`${g.name}${g.time?" "+g.time:""}`).join("  ·  ")}
+          <div style={{fontSize:10,color:"#bfdbfe",marginTop:4,lineHeight:1.5}}>
+            ⚽ {goalsByTeam("teacher").map(g=>`${g.name}${g.time?" "+g.time:""}`).join(" · ")}
           </div>
         )}
       </div>
 
-      {/* 피치 (초록 배경) */}
-      <div style={{background:"linear-gradient(180deg,#14532d 0%,#166534 25%,#15803d 50%,#166534 75%,#14532d 100%)",
+      {/* 피치 */}
+      <div style={{background:"linear-gradient(180deg,#0a2410 0%,#0c3318 25%,#0e4020 50%,#0c3318 75%,#0a2410 100%)",
         position:"relative"}}>
-        {/* 필드 라인 장식 */}
         <div style={{position:"absolute",inset:0,pointerEvents:"none",overflow:"hidden"}}>
-          <div style={{position:"absolute",left:"10%",right:"10%",top:"50%",
-            borderTop:"1px dashed rgba(255,255,255,.18)",transform:"translateY(-50%)"}}>
-            <div style={{position:"absolute",left:"50%",top:"-12px",width:24,height:24,
-              borderRadius:"50%",border:"1px dashed rgba(255,255,255,.18)",
-              transform:"translateX(-50%)"}}/>
-          </div>
-          <div style={{position:"absolute",left:"20%",right:"20%",top:"8%",
-            bottom:"auto",height:28,border:"1px dashed rgba(255,255,255,.1)",
-            borderTop:"none",borderRadius:"0 0 4px 4px"}}/>
-          <div style={{position:"absolute",left:"20%",right:"20%",bottom:"8%",
-            top:"auto",height:28,border:"1px dashed rgba(255,255,255,.1)",
-            borderBottom:"none",borderRadius:"4px 4px 0 0"}}/>
+          <div style={{position:"absolute",left:"8%",right:"8%",top:"50%",height:1,
+            background:"rgba(255,255,255,.1)",transform:"translateY(-50%)"}}/>
+          <div style={{position:"absolute",left:"50%",top:"50%",width:30,height:30,
+            borderRadius:"50%",border:"1px solid rgba(255,255,255,.1)",
+            transform:"translate(-50%,-50%)"}}/>
+          <div style={{position:"absolute",left:"18%",right:"18%",top:"3%",height:22,
+            border:"1px solid rgba(255,255,255,.07)",borderTop:"none"}}/>
+          <div style={{position:"absolute",left:"18%",right:"18%",bottom:"3%",height:22,
+            border:"1px solid rgba(255,255,255,.07)",borderBottom:"none"}}/>
         </div>
-        {/* 교사팀 라인업 (위쪽: GK위→FW아래) */}
-        <TeamRows rows={teacherRows} color={T_BG} rev={false}/>
-        {/* 학생팀 라인업 (아래쪽: FW위→GK아래) */}
-        <TeamRows rows={studentRows} color={S_BG} rev={true}/>
+        <TRows rows={teacherRows} color={T_BG} rev={false}/>
+        <div style={{margin:"0 20px",height:1,background:"rgba(255,255,255,.12)",position:"relative"}}>
+          <div style={{position:"absolute",left:"50%",top:-7,width:14,height:14,
+            borderRadius:"50%",border:"1px solid rgba(255,255,255,.15)",
+            transform:"translateX(-50%)"}}/>
+        </div>
+        <TRows rows={studentRows} color={S_BG} rev={true}/>
       </div>
 
       {/* 스코어 배너 */}
-      <div style={{background:"#0f172a",padding:"12px 20px",
-        display:"flex",alignItems:"center",gap:0}}>
+      <div style={{background:"linear-gradient(180deg,#060d1a,#040810)",
+        borderTop:`2px solid ${GOLD}`,borderBottom:`2px solid ${GOLD}`,
+        padding:"14px 20px",display:"flex",alignItems:"center"}}>
         <div style={{flex:1,textAlign:"center"}}>
-          <div style={{fontSize:10,color:"#93c5fd",fontWeight:700,marginBottom:3,letterSpacing:".5px"}}>교사팀</div>
-          <div style={{fontSize:36,fontWeight:900,color:"#fff",lineHeight:1}}>{score.teacher}</div>
+          <div style={{fontSize:10,color:"#93c5fd",fontWeight:700,letterSpacing:1,marginBottom:5}}>교사팀</div>
+          <div style={{fontSize:50,fontWeight:900,color:"#fff",lineHeight:1,
+            textShadow:"0 0 30px rgba(59,130,246,.5)"}}>{score.teacher}</div>
         </div>
-        <div style={{padding:"0 16px",textAlign:"center"}}>
-          <div style={{fontSize:10,color:"#475569",fontWeight:600,marginBottom:3}}>
-            {status==="live"
-              ? <span style={{color:"#ef4444",animation:"blink 1.2s infinite",display:"inline-block"}}>● LIVE</span>
-              : status==="done"?"FINAL":"PREVIEW"}
-          </div>
-          <div style={{fontSize:24,color:"#334155",fontWeight:300}}>-</div>
+        <div style={{padding:"0 14px",textAlign:"center",minWidth:64}}>
+          {statusEl}
+          <div style={{fontSize:22,color:"#1e293b",fontWeight:100,marginTop:4,lineHeight:1}}>:</div>
         </div>
         <div style={{flex:1,textAlign:"center"}}>
-          <div style={{fontSize:10,color:"#fca5a5",fontWeight:700,marginBottom:3,letterSpacing:".5px"}}>{grade}학년</div>
-          <div style={{fontSize:36,fontWeight:900,color:"#fff",lineHeight:1}}>{score.student}</div>
+          <div style={{fontSize:10,color:"#fca5a5",fontWeight:700,letterSpacing:1,marginBottom:5}}>{grade}학년</div>
+          <div style={{fontSize:50,fontWeight:900,color:"#fff",lineHeight:1,
+            textShadow:"0 0 30px rgba(239,68,68,.5)"}}>{score.student}</div>
         </div>
       </div>
 
-      {/* 학생팀 헤더 (Home - 하단) */}
-      <div style={{background:S_BG,padding:"6px 14px 10px"}}>
+      {/* 학생팀 헤더 */}
+      <div style={{background:`linear-gradient(135deg,${S_BG},#7f1d1d)`,padding:"7px 14px"}}>
         {goalsByTeam("student").length>0 && (
-          <div style={{fontSize:10,color:"#fca5a5",marginBottom:4,lineHeight:1.5}}>
-            ⚽ {goalsByTeam("student").map(g=>`${g.name}${g.time?" "+g.time:""}`).join("  ·  ")}
+          <div style={{fontSize:10,color:"#fecdd3",marginBottom:4,lineHeight:1.5}}>
+            ⚽ {goalsByTeam("student").map(g=>`${g.name}${g.time?" "+g.time:""}`).join(" · ")}
           </div>
         )}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{color:"#fff",fontWeight:800,fontSize:14}}>🎓 {grade}학년</div>
-          <div style={{color:"#fca5a5",fontSize:12,fontWeight:700,
-            background:"rgba(255,255,255,.12)",padding:"2px 8px",borderRadius:10}}>
+          <span style={{color:"#fff",fontWeight:800,fontSize:13}}>🎓 {grade}학년</span>
+          <span style={{color:"#fca5a5",fontSize:11,fontWeight:700,
+            background:"rgba(255,255,255,.1)",padding:"2px 9px",borderRadius:10}}>
             {student.formation}
-          </div>
+          </span>
         </div>
       </div>
     </div>
   );
 }
+
 
 // ════════════════════════════════════════════════════════
 //  VGolddanya: 학생 뷰 - 골때녀 라인업 + 스코어
@@ -4466,33 +4548,6 @@ function OGolddanya({ state, update }) {
   };
   const removeGoal = (id) => upd({goals:(half.goals||[]).filter(g=>g.id!==id)});
 
-  const POS_LABELS = ["GK","DF","DF","DF","DF","MF","MF","MF","FW","FW","FW"];
-
-  const PlayerInputGrid = ({team,label,color}) => {
-    const players = getPlayers(team);
-    return(
-      <div>
-        <div style={{fontWeight:700,fontSize:13,color:"#37352f",marginBottom:6,
-          display:"flex",alignItems:"center",gap:6}}>
-          <div style={{width:10,height:10,borderRadius:"50%",background:color}}/>
-          {label}
-        </div>
-        {players.map((p,i)=>(
-          <div key={i} style={{display:"flex",gap:4,marginBottom:3,alignItems:"center"}}>
-            <div style={{width:28,flexShrink:0,fontSize:9,color:"#9b9a97",
-              fontWeight:600,textAlign:"center",lineHeight:1}}>{POS_LABELS[i]||i+1}</div>
-            <input value={p.number||""} onChange={e=>setPlayerField(team,i,"number",e.target.value)}
-              placeholder="#" className="oinput"
-              style={{width:34,padding:"5px 3px",textAlign:"center",fontSize:12,flexShrink:0}}/>
-            <input value={p.name||""} onChange={e=>setPlayerField(team,i,"name",e.target.value)}
-              placeholder={`선수 ${i+1}`} className="oinput"
-              style={{flex:1,padding:"5px 7px",fontSize:12}}/>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
   return(<>
     <div className="page-title">⚽ 골때녀 관리</div>
     <div className="page-desc">전/후반 라인업 등록 · 득점 입력 · 학생 화면 실시간 반영</div>
@@ -4552,8 +4607,10 @@ function OGolddanya({ state, update }) {
     <div className="card" style={{marginBottom:12}}>
       <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:12}}>선수 명단 (각 11명)</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-        <PlayerInputGrid team="teacher" label="교사팀" color="#1e3a8a"/>
-        <PlayerInputGrid team="student" label={`${grade}학년`} color="#9f1239"/>
+        <PlayerInputGrid team="teacher" label="교사팀" color="#1e3a8a"
+          players={getPlayers("teacher")} onFieldChange={setPlayerField}/>
+        <PlayerInputGrid team="student" label={`${grade}학년`} color="#9f1239"
+          players={getPlayers("student")} onFieldChange={setPlayerField}/>
       </div>
     </div>
 
