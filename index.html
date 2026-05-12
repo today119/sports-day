@@ -824,7 +824,7 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
     if(mainTab==="dash")   return <VDash cur={cur} next={next} ranked={ranked} state={state}/>;
     if(mainTab==="cheer")  return <VCheer state={state}/>;
     if(mainTab==="rank")   return <VRank ranked={ranked} state={state}/>;
-    if(mainTab==="cheerscore") return <VCheerScore state={state} update={onUpdate}/>;
+    if(mainTab==="cheerscore") return <VCheerScore state={state}/>;
     if(sbTab==="entry")     return <VEntry state={state}/>;
     if(sbTab==="cheershow") return <VCheerShow state={state}/>;
     if(sbTab==="roster")    return <VRoster state={state}/>;
@@ -1847,7 +1847,7 @@ const CHEER_JUDGES = [
   { dept:"2학년부",     names:["임재근"] },
 ];
 
-function VCheerScore({state, update}) {
+function VCheerScore({state}) {
   const [step, setStep] = useState("login"); // login | score
   const [dept, setDept] = useState("");
   const [name, setName] = useState("");
