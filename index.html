@@ -664,18 +664,23 @@ const BASE_CSS = `
   .refresh-btn{font-size:18px}
 
   /* ── 학생용 상단 고정 탭 (대시보드/순위) ── */
-  .v-topbar{display:flex;align-items:center;gap:6px;padding:0 6px;
+  .v-topbar{display:flex;align-items:center;gap:2px;padding:0 2px;
     border-bottom:1px solid #ebebea;background:#fff;
-    position:sticky;top:0;z-index:30;height:64px}
-  .v-main-tab{flex:1;display:flex;flex-direction:column;align-items:center;
-    justify-content:center;gap:3px;padding:8px 4px;border:none;background:transparent;
+    position:sticky;top:0;z-index:30;height:62px}
+  .v-main-tab{flex:1;display:flex;flex-direction:row;align-items:center;
+    justify-content:center;gap:5px;padding:6px 2px;border:none;background:transparent;
     cursor:pointer;border-bottom:3px solid transparent;font-family:inherit;
     color:#787671;font-weight:600;transition:all .15s;height:100%;
-    min-width:0;overflow:hidden}
+    min-width:0}
   .v-main-tab.on{color:#37352f;border-bottom-color:#37352f;font-weight:800}
-  .v-main-tab .vt-icon{font-size:26px;line-height:1}
-  .v-main-tab .vt-l{font-size:13px;letter-spacing:-.2px;white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis;max-width:100%;font-weight:700}
+  .v-main-tab .vt-icon{font-size:22px;line-height:1;flex-shrink:0}
+  .v-main-tab .vt-l{font-size:14px;letter-spacing:-.3px;white-space:nowrap;
+    font-weight:700;line-height:1}
+  @media (max-width: 480px) {
+    .v-main-tab{flex-direction:column;gap:2px}
+    .v-main-tab .vt-icon{font-size:20px}
+    .v-main-tab .vt-l{font-size:11px}
+  }
 
   /* ── 공지 배너 ── */
   .callout-bar{position:sticky;top:52px;z-index:29;
@@ -712,24 +717,34 @@ const BASE_CSS = `
   .content{flex:1;padding:24px 28px 80px;max-width:960px;width:100%;margin:0 auto}
 
   /* ── 카드 (Notion 블록 스타일) ── */
-  .card{background:#fff;border:1px solid #ebebea;border-radius:8px;padding:16px 18px;
-    margin-bottom:10px;transition:border-color .1s;font-size:15px}
+  .card{background:#fff;border:1px solid #ebebea;border-radius:8px;padding:16px;
+    margin-bottom:10px;transition:border-color .1s;font-size:15px;line-height:1.6}
   .card:hover{border-color:#d4d4d2}
   .card.hl{border-color:#37352f;border-width:1.5px;background:#fafaf9}
   .card-flat{background:#fafaf9;border-radius:8px;padding:14px 16px;margin-bottom:8px}
 
-  /* ── 섹션 헤더 ── */
+  /* ── 통일된 폰트 시스템 ──
+     H1 페이지제목: 22px 800
+     H2 섹션/카드제목: 16px 800
+     Body 일반텍스트: 15px 600
+     Small 보조정보: 13px 500
+  ── */
   .sl{font-size:16px;font-weight:800;color:#37352f;letter-spacing:.2px;
-    margin:26px 0 12px}
+    margin:24px 0 10px}
   .sl:first-child{margin-top:0}
-  .page-title{font-size:30px;font-weight:800;color:#37352f;margin-bottom:8px;
-    letter-spacing:-.5px;display:flex;align-items:center;gap:10px}
-  .page-desc{font-size:15px;color:#787671;margin-bottom:22px;font-weight:600}
+  .page-title{font-size:22px;font-weight:800;color:#37352f;margin-bottom:6px;
+    letter-spacing:-.3px;display:flex;align-items:center;gap:8px}
+  .page-desc{font-size:13px;color:#787671;margin-bottom:18px;font-weight:500}
 
-  /* ── Row (테이블 같은 행) ── */
-  .rrow{display:flex;align-items:center;gap:14px;padding:14px 6px;
-    border-bottom:1px solid #f1f1ef;font-size:17px;font-weight:700}
+  /* ── Row (테이블 같은 행) - 통일 ── */
+  .rrow{display:flex;align-items:center;gap:12px;padding:14px 8px;
+    border-bottom:1px solid #f1f1ef;font-size:15px;font-weight:600;
+    min-height:52px}
   .rrow:last-child{border-bottom:none}
+  .rrow .rrow-main{flex:1;font-size:15px;font-weight:700;color:#37352f}
+  .rrow .rrow-meta{font-size:13px;color:#9b9a97;font-weight:500}
+  .rrow .rrow-rank{font-size:18px;font-weight:800;min-width:36px;text-align:center}
+  .rrow .rrow-points{font-size:16px;font-weight:800}
 
   /* ── 버튼 ── */
   .pill{flex:0 0 auto;padding:5px 12px;border-radius:5px;border:1px solid #e7e7e5;
@@ -1036,10 +1051,10 @@ function VSportDetail({sel, state}) {
     <div>
       <div className="card" style={{marginBottom:10,background:"#fafaf9"}}>
         <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:6}}>
-          <span style={{fontSize:36}}>{meta.icon}</span>
-          <div>
-            <div style={{fontWeight:800,fontSize:17,color:"#37352f"}}>{sel}</div>
-            <div style={{fontSize:12,color:"#787671",marginTop:2}}>{meta.desc}</div>
+          <span style={{fontSize:32}}>{meta.icon}</span>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:800,fontSize:18,color:"#37352f"}}>{sel}</div>
+            <div style={{fontSize:13,color:"#787671",marginTop:3,fontWeight:500}}>{meta.desc}</div>
           </div>
         </div>
       </div>
@@ -1094,18 +1109,17 @@ function VSportDetail({sel, state}) {
             </div>
           </div>
           <div className="card" style={{marginBottom:8}}>
-            <div style={{fontSize:16,fontWeight:800,color:"#37352f",marginBottom:14,
-              display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-              <span>📋 참가 학급</span>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:12}}>
+              <span style={{fontSize:15,fontWeight:800,color:"#37352f"}}>📋 참가 학급</span>
               <EightMusicPlayer sport={sel} state={state}/>
             </div>
             {gradeClasses.map(c=>{
               const team=classToTeam(c);
               return(
                 <div key={c} className="rrow">
-                  <TeamBadge team={team} size={26}/>
-                  <span style={{flex:1,fontWeight:800,fontSize:17,color:"#37352f"}}>{c}반</span>
-                  <span style={{fontSize:14,color:"#9b9a97",fontStyle:"italic",fontWeight:500}}>횟수 입력 전</span>
+                  <TeamBadge team={team} size={28}/>
+                  <span className="rrow-main">{c}반</span>
+                  <span className="rrow-meta">횟수 입력 전</span>
                 </div>
               );
             })}
@@ -1124,8 +1138,8 @@ function VSportDetail({sel, state}) {
         <div style={{fontSize:11,color:"#787671",fontWeight:700,marginBottom:8}}>팀별 합산</div>
         {TEAM_NAMES.filter(t=>teamSum[t]).sort((a,b)=>teamSum[b]-teamSum[a]).map(t=>(
           <div key={t} className="rrow"><TeamBadge team={t} size={28}/>
-            <span style={{flex:1,fontWeight:800,fontSize:17}}>{t}팀</span>
-            <span style={{fontWeight:900,color:TEAM_COLORS[t],fontSize:20}}>{teamSum[t]}점</span>
+            <span className="rrow-main">{t}팀</span>
+            <span className="rrow-points" style={{color:TEAM_COLORS[t]}}>{teamSum[t]}점</span>
           </div>
         ))}
       </div>
@@ -1133,12 +1147,12 @@ function VSportDetail({sel, state}) {
         <div style={{fontSize:15,color:"#37352f",fontWeight:800,marginBottom:12}}>📋 학급별 결과</div>
         {sorted.map(([c,v])=>{const team=classToTeam(c);const rank=ranks[c];return(
           <div key={c} className="rrow">
-            <span style={{fontSize:20,minWidth:38,textAlign:"center",fontWeight:800}}>
+            <span className="rrow-rank">
               {rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":`${rank}위`}
             </span>
-            <TeamBadge team={team} size={26}/>
-            <span style={{flex:1,fontSize:17,fontWeight:800}}>{c}반</span>
-            <span style={{fontFamily:"monospace",fontWeight:800,color:"#787671",fontSize:16,marginRight:6}}>{v}개</span>
+            <TeamBadge team={team} size={28}/>
+            <span className="rrow-main">{c}반</span>
+            <span className="rrow-meta" style={{fontFamily:"monospace",fontWeight:700,marginRight:4}}>{v}개</span>
             <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{TT_PTS[rank-1]}점</Chip>
           </div>
         );})}
@@ -1172,18 +1186,18 @@ function VSportDetail({sel, state}) {
       {/* 종목 헤더 */}
       <div className="card" style={{background:"#fafaf9",marginBottom:10}}>
         <div style={{display:"flex",gap:12,alignItems:"center"}}>
-          <span style={{fontSize:36}}>{meta.icon}</span>
-          <div>
+          <span style={{fontSize:32}}>{meta.icon}</span>
+          <div style={{flex:1}}>
             <div style={{fontWeight:800,fontSize:18,color:"#37352f"}}>{sel}</div>
-            <div style={{fontSize:13,color:"#787671",marginTop:2}}>{meta.desc}</div>
+            <div style={{fontSize:13,color:"#787671",marginTop:3,fontWeight:500}}>{meta.desc}</div>
           </div>
         </div>
       </div>
 
       {/* 점수 산정 */}
       <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",marginBottom:10}}>
-        <div style={{fontSize:14,fontWeight:800,color:"#1d4ed8",marginBottom:8}}>📊 점수 산정</div>
-        <div style={{fontSize:13,color:"#1e40af",lineHeight:1.8}}>
+        <div style={{fontSize:15,fontWeight:800,color:"#1d4ed8",marginBottom:8}}>📊 점수 산정</div>
+        <div style={{fontSize:14,color:"#1e40af",lineHeight:1.7,fontWeight:500}}>
           4개 조(5팀씩) 추첨 → 각 조 1~5위 차등 점수<br/>
           🥇 1위 <b>100점</b> · 🥈 2위 <b>90점</b> · 🥉 3위 <b>80점</b> · 4위 <b>70점</b> · 5위 <b>60점</b>
         </div>
@@ -1232,11 +1246,11 @@ function VSportDetail({sel, state}) {
                     const team=classToTeam(cls);
                     return(
                       <div key={cls} className="rrow">
-                        <span style={{fontSize:20,minWidth:38,textAlign:"center",fontWeight:800}}>
+                        <span className="rrow-rank">
                           {rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":`${rank}위`}
                         </span>
-                        <TeamBadge team={team} size={26}/>
-                        <span style={{flex:1,fontSize:17,fontWeight:800}}>{cls}반 ({team}팀)</span>
+                        <TeamBadge team={team} size={28}/>
+                        <span className="rrow-main">{cls}반 ({team}팀)</span>
                         <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{GRP_PTS[rank-1]}점</Chip>
                       </div>
                     );
@@ -1280,18 +1294,18 @@ function VSportDetail({sel, state}) {
       {/* 종목 헤더 */}
       <div className="card" style={{background:"#fafaf9",marginBottom:10}}>
         <div style={{display:"flex",gap:12,alignItems:"center"}}>
-          <span style={{fontSize:36}}>🏃</span>
-          <div>
+          <span style={{fontSize:32}}>🏃</span>
+          <div style={{flex:1}}>
             <div style={{fontWeight:800,fontSize:18,color:"#37352f"}}>계주</div>
-            <div style={{fontSize:13,color:"#787671",marginTop:2}}>학년별 2조 예선 → 각 조 1·2위 결승</div>
+            <div style={{fontSize:13,color:"#787671",marginTop:3,fontWeight:500}}>학년별 2조 예선 → 각 조 1·2위 결승</div>
           </div>
         </div>
       </div>
 
       {/* 점수 산정 */}
       <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",marginBottom:10}}>
-        <div style={{fontSize:14,fontWeight:800,color:"#1d4ed8",marginBottom:8}}>📊 점수 산정</div>
-        <div style={{fontSize:13,color:"#1e40af",lineHeight:1.8}}>
+        <div style={{fontSize:15,fontWeight:800,color:"#1d4ed8",marginBottom:8}}>📊 점수 산정</div>
+        <div style={{fontSize:14,color:"#1e40af",lineHeight:1.7,fontWeight:500}}>
           예선: 학년별 2조 · 각 조 1·2위 결승 진출<br/>
           결승: 🥇 100점 · 🥈 80점 · 🥉 60점 · 4위 40점<br/>
           예선 탈락: 모두 동일 <b>{RELAY_ELIM_PTS}점</b>
@@ -1336,11 +1350,11 @@ function VSportDetail({sel, state}) {
                     const team=classToTeam(cls);
                     return(
                       <div key={cls} className="rrow">
-                        <span style={{fontSize:20,minWidth:38,textAlign:"center",fontWeight:800}}>
+                        <span className="rrow-rank">
                           {rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":`${rank}위`}
                         </span>
-                        <TeamBadge team={team} size={26}/>
-                        <span style={{flex:1,fontSize:17,fontWeight:800}}>{cls}반 ({team}팀)</span>
+                        <TeamBadge team={team} size={28}/>
+                        <span className="rrow-main">{cls}반 ({team}팀)</span>
                         <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{RELAY_FINAL_PTS[rank-1]}점</Chip>
                       </div>
                     );
@@ -1377,18 +1391,18 @@ function VSportDetail({sel, state}) {
       {/* 종목 헤더 */}
       <div className="card" style={{background:"#fafaf9",marginBottom:10}}>
         <div style={{display:"flex",gap:12,alignItems:"center"}}>
-          <span style={{fontSize:36}}>{meta.icon}</span>
-          <div>
+          <span style={{fontSize:32}}>{meta.icon}</span>
+          <div style={{flex:1}}>
             <div style={{fontWeight:800,fontSize:18,color:"#37352f"}}>{sel}</div>
-            <div style={{fontSize:13,color:"#787671",marginTop:2}}>{meta.desc}</div>
+            <div style={{fontSize:13,color:"#787671",marginTop:3,fontWeight:500}}>{meta.desc}</div>
           </div>
         </div>
       </div>
 
       {/* 점수 산정 */}
       <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",marginBottom:10}}>
-        <div style={{fontSize:14,fontWeight:800,color:"#1d4ed8",marginBottom:8}}>📊 점수 산정 (5팀 토너먼트)</div>
-        <div style={{fontSize:13,color:"#1e40af",lineHeight:1.8}}>
+        <div style={{fontSize:15,fontWeight:800,color:"#1d4ed8",marginBottom:8}}>📊 점수 산정 (5팀 토너먼트)</div>
+        <div style={{fontSize:14,color:"#1e40af",lineHeight:1.7,fontWeight:500}}>
           🥇 1위 (결승 승자) <b>100점</b> · 🥈 2위 (결승 패자) <b>90점</b><br/>
           🥉 3위 (준결승 ① 패자) <b>80점</b> · 4위 (준결승 ② 패자) <b>80점</b><br/>
           5위 (1라운드 패자) <b>50점</b><br/>
@@ -1421,11 +1435,11 @@ function VSportDetail({sel, state}) {
           <div className="card">
             {rankList.map(([t,rank])=>(
               <div key={t} className="rrow">
-                <span style={{fontSize:20,minWidth:38,textAlign:"center",fontWeight:800}}>
+                <span className="rrow-rank">
                   {rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":`${rank}위`}
                 </span>
                 <TeamBadge team={t} size={28}/>
-                <span style={{flex:1,fontWeight:800,fontSize:17}}>{t}팀</span>
+                <span className="rrow-main">{t}팀</span>
                 <Chip color={TEAM_COLORS[t]} bg={TEAM_BG[t]}>
                   {(SPORT_PTS[sel]||[])[rank-1]||0}점
                 </Chip>
@@ -1590,17 +1604,17 @@ function VDash({cur, next, ranked, state}) {
     {ranked.map((r,i)=>(
       <div key={r.team} className={`rank-row${i===0?" r1":i===1?" r2":""}`}
         style={{padding:"14px 16px"}}>
-        <span style={{fontSize:26,minWidth:40,textAlign:"center",flexShrink:0}}>
+        <span style={{fontSize:20,minWidth:36,textAlign:"center",flexShrink:0,fontWeight:800}}>
           {i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}위`}
         </span>
-        <TeamBadge team={r.team} size={38}/>
+        <TeamBadge team={r.team} size={32}/>
         <div style={{flex:1}}>
-          <div style={{fontSize:19,fontWeight:900,color:"#37352f"}}>{r.team}팀</div>
-          <div style={{fontSize:12,color:"#9b9a97",marginTop:2}}>{TEAM_MAP[r.team].join("반 ")}반</div>
+          <div style={{fontSize:16,fontWeight:800,color:"#37352f"}}>{r.team}팀</div>
+          <div style={{fontSize:12,color:"#9b9a97",marginTop:3,fontWeight:500}}>{TEAM_MAP[r.team].join("반 ")}반</div>
         </div>
-        <div style={{fontWeight:900,fontSize:26,color:TEAM_COLORS[r.team]}}>
+        <div style={{fontWeight:800,fontSize:20,color:TEAM_COLORS[r.team]}}>
           {r.pts.toLocaleString()}
-          <span style={{fontSize:14,color:"#9b9a97",fontWeight:600}}> 점</span>
+          <span style={{fontSize:13,color:"#9b9a97",fontWeight:500,marginLeft:2}}>점</span>
         </div>
       </div>
     ))}
