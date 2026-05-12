@@ -686,12 +686,12 @@ const BASE_CSS = `
   .v-main-tab .vt-l{font-size:14px;letter-spacing:-.5px;white-space:nowrap;
     font-weight:700;line-height:1;overflow:hidden;text-overflow:ellipsis}
   @media (max-width: 420px) {
-    .v-main-tab{gap:3px;padding:6px 1px}
-    .v-main-tab .vt-icon{font-size:16px}
-    .v-main-tab .vt-l{font-size:12px}
+    .v-main-tab{gap:2px;padding:6px 1px}
+    .v-main-tab .vt-icon{display:none}
+    .v-main-tab .vt-l{font-size:13px;font-weight:700}
   }
   @media (max-width: 340px) {
-    .v-main-tab .vt-l{font-size:11px}
+    .v-main-tab .vt-l{font-size:12px}
   }
 
   /* ── 공지 배너 ── */
@@ -928,9 +928,11 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
           <span className="vt-icon">⭐</span><span className="vt-l">채점</span>
         </button>
         <div style={{flex:1}}/>
-        <button className="menu-btn refresh-btn" onClick={onRefresh}>
-          <span style={{display:"inline-block",transition:"transform .6s",
-            transform:refreshing?"rotate(360deg)":"rotate(0)"}}>🔄</span>
+        <button className={`v-main-tab${refreshing?" on":""}`} onClick={onRefresh}
+          style={{maxWidth:54,flexShrink:0,borderBottom:"3px solid transparent"}}>
+          <span className="vt-icon" style={{display:"inline-block",transition:"transform .6s",
+            transform:refreshing?"rotate(360deg)":"rotate(0)",fontSize:18}}>🔄</span>
+          <span className="vt-l">갱신</span>
         </button>
       </div>
 
@@ -3610,11 +3612,32 @@ function useP100(state, update) {
   const r1       = p.r1       || { m:{}, f:{} };
   const r2elim   = p.r2elim   || { m:[], f:[] };
   const r3       = p.r3       || { m:{}, f:{} };
+  // 현재 진행중인 위치 (학생 화면에 동기화)
+  const current  = p.current  || { gk:"m", runner:1, group:"a" };
 
   const upd = patch => update(s => ({ ...s, p100:{ ...(s.p100||{}), ...patch } }));
 
-  const getRunner = (cls, gk, idx=0) =>
-    roster[cls]?.[gk]?.[idx]?.trim() || `${cls}반 ${idx+1}번`;
+  // 참가신청 명단(state.roster)에서 피지컬100 신청자를 학급·성별별로 자동 추출
+  const autoRoster = (() => {
+    const out = {};
+    const classes = state.roster?.classes || {};
+    for(const cls of Object.keys(classes)) {
+      const stus = classes[cls]?.students || [];
+      const m = stus.filter(s=>s.gender==="남" && (s.sports||[]).includes("피지컬100")).map(s=>s.name);
+      const f = stus.filter(s=>s.gender==="여" && (s.sports||[]).includes("피지컬100")).map(s=>s.name);
+      out[cls] = { m, f };
+    }
+    return out;
+  })();
+
+  // 이름 조회: 수동 입력 → 자동(참가신청) → 기본값
+  const getRunner = (cls, gk, idx=0) => {
+    const manual = roster[cls]?.[gk]?.[idx]?.trim();
+    if(manual) return manual;
+    const auto = autoRoster[cls]?.[gk]?.[idx];
+    if(auto) return auto;
+    return `${cls}반 ${idx+1}번`;
+  };
 
   const setRoster = (cls, gk, idx, val) => {
     const cur = [...(roster[cls]?.[gk] || ["","","","",""])];
@@ -3622,8 +3645,27 @@ function useP100(state, update) {
     upd({ roster: { ...roster, [cls]:{ ...(roster[cls]||{}), [gk]:cur } } });
   };
 
-  const setR1Winner = (gk, hk, winner) =>
+  // 참가신청 명단을 수동 roster로 일괄 복사 (편집 가능 상태)
+  const importFromRoster = () => {
+    if(!confirm("참가신청 명단(구글시트)에서 피지컬100 신청자를 자동으로 채워넣을까요?\n이미 입력한 내용이 덮어쓰여집니다.")) return;
+    const next = {};
+    for(const cls of Object.keys(autoRoster)) {
+      next[cls] = {
+        m: [autoRoster[cls].m[0]||"", autoRoster[cls].m[1]||"", autoRoster[cls].m[2]||"", autoRoster[cls].m[3]||"", autoRoster[cls].m[4]||""],
+        f: [autoRoster[cls].f[0]||"", autoRoster[cls].f[1]||"", autoRoster[cls].f[2]||"", autoRoster[cls].f[3]||"", autoRoster[cls].f[4]||""],
+      };
+    }
+    upd({ roster: next });
+    alert(`✅ ${Object.keys(next).length}개 학급 자동 채움 완료`);
+  };
+
+  const setR1Winner = (gk, hk, winner) => {
     upd({ r1:{ ...r1, [gk]:{ ...(r1[gk]||{}), [hk]:winner } } });
+  };
+
+  const setCurrent = (patch) => {
+    upd({ current: { ...current, ...patch } });
+  };
 
   const toggleElim = (gk, hk) => {
     const cur  = r2elim[gk]||[];
@@ -3634,20 +3676,23 @@ function useP100(state, update) {
   const setR3 = (gk, mk, hk) =>
     upd({ r3:{ ...r3, [gk]:{ ...(r3[gk]||{}), [mk]:hk } } });
 
-  // 1차전 통과자 (운영자가 1위 선택한 모든 조)
+  // 1차전 통과자
   const qualifiers = gk => Object.entries(r1[gk]||{})
     .filter(([,w]) => w?.cls)
     .map(([hk,w]) => ({ hk, ...w }));
 
-  // 2라운드 생존자 (1차전 통과자 중 탈락 안 한 사람)
+  // 2라운드 생존자
   const survivors = gk => qualifiers(gk)
     .filter(({hk}) => !(r2elim[gk]||[]).includes(hk));
 
-  return { roster, r1, r2elim, r3, getRunner, setRoster, setR1Winner,
+  return { roster, autoRoster, r1, r2elim, r3, current,
+           getRunner, setRoster, importFromRoster, setR1Winner, setCurrent,
            toggleElim, setR3, qualifiers, survivors };
 }
 
 function P100Roster({ p, gk, setGk }) {
+  const autoCount = Object.values(p.autoRoster||{}).reduce(
+    (sum,c)=>sum + (c.m?.length||0) + (c.f?.length||0), 0);
   return (
     <div>
       <div style={{display:"flex",gap:8,marginBottom:12}}>
@@ -3655,24 +3700,61 @@ function P100Roster({ p, gk, setGk }) {
           <button key={g.k} onClick={()=>setGk(g.k)} className={`obtn${gk===g.k?" on":""}`} style={{flex:1}}>{g.l}</button>
         ))}
       </div>
+
+      {/* 자동 채움 카드 */}
+      <div className="card" style={{marginBottom:12,padding:12,
+        background:"linear-gradient(135deg,#dcfce7,#f0fdf4)",borderColor:"#86efac"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:22}}>📋</span>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:800,color:"#15803d"}}>
+              참가신청 명단 자동 채움
+            </div>
+            <div style={{fontSize:11,color:"#166534",marginTop:2,lineHeight:1.5}}>
+              {autoCount>0
+                ? `구글시트에서 피지컬100 신청자 ${autoCount}명 감지됨`
+                : "참가신청 명단을 먼저 등록해주세요 (사이드바 → 참가 신청 명단)"}
+            </div>
+          </div>
+          <button onClick={p.importFromRoster} disabled={autoCount===0}
+            className="obtn primary" style={{padding:"8px 14px",fontSize:12,
+              background:autoCount>0?"#16a34a":"#9ca3af"}}>
+            🔄 자동 채움
+          </button>
+        </div>
+      </div>
+
       <div style={{fontSize:12,color:"#9ca3af",marginBottom:10}}>
-        각 반 5명 이름 입력 — 1번 칸 = 1번 주자, 2번 칸 = 2번 주자...
+        각 반 5명 이름 — 빈칸은 참가신청 명단의 자동값 사용
       </div>
       {ALL_CLASSES.map(cls=>{
         const team=classToTeam(cls);
+        const autoNames = p.autoRoster?.[cls]?.[gk] || [];
         return(
           <div key={cls} className="card" style={{marginBottom:8,padding:"10px 14px"}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
               <TeamBadge team={team} size={22}/>
               <span style={{fontWeight:700,color:"#111827"}}>{cls}반</span>
+              {autoNames.length>0 && (
+                <span style={{fontSize:10,color:"#16a34a",fontWeight:700,marginLeft:6}}>
+                  자동 {autoNames.length}명
+                </span>
+              )}
             </div>
             <div style={{display:"flex",gap:5}}>
-              {[0,1,2,3,4].map(idx=>(
-                <input key={idx} value={p.roster[cls]?.[gk]?.[idx]||""}
-                  onChange={e=>p.setRoster(cls,gk,idx,e.target.value)}
-                  placeholder={`${idx+1}번`} className="oinput"
-                  style={{flex:1,padding:"7px 4px",fontSize:12,textAlign:"center",minWidth:0}}/>
-              ))}
+              {[0,1,2,3,4].map(idx=>{
+                const auto = autoNames[idx] || "";
+                return (
+                  <input key={idx} value={p.roster[cls]?.[gk]?.[idx]||""}
+                    onChange={e=>p.setRoster(cls,gk,idx,e.target.value)}
+                    placeholder={auto || `${idx+1}번`}
+                    className="oinput"
+                    style={{flex:1,padding:"7px 4px",fontSize:12,textAlign:"center",
+                      minWidth:0,
+                      color: (p.roster[cls]?.[gk]?.[idx])?"#1f2937":"#9ca3af",
+                      background: auto && !p.roster[cls]?.[gk]?.[idx] ? "#f0fdf4" : "#fff"}}/>
+                );
+              })}
             </div>
           </div>
         );
@@ -3684,7 +3766,33 @@ function P100Roster({ p, gk, setGk }) {
 function P100Round1({ p, gk }) {
   const gLabel = gk==="m"?"남자":"여자";
   const totalDone = ALL_HEATS_LIST.filter(hk => p.r1[gk]?.[hk]).length;
-  const [openRunner, setOpenRunner] = useState(1);
+  const [openRunner, setOpenRunner] = useState(p.current?.runner || 1);
+
+  // 자동 진행 토글
+  const [autoAdvance, setAutoAdvance] = useState(true);
+
+  // 1위 선택 처리 + 자동 다음 조 이동
+  const handlePick = (runner, groupIdx, hk, winner) => {
+    p.setR1Winner(gk, hk, winner);
+
+    // 현재 위치 state 저장 (학생 화면 동기화용)
+    p.setCurrent({ gk, runner, group: P100_GKEYS[groupIdx] });
+
+    if(!autoAdvance || !winner) return;
+
+    // 자동 진행: 같은 주자의 다음 조 → 없으면 다음 주자의 a조
+    setTimeout(()=>{
+      if(groupIdx < P100_GKEYS.length-1) {
+        // 다음 조 (같은 주자)
+        const nextGroup = P100_GKEYS[groupIdx+1];
+        p.setCurrent({ gk, runner, group: nextGroup });
+      } else if(runner < 5) {
+        // 다음 주자 (a조부터)
+        setOpenRunner(runner+1);
+        p.setCurrent({ gk, runner: runner+1, group: "a" });
+      }
+    }, 300);
+  };
 
   return (
     <div>
@@ -3696,33 +3804,58 @@ function P100Round1({ p, gk }) {
         </span>
       </div>
 
+      {/* 자동 진행 토글 */}
+      <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",
+        background:autoAdvance?"#dcfce7":"#f9fafb",
+        border:`1px solid ${autoAdvance?"#86efac":"#e5e7eb"}`,
+        borderRadius:8,marginBottom:12}}>
+        <span style={{fontSize:18}}>{autoAdvance?"⚡":"⏸"}</span>
+        <div style={{flex:1,fontSize:12,fontWeight:700,
+          color:autoAdvance?"#15803d":"#787671"}}>
+          {autoAdvance ? "자동 진행 ON · 1위 선택 시 다음 조로 자동 이동" : "수동 모드"}
+        </div>
+        <button onClick={()=>setAutoAdvance(v=>!v)} className="obtn"
+          style={{fontSize:11,padding:"5px 10px"}}>
+          {autoAdvance ? "수동으로" : "자동으로"}
+        </button>
+      </div>
+
       {P100_RUNNERS.map(runner=>{
         const runnerHeats = P100_GKEYS.map(g=>`r${runner}-${g}`);
         const runnerDone  = runnerHeats.filter(hk=>p.r1[gk]?.[hk]).length;
         const isOpen      = openRunner===runner;
+        const isCurrent   = p.current?.gk===gk && p.current?.runner===runner;
         return(
           <div key={runner} style={{marginBottom:10}}>
             <button onClick={()=>setOpenRunner(isOpen?-1:runner)}
               style={{width:"100%",padding:"12px 14px",borderRadius:10,
-                border:"1.5px solid #e5e7eb",background:isOpen?"#f9fafb":"#fff",
+                border:`1.5px solid ${isCurrent?"#f59e0b":"#e5e7eb"}`,
+                background:isCurrent?"#fffbeb":isOpen?"#f9fafb":"#fff",
                 cursor:"pointer",fontFamily:"inherit",display:"flex",
                 alignItems:"center",gap:10,marginBottom:isOpen?6:0}}>
               <span style={{fontWeight:800,fontSize:15,color:"#111827",flex:1,textAlign:"left"}}>
-                🏃 {runner}번 주자
+                {isCurrent && "🔴 "}🏃 {runner}번 주자
+                {isCurrent && <span style={{fontSize:10,marginLeft:8,color:"#dc2626",fontWeight:700}}>진행중</span>}
               </span>
               <span style={{fontSize:12,color:runnerDone===4?"#16a34a":"#9ca3af",fontWeight:700}}>
                 {runnerDone===4?"✅ 완료":`${runnerDone}/4`}
               </span>
               <span style={{color:"#9ca3af",fontSize:12}}>{isOpen?"▴":"▾"}</span>
             </button>
-            {isOpen && P100_GKEYS.map(g=>{
+            {isOpen && P100_GKEYS.map((g,gIdx)=>{
               const hk = `r${runner}-${g}`;
               const group = P100_GROUPS[g];
               const winner = p.r1[gk]?.[hk];
+              const isCurGroup = isCurrent && p.current?.group===g && !winner;
               return(
-                <div key={hk} className="card" style={{marginBottom:6}}>
+                <div key={hk} className="card" style={{marginBottom:6,
+                  borderColor:isCurGroup?"#f59e0b":"#e5e7eb",
+                  borderWidth:isCurGroup?2:1,
+                  background:isCurGroup?"#fffbeb":"#fff"}}>
                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                    <span style={{fontWeight:800,fontSize:14,color:"#111827",flex:1}}>{group.name}</span>
+                    <span style={{fontWeight:800,fontSize:14,color:"#111827",flex:1}}>
+                      {isCurGroup && "▶ "}{group.name}
+                    </span>
                     {winner&&<span style={{fontSize:12,color:"#16a34a",fontWeight:700}}>
                       🥇 {winner.name} ({winner.cls}반)
                     </span>}
@@ -3732,7 +3865,8 @@ function P100Round1({ p, gk }) {
                     const isW = winner?.cls===cls;
                     const team = classToTeam(cls);
                     return(
-                      <button key={cls} onClick={()=>p.setR1Winner(gk,hk,isW?null:{cls,name})}
+                      <button key={cls}
+                        onClick={()=>handlePick(runner, gIdx, hk, isW?null:{cls,name})}
                         style={{display:"flex",alignItems:"center",gap:10,padding:"9px 11px",
                           borderRadius:8,border:`1.5px solid ${isW?TEAM_COLORS[team]:"#e5e7eb"}`,
                           background:isW?TEAM_BG[team]:"#fff",cursor:"pointer",fontFamily:"inherit",
@@ -4415,138 +4549,156 @@ function TugBracket({state, update}) {
 }
 
 // ════════════════════════════════════════════════════════
-//  TugTreeSVG: 줄다리기 한국 전통 토너먼트 SVG
+//  TugTreeSVG: 줄다리기 세로 대진표 (아래→위: 1라운드→준결승→결승)
 // ════════════════════════════════════════════════════════
 function TugTreeSVG({seeds, results, onPick}) {
-  // 5팀 토너먼트 - 깔끔 스타일 (좌→우)
-  // 시안: 알약 헤더 + 흰 박스 + 시드 번호 칩 + 승자 강조
   const computed = seeds.length===5
     ? compute5SpecialBracket(seeds, results||{})
-    : {matches:[{},{},{},{}], ranks:{}};
+    : {matches:[{a:null,b:null,winner:null},{a:null,b:null,winner:null},
+                {a:null,b:null,winner:null},{a:null,b:null,winner:null}], ranks:{}};
   const { matches } = computed;
   const [m1, sf1, sf2, mF] = matches;
 
-  // 박스 스타일 (승자/패자/대기)
-  const TeamBox = ({x, y, w, team, label, isWinner, isLoser, seedNum, canPick, matchId, isFinalWinner}) => {
-    const stroke = isFinalWinner ? "#facc15"
-      : isWinner ? "#1f2937"
-      : "#e5e7eb";
-    const fill = isFinalWinner ? "#fef9c3" : "#fff";
-    const sw_ = isFinalWinner ? 2 : (isWinner ? 1.5 : 1);
-    const textColor = team
-      ? (isFinalWinner ? "#854f0b" : (isLoser ? "#9ca3af" : "#1f2937"))
-      : "#9ca3af";
-    const fontWeight = isWinner || isFinalWinner ? 800 : (isLoser ? 500 : 600);
-    const chipFill = isFinalWinner ? "#facc15"
-      : isWinner ? "#bef264"
-      : "#d4d4d4";
-    const chipText = isFinalWinner || isWinner ? "#1f2937" : "#fff";
-
+  // 팀 박스 컴포넌트
+  const TeamRow = ({team, label, isWinner, isLoser, seedNum, canPick, matchId, isFinalWinner}) => {
+    const bg = isFinalWinner?"#fef9c3":isWinner?"#f0fdf4":"#fff";
+    const bc = isFinalWinner?"#facc15":isWinner?"#22c55e":"#e5e7eb";
+    const col = isFinalWinner?"#854f0b":isWinner?"#15803d":isLoser?"#9ca3af":"#1f2937";
+    const fw = isWinner||isFinalWinner?800:isLoser?400:600;
+    const teamColor = team ? TEAM_COLORS[team] : null;
     return (
-      <g onClick={()=>canPick&&team&&onPick&&onPick(matchId, team)}
-        style={{cursor:canPick&&team?"pointer":"default"}}>
-        <rect x={x} y={y} width={w} height={38} rx={6}
-          fill={fill} stroke={stroke} strokeWidth={sw_}/>
-        <text x={x+12} y={y+24} fontSize="13" fontWeight={fontWeight} fill={textColor}>
-          {isFinalWinner && "🏆 "}{team ? `${team}팀` : label}
-        </text>
+      <div onClick={()=>canPick&&team&&onPick&&onPick(matchId,team)}
+        style={{display:"flex",alignItems:"center",gap:8,padding:"9px 11px",
+          background:bg,border:`1.5px solid ${bc}`,borderRadius:7,marginBottom:4,
+          cursor:canPick&&team?"pointer":"default",userSelect:"none",
+          transition:"all .15s"}}>
+        {team && <div style={{width:8,height:8,borderRadius:"50%",
+          background:teamColor,flexShrink:0}}/>}
+        <span style={{flex:1,fontSize:14,fontWeight:fw,color:col,
+          overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+          {isFinalWinner&&"🏆 "}{team?`${team}팀`:label}
+        </span>
         {seedNum && (
-          <g>
-            <circle cx={x+w-15} cy={y+19} r="11" fill={chipFill}/>
-            <text x={x+w-15} y={y+23} textAnchor="middle" fontSize="11"
-              fontWeight="700" fill={chipText}>{seedNum}</text>
-          </g>
+          <div style={{width:22,height:22,borderRadius:"50%",flexShrink:0,
+            background:isFinalWinner?"#facc15":isWinner?"#bef264":"#d4d4d4",
+            display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:11,fontWeight:700,color:"#1f2937"}}>
+            {seedNum}
+          </div>
         )}
-      </g>
+        {(isWinner||isFinalWinner)&&team&&(
+          <span style={{fontSize:11,color:"#16a34a",flexShrink:0,fontWeight:700}}>✓</span>
+        )}
+      </div>
     );
   };
 
-  // 좌표
-  const Y_S2 = 80, Y_S3 = 120;        // 1라운드 (시드 2, 3)
-  const Y_SF1_A = 60, Y_SF1_B = 100;  // 준결승 ① (시드 1, 1R 승자)
-  const Y_SF2_A = 220, Y_SF2_B = 260; // 준결승 ② (시드 4, 5)
-  const Y_F_A = 140, Y_F_B = 180;     // 결승
+  // 라운드 헤더
+  const RoundHeader = ({label, isFinal}) => (
+    <div style={{textAlign:"center",marginBottom:10,marginTop:6}}>
+      <span style={{display:"inline-block",padding:"5px 22px",borderRadius:20,
+        background:isFinal?"#0f172a":"#fff",
+        border:`1px solid ${isFinal?"#0f172a":"#e5e7eb"}`,
+        fontSize:13,fontWeight:700,color:isFinal?"#fff":"#1f2937",
+        letterSpacing:".3px"}}>
+        {label}
+      </span>
+    </div>
+  );
 
-  const X_R1 = 20, W_R1 = 180;
-  const X_SF = 300, W_SF = 180;
-  const X_F = 620, W_F = 200;
+  // 연결 화살표
+  const Arrow = ({left}) => (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,
+      padding:"2px 0",textAlign:"center",lineHeight:1}}>
+      <div style={{color:"#94a3b8",fontSize:20,fontWeight:300}}>↑</div>
+      <div style={{color: left?"transparent":"#94a3b8",fontSize:20,fontWeight:300}}>↑</div>
+    </div>
+  );
 
   return (
-    <div style={{overflowX:"auto",background:"#fff",borderRadius:8,
-      border:"1px solid #e7e7e5",padding:10}}>
-      <svg viewBox="0 0 880 360" style={{width:"100%",height:"auto",display:"block"}} preserveAspectRatio="xMidYMid meet">
+    <div style={{background:"#fff",borderRadius:10,border:"1px solid #e7e7e5",
+      padding:"14px 12px",fontFamily:"inherit"}}>
 
-        {/* 라운드 헤더 */}
-        <g>
-          <rect x="35" y="10" width="120" height="32" rx="16"
-            fill="#fff" stroke="#e5e7eb" strokeWidth="1"/>
-          <text x="95" y="31" textAnchor="middle" fontSize="13" fontWeight="600" fill="#1f2937">1라운드</text>
+      {/* ══ 결승 (최상단) ══ */}
+      <RoundHeader label="결승" isFinal/>
+      <div style={{padding:"0 12px",marginBottom:2}}>
+        <TeamRow team={sf1.winner} label="준결승 ① 승자"
+          isFinalWinner={mF.winner&&mF.winner===sf1.winner}
+          isLoser={mF.winner&&sf1.winner&&mF.winner!==sf1.winner}
+          canPick={!mF.winner&&sf1.winner&&sf2.winner} matchId="f"/>
+        <TeamRow team={sf2.winner} label="준결승 ② 승자"
+          isFinalWinner={mF.winner&&mF.winner===sf2.winner}
+          isLoser={mF.winner&&sf2.winner&&mF.winner!==sf2.winner}
+          canPick={!mF.winner&&sf1.winner&&sf2.winner} matchId="f"/>
+      </div>
 
-          <rect x="335" y="10" width="120" height="32" rx="16"
-            fill="#fff" stroke="#e5e7eb" strokeWidth="1"/>
-          <text x="395" y="31" textAnchor="middle" fontSize="13" fontWeight="600" fill="#1f2937">준결승</text>
+      {/* 결승←준결승 연결선 */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,
+        padding:"4px 0",textAlign:"center",lineHeight:1}}>
+        <div style={{color:"#94a3b8",fontSize:20}}>↑</div>
+        <div style={{color:"#94a3b8",fontSize:20}}>↑</div>
+      </div>
 
-          <rect x="655" y="10" width="120" height="32" rx="16" fill="#0f172a"/>
-          <text x="715" y="31" textAnchor="middle" fontSize="13" fontWeight="600" fill="#fff">결승</text>
-        </g>
+      {/* ══ 준결승 (두 열) ══ */}
+      <RoundHeader label="준결승"/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:2}}>
 
-        {/* 연결선: 1라운드 → 준결승 ① */}
-        <path d="M 200 99 L 220 99 L 220 139 L 200 139" stroke="#cbd5e1" strokeWidth="1.5" fill="none"/>
-        <line x1="220" y1="119" x2="300" y2="119" stroke="#cbd5e1" strokeWidth="1.5"/>
+        {/* 준결승 ① (왼쪽) */}
+        <div style={{background:"#f8fafc",borderRadius:8,padding:"8px 8px 4px"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",
+            textAlign:"center",marginBottom:6,letterSpacing:".5px"}}>준결승 ①</div>
+          <TeamRow team={seeds[0]} label="1번 시드" seedNum="1"
+            isWinner={sf1.winner===seeds[0]}
+            isLoser={sf1.winner&&sf1.winner!==seeds[0]}
+            canPick={!sf1.winner&&seeds[0]&&m1.winner} matchId="sf1"/>
+          {seeds[0]&&!sf1.winner&&(
+            <div style={{fontSize:10,color:"#94a3b8",fontStyle:"italic",
+              textAlign:"center",marginBottom:4,marginTop:-2}}>부전승</div>
+          )}
+          <TeamRow team={m1.winner} label="1라운드 승자" seedNum="?"
+            isWinner={sf1.winner&&sf1.winner===m1.winner}
+            isLoser={sf1.winner&&m1.winner&&sf1.winner!==m1.winner}
+            canPick={!sf1.winner&&seeds[0]&&m1.winner} matchId="sf1"/>
+        </div>
 
-        {/* 연결선: 준결승 ① → 결승 */}
-        <path d="M 480 79 L 500 79 L 500 119 L 480 119" stroke="#cbd5e1" strokeWidth="1.5" fill="none"/>
-        <path d="M 500 99 L 600 99 L 600 159 L 620 159" stroke="#cbd5e1" strokeWidth="1.5" fill="none"/>
+        {/* 준결승 ② (오른쪽) */}
+        <div style={{background:"#f8fafc",borderRadius:8,padding:"8px 8px 4px"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",
+            textAlign:"center",marginBottom:6,letterSpacing:".5px"}}>준결승 ②</div>
+          <TeamRow team={seeds[3]} label="4번 시드" seedNum="4"
+            isWinner={sf2.winner===seeds[3]}
+            isLoser={sf2.winner&&sf2.winner!==seeds[3]}
+            canPick={!sf2.winner&&seeds[3]&&seeds[4]} matchId="sf2"/>
+          <TeamRow team={seeds[4]} label="5번 시드" seedNum="5"
+            isWinner={sf2.winner===seeds[4]}
+            isLoser={sf2.winner&&seeds[4]&&sf2.winner!==seeds[4]}
+            canPick={!sf2.winner&&seeds[3]&&seeds[4]} matchId="sf2"/>
+        </div>
+      </div>
 
-        {/* 연결선: 준결승 ② → 결승 */}
-        <path d="M 480 239 L 500 239 L 500 279 L 480 279" stroke="#cbd5e1" strokeWidth="1.5" fill="none"/>
-        <path d="M 500 259 L 600 259 L 600 199 L 620 199" stroke="#cbd5e1" strokeWidth="1.5" fill="none"/>
+      {/* 준결승①←1라운드 연결선 (왼쪽만) */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,
+        padding:"4px 0",lineHeight:1}}>
+        <div style={{textAlign:"center",color:"#94a3b8",fontSize:20}}>↑</div>
+        <div/>
+      </div>
 
-        {/* 1라운드: 시드 2 vs 시드 3 */}
-        <TeamBox x={X_R1} y={Y_S2} w={W_R1} team={seeds[1]} label="2번 시드" seedNum="2"
-          isWinner={m1.winner===seeds[1]}
-          isLoser={m1.winner&&m1.winner!==seeds[1]}
-          canPick={!m1.winner && seeds[1] && seeds[2]} matchId="m1"/>
-        <TeamBox x={X_R1} y={Y_S3} w={W_R1} team={seeds[2]} label="3번 시드" seedNum="3"
-          isWinner={m1.winner===seeds[2]}
-          isLoser={m1.winner&&m1.winner!==seeds[2]}
-          canPick={!m1.winner && seeds[1] && seeds[2]} matchId="m1"/>
-
-        {/* 준결승 ①: 시드 1 (부전승) vs 1R 승자 */}
-        <TeamBox x={X_SF} y={Y_SF1_A} w={W_SF} team={seeds[0]} label="1번 시드" seedNum="1"
-          isWinner={sf1.winner===seeds[0]}
-          isLoser={sf1.winner&&sf1.winner!==seeds[0]}
-          canPick={!sf1.winner && seeds[0] && m1.winner} matchId="sf1"/>
-        {!seeds[0]
-          ? null
-          : <text x={X_SF + W_SF/2 + 5} y={Y_SF1_A+23} textAnchor="middle"
-              fontSize="10" fontWeight="500" fill="#9ca3af" fontStyle="italic">부전승</text>
-        }
-        <TeamBox x={X_SF} y={Y_SF1_B} w={W_SF} team={m1.winner} label="1라운드 승자" seedNum="?"
-          isWinner={sf1.winner===m1.winner && m1.winner}
-          isLoser={sf1.winner && m1.winner && sf1.winner!==m1.winner}
-          canPick={!sf1.winner && seeds[0] && m1.winner} matchId="sf1"/>
-
-        {/* 준결승 ②: 시드 4 vs 시드 5 */}
-        <TeamBox x={X_SF} y={Y_SF2_A} w={W_SF} team={seeds[3]} label="4번 시드" seedNum="4"
-          isWinner={sf2.winner===seeds[3]}
-          isLoser={sf2.winner&&sf2.winner!==seeds[3]}
-          canPick={!sf2.winner && seeds[3] && seeds[4]} matchId="sf2"/>
-        <TeamBox x={X_SF} y={Y_SF2_B} w={W_SF} team={seeds[4]} label="5번 시드" seedNum="5"
-          isWinner={sf2.winner===seeds[4]}
-          isLoser={sf2.winner&&sf2.winner!==seeds[4]}
-          canPick={!sf2.winner && seeds[3] && seeds[4]} matchId="sf2"/>
-
-        {/* 결승: 준결승① 승자 vs 준결승② 승자 */}
-        <TeamBox x={X_F} y={Y_F_A} w={W_F} team={sf1.winner} label="준결승 ① 승자"
-          isFinalWinner={mF.winner===sf1.winner && sf1.winner}
-          isLoser={mF.winner && sf1.winner && mF.winner!==sf1.winner}
-          canPick={!mF.winner && sf1.winner && sf2.winner} matchId="f"/>
-        <TeamBox x={X_F} y={Y_F_B} w={W_F} team={sf2.winner} label="준결승 ② 승자"
-          isFinalWinner={mF.winner===sf2.winner && sf2.winner}
-          isLoser={mF.winner && sf2.winner && mF.winner!==sf2.winner}
-          canPick={!mF.winner && sf1.winner && sf2.winner} matchId="f"/>
-      </svg>
+      {/* ══ 1라운드 (최하단) ══ */}
+      <RoundHeader label="1라운드"/>
+      <div style={{padding:"0 12px"}}>
+        <div style={{background:"#f8fafc",borderRadius:8,padding:"8px 8px 4px"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",
+            textAlign:"center",marginBottom:6,letterSpacing:".5px"}}>2번 vs 3번 시드</div>
+          <TeamRow team={seeds[1]} label="2번 시드" seedNum="2"
+            isWinner={m1.winner===seeds[1]}
+            isLoser={m1.winner&&m1.winner!==seeds[1]}
+            canPick={!m1.winner&&seeds[1]&&seeds[2]} matchId="m1"/>
+          <TeamRow team={seeds[2]} label="3번 시드" seedNum="3"
+            isWinner={m1.winner===seeds[2]}
+            isLoser={m1.winner&&seeds[2]&&m1.winner!==seeds[2]}
+            canPick={!m1.winner&&seeds[1]&&seeds[2]} matchId="m1"/>
+        </div>
+      </div>
     </div>
   );
 }
@@ -4708,19 +4860,17 @@ function GroupDraw({state, update}) {
       ))}
     </div>
 
-    {/* 추첨/점수 모드 토글 */}
-    {hasDrawn && (
-      <div style={{display:"flex",gap:6,marginBottom:10}}>
-        <button onClick={()=>setShowing("draw")}
-          className={`obtn${showing==="draw"?" on":""}`} style={{flex:1,fontSize:13}}>
-          🎰 조 편성
-        </button>
-        <button onClick={()=>setShowing("score")}
-          className={`obtn${showing==="score"?" on":""}`} style={{flex:1,fontSize:13}}>
-          🏅 순위 입력
-        </button>
-      </div>
-    )}
+    {/* 추첨/점수 모드 토글 (항상 표시) */}
+    <div style={{display:"flex",gap:6,marginBottom:10}}>
+      <button onClick={()=>setShowing("draw")}
+        className={`obtn${showing==="draw"?" on":""}`} style={{flex:1,fontSize:13,padding:"10px 0"}}>
+        🎰 조 편성·추첨
+      </button>
+      <button onClick={()=>setShowing("score")}
+        className={`obtn${showing==="score"?" on":""}`} style={{flex:1,fontSize:13,padding:"10px 0"}}>
+        🏅 순위 입력
+      </button>
+    </div>
 
     {showing==="draw" ? (<>
       <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",marginBottom:10,padding:"10px 14px"}}>
@@ -4774,9 +4924,28 @@ function GroupDraw({state, update}) {
         {/* 순위 입력 모드 */}
         <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",marginBottom:10,padding:"10px 14px"}}>
           <div style={{fontSize:12,color:"#1e40af",lineHeight:1.6}}>
-            👇 각 학급 클릭 → 순위 선택 (1~5위)
+            👇 각 학급별로 1~5위 버튼 클릭하여 순위 입력
+            {PTS && <div style={{marginTop:2,fontSize:11}}>1위 {PTS[0]}점 · 2위 {PTS[1]}점 · 3위 {PTS[2]}점 · 4위 {PTS[3]}점 · 5위 {PTS[4]}점</div>}
           </div>
         </div>
+
+        {/* 순위 초기화 버튼 */}
+        {Object.keys(groupScores).length>0 && (
+          <div style={{marginBottom:10}}>
+            <button onClick={()=>{
+              if(!confirm(`${sport}의 입력한 모든 순위를 초기화할까요?`)) return;
+              update(s=>{
+                const next = {...(s.groupScores||{})};
+                delete next[sport];
+                return {...s, groupScores:next};
+              });
+              alert("✅ 순위 초기화 완료");
+            }} className="obtn danger" style={{width:"100%",padding:"9px 0",fontSize:13,
+              background:"#fef2f2",color:"#dc2626",border:"1.5px solid #fca5a5"}}>
+              🔄 {sport} 순위 모두 초기화
+            </button>
+          </div>
+        )}
 
         {["g1","g2","g3","g4"].map(gk=>{
           const list = drawn[gk] || DEFAULT_GROUPS[gk].cls;
@@ -6414,7 +6583,7 @@ function App() {
         <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#f0fdf4",
           borderTop:"1px solid #bbf7d0",padding:"5px 16px",textAlign:"center",
           fontSize:11,color:"#16a34a",zIndex:200}}>
-          {isOp ? "🟢 Firebase 실시간 연결됨 (운영자)" : "🟢 연결됨 · 15초마다 자동 갱신 (수동 새로고침 가능)"}
+          {isOp ? "🟢 Firebase 실시간 연결됨 (운영자)" : "🟢 연결됨 · 15초마다 자동 갱신 (우상단 🔄 갱신 탭 터치 시 즉시 갱신)"}
         </div>
       )}
       {isOp
