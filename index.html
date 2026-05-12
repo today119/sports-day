@@ -151,7 +151,8 @@ const SK = "hanmaeum_v6";
 if(typeof window!=="undefined") window.firebaseConfig = firebaseConfig;
 
 // ─── 초기 상태 ───
-const INIT = () => ({
+function INIT() {
+  return {
   schedule:     SCHED_DEFAULT,
   scores:       {},    // 팀 토너먼트 직접 입력 결과
   brackets:     {},    // 대진표
@@ -190,7 +191,8 @@ const INIT = () => ({
     r3:    {m:{}, f:{}},
   },
   lu: 0,                // 마지막 수정 시각
-});
+  };
+}
 
 
 function nextPow2(n) { let p=1; while(p<n) p*=2; return p; }
