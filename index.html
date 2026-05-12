@@ -65,7 +65,7 @@ window.firebaseConfig = FIREBASE_CONFIG;
 
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
-const FIREBASE_URL = window.FIREBASE_URL || "";
+// FIREBASE_URL은 일반 script에서 window.FIREBASE_URL로 노출됨
 
 // ─── 팀 구성 ───
 const TEAM_MAP = {
@@ -2161,34 +2161,43 @@ function computeCheerTotals(cheerData, revealCheer) {
 
 function VCheer({state}) {
   // 운영자가 설정한 응원전 공개 여부
-  const revealCheer = state.cheerReveal === true;
-  const result = computeCheerTotals(state.cheer, revealCheer);
+  const revealCheer = state?.cheerReveal === true;
+  const result = computeCheerTotals(state?.cheer, revealCheer);
 
   // Flip 애니메이션을 위한 이전 위치 기록
   const prevPositions = useRef({});
   const itemRefs = useRef({});
+
+  // 순위 변동 감지용 키 (deps)
+  const rankKey = result ? JSON.stringify(
+    Object.fromEntries(
+      ["1","2"].map(g=>[g, (result.gradeRankings?.[g]||[]).map(c=>c.cls)])
+    )
+  ) : "";
 
   useEffect(()=>{
     // 새 위치 측정 → 이전 위치와 비교 → 차이만큼 즉시 이동 후 0으로 transition
     Object.keys(itemRefs.current).forEach(key=>{
       const el = itemRefs.current[key];
       if(!el) return;
-      const newRect = el.getBoundingClientRect();
-      const prev = prevPositions.current[key];
-      if(prev) {
-        const dy = prev.top - newRect.top;
-        if(Math.abs(dy)>2) {
-          el.style.transform = `translateY(${dy}px)`;
-          el.style.transition = "none";
-          requestAnimationFrame(()=>{
-            el.style.transform = "";
-            el.style.transition = "transform .55s cubic-bezier(.4,1.4,.5,1)";
-          });
+      try {
+        const newRect = el.getBoundingClientRect();
+        const prev = prevPositions.current[key];
+        if(prev) {
+          const dy = prev.top - newRect.top;
+          if(Math.abs(dy)>2) {
+            el.style.transform = `translateY(${dy}px)`;
+            el.style.transition = "none";
+            requestAnimationFrame(()=>{
+              el.style.transform = "";
+              el.style.transition = "transform .55s cubic-bezier(.4,1.4,.5,1)";
+            });
+          }
         }
-      }
-      prevPositions.current[key] = {top:newRect.top};
+        prevPositions.current[key] = {top:newRect.top};
+      } catch(e) { /* DOM 측정 실패 시 무시 */ }
     });
-  });
+  }, [rankKey]);
 
   if(!result || result.participatingJudges===0) {
     return(<>
@@ -2381,7 +2390,7 @@ function VCheerScore({state}) {
     // Firebase에서 기존 점수 불러오기 (재채점)
     try {
       const judgeId = `${dept}_${name}`;
-      const url = `${FIREBASE_URL}/cheer/${encodeURIComponent(judgeId)}.json`;
+      const url = `${window.FIREBASE_URL}/cheer/${encodeURIComponent(judgeId)}.json`;
       const res = await fetch(url);
       const data = await res.json();
       if(data && data.ranks) setRanks(data.ranks);
@@ -2442,7 +2451,7 @@ function VCheerScore({state}) {
         scores,        // 변환된 점수
         updatedAt: Date.now()
       };
-      const url = `${FIREBASE_URL}/cheer/${encodeURIComponent(judgeId)}.json`;
+      const url = `${window.FIREBASE_URL}/cheer/${encodeURIComponent(judgeId)}.json`;
       const res = await fetch(url, {
         method:"PUT",
         headers:{"Content-Type":"application/json"},
