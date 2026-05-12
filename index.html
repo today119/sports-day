@@ -1879,7 +1879,7 @@ function VSport({state}) {
         </>)}
         {hasBracket&&subTab==="bracket"&&(<>
           <div className="sl">대진표</div>
-          <BracketTree seeds={(br.seeds||[])||[]} results={(br.results||{})||{}} readOnly={true}/>
+          <TugTreeSVG seeds={br.seeds||[]} results={br.results||{}} onPick={null}/>
         </>)}
         {(!hasBracket||subTab==="manual")&&hasManual&&(<>
           <div className="sl">학급별 결과</div>
@@ -3016,12 +3016,58 @@ function OCheerShow({ state, update }) {
 function VEntry({ state }) {
   const entry = state.entry || {};
   const current = entry.current;
+
+  // 입장식 일정 찾기
+  const entrySched = (state.schedule||[]).find(s => s.id==="s01" || s.title?.includes("입장"));
+  const totalClasses = Object.keys(entry.items||{}).length;
+
   if(!current) return (
-    <div className="card" style={{textAlign:"center",color:"#9b9a97",padding:50}}>
-      🚶 입장식 대기 중<br/>
-      <span style={{fontSize:12,marginTop:6,display:"block"}}>곧 시작됩니다</span>
-    </div>
+    <>
+      <div className="page-title">🚶 입장식</div>
+      <div className="page-desc">학급별 입장 진행 화면</div>
+
+      {/* 큰 환영 카드 */}
+      <div className="card" style={{
+        background:"linear-gradient(135deg,#fef3c7 0%,#fde68a 100%)",
+        border:"2px solid #f59e0b",
+        textAlign:"center", padding:"40px 20px", marginBottom:14
+      }}>
+        <div style={{fontSize:54,marginBottom:14}}>🎉</div>
+        <div style={{fontSize:22,fontWeight:900,color:"#1c1917",marginBottom:8}}>
+          입장식 대기 중
+        </div>
+        <div style={{fontSize:14,color:"#78350f",fontWeight:600,marginBottom:14}}>
+          곧 시작됩니다
+        </div>
+        {entrySched && (
+          <div style={{display:"inline-block",background:"#1f2937",color:"#fff",
+            padding:"8px 16px",borderRadius:8,fontFamily:"monospace",
+            fontSize:18,fontWeight:900,letterSpacing:1}}>
+            {entrySched.time} 시작 예정
+          </div>
+        )}
+      </div>
+
+      {/* 슬로건 (한마음 메시지) */}
+      <div className="card" style={{padding:"20px 16px",textAlign:"center",marginBottom:14}}>
+        <SloganText size={14}/>
+      </div>
+
+      {/* 안내 (운영자에게) */}
+      {totalClasses===0 && (
+        <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",padding:14}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#1e40af",marginBottom:6}}>
+            💡 운영자 안내
+          </div>
+          <div style={{fontSize:12,color:"#1e3a8a",lineHeight:1.6}}>
+            운영자 모드 → 입장식에서 구글 시트 URL을 등록하면<br/>
+            학급별 입장 멘트와 음원을 불러옵니다.
+          </div>
+        </div>
+      )}
+    </>
   );
+
   const data = entry.items?.[current] || {};
   const team = classToTeam(current);
   return (
@@ -3056,12 +3102,58 @@ function VCheerShow({ state }) {
   const cs = state.cheerShow || {};
   const order = cs.order || [];
   const curIdx = cs.currentIdx ?? -1;
-  if(order.length===0) return (
-    <div className="card" style={{textAlign:"center",color:"#9b9a97",padding:50}}>
-      📣 응원전 대기 중<br/>
-      <span style={{fontSize:12,marginTop:6,display:"block"}}>곧 시작됩니다</span>
-    </div>
-  );
+  if(order.length===0) {
+    // 응원전 일정 찾기
+    const cheerScheds = (state.schedule||[]).filter(s => s.title?.includes("응원"));
+    return (
+      <>
+        <div className="page-title">📣 응원전 현황</div>
+        <div className="page-desc">팀별 응원전 진행 화면</div>
+
+        {/* 큰 환영 카드 */}
+        <div className="card" style={{
+          background:"linear-gradient(135deg,#fef3c7 0%,#fde68a 100%)",
+          border:"2px solid #f59e0b",
+          textAlign:"center", padding:"40px 20px", marginBottom:14
+        }}>
+          <div style={{fontSize:54,marginBottom:14}}>📣</div>
+          <div style={{fontSize:22,fontWeight:900,color:"#1c1917",marginBottom:8}}>
+            응원전 대기 중
+          </div>
+          <div style={{fontSize:14,color:"#78350f",fontWeight:600,marginBottom:14}}>
+            곧 시작됩니다
+          </div>
+          {cheerScheds.length>0 && (
+            <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"center"}}>
+              {cheerScheds.map(s=>(
+                <div key={s.id} style={{display:"inline-block",background:"#1f2937",color:"#fff",
+                  padding:"6px 14px",borderRadius:8,fontFamily:"monospace",
+                  fontSize:15,fontWeight:900,letterSpacing:1}}>
+                  {s.time} · {s.title}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 슬로건 */}
+        <div className="card" style={{padding:"20px 16px",textAlign:"center",marginBottom:14}}>
+          <SloganText size={14}/>
+        </div>
+
+        {/* 안내 */}
+        <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",padding:14}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#1e40af",marginBottom:6}}>
+            💡 응원전 채점
+          </div>
+          <div style={{fontSize:12,color:"#1e3a8a",lineHeight:1.6}}>
+            응원전 시작 후 상단 ⭐ <b>채점</b> 메뉴에서<br/>
+            심판 선생님들이 12명의 점수를 채점합니다.
+          </div>
+        </div>
+      </>
+    );
+  }
 
   const currentCls = curIdx >= 0 ? order[curIdx] : null;
   const nextCls = curIdx + 1 < order.length ? order[curIdx+1] : null;
@@ -3864,38 +3956,13 @@ function TugBracket({state, update}) {
     );
   }
 
-  // 추첨 화면
+  // 추첨 화면 - 시안 SVG 사용
   const allPicked = pickedSeeds.length===5 && pickedSeeds.every(s=>s);
-  const SeedBox = ({n}) => {
-    const idx = n-1;
-    const team = pickedSeeds[idx];
-    const isPicking = drawing && pickedSeeds.length===idx;
-    return(
-      <div onClick={()=>manualMode&&!drawing&&setEditingSeed(idx)} style={{
-        border:"2.5px solid",
-        borderColor: team?TEAM_COLORS[team]:isPicking?"#f59e0b":"#d4d4d2",
-        borderRadius:10,
-        background: team?TEAM_BG[team]:isPicking?"#fffbeb":"#fafaf9",
-        padding:"10px 8px", textAlign:"center",
-        cursor: manualMode&&!drawing?"pointer":"default",
-        minHeight:62, display:"flex", flexDirection:"column",
-        alignItems:"center", justifyContent:"center",
-      }}>
-        <div style={{fontSize:9,fontWeight:700,color:"#9b9a97",marginBottom:3}}>{n}번 시드</div>
-        {team ? (<>
-          <TeamBadge team={team} size={18}/>
-          <div style={{fontSize:13,fontWeight:900,color:TEAM_COLORS[team],marginTop:2}}>{team}팀</div>
-        </>) : isPicking ? (
-          <div style={{fontSize:18,fontWeight:900,
-            color: spinTeam?TEAM_COLORS[spinTeam]:"#37352f"}}>
-            {spinTeam?`${spinTeam}팀`:"?"}
-          </div>
-        ) : (
-          <div style={{fontSize:18,fontWeight:900,color:"#d4d4d2"}}>?</div>
-        )}
-      </div>
-    );
-  };
+  // 미완성 시드(undefined 포함)도 SVG에 그대로 표시되도록 5칸 배열로 만듦
+  const seedsForSVG = [];
+  for(let i=0; i<5; i++) {
+    seedsForSVG[i] = pickedSeeds[i] || (drawing && pickedSeeds.length===i ? spinTeam : null);
+  }
 
   return (
     <div className="card" style={{background:"#fffbeb",borderColor:"#fde68a",padding:14}}>
@@ -3909,44 +3976,32 @@ function TugBracket({state, update}) {
         </button>
       </div>
 
-      <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
-        <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
-          <div style={{fontSize:10,fontWeight:800,color:"#fff",background:"#f59e0b",
-            padding:"3px 8px",borderRadius:4,display:"inline-block",marginBottom:8}}>1라운드</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center"}}>
-            <SeedBox n={2}/>
-            <div style={{fontSize:14,fontWeight:900,color:"#9b9a97"}}>VS</div>
-            <SeedBox n={3}/>
-          </div>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
-            <div style={{fontSize:10,fontWeight:800,color:"#fff",background:"#3b82f6",
-              padding:"3px 8px",borderRadius:4,display:"inline-block",marginBottom:8}}>준결승 ①</div>
-            <SeedBox n={1}/>
-            <div style={{textAlign:"center",fontSize:12,fontWeight:900,color:"#9b9a97",margin:"6px 0"}}>VS</div>
-            <div style={{padding:"10px 8px",borderRadius:8,border:"2px dashed #d4d4d2",
-              background:"#fafaf9",textAlign:"center",minHeight:50,
-              display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <span style={{fontSize:11,color:"#9b9a97"}}>1라운드 승자</span>
-            </div>
-          </div>
-          <div style={{background:"#fff",borderRadius:10,padding:10,border:"1px solid #e7e7e5"}}>
-            <div style={{fontSize:10,fontWeight:800,color:"#fff",background:"#3b82f6",
-              padding:"3px 8px",borderRadius:4,display:"inline-block",marginBottom:8}}>준결승 ②</div>
-            <SeedBox n={4}/>
-            <div style={{textAlign:"center",fontSize:12,fontWeight:900,color:"#9b9a97",margin:"6px 0"}}>VS</div>
-            <SeedBox n={5}/>
-          </div>
-        </div>
+      {/* 시안 SVG로 표시 (추첨 진행 중에도) */}
+      <div style={{marginBottom:14}}>
+        <TugTreeSVG seeds={seedsForSVG} results={{}} onPick={null}/>
       </div>
 
-      {manualMode ? (
-        <div style={{padding:12,background:"#fff",borderRadius:8,border:"1px solid #e7e7e5"}}>
-          {editingSeed!==null ? (
+      {/* 수동 모드: 시드 클릭으로 팀 배정 */}
+      {manualMode && (
+        <div style={{padding:12,background:"#fff",borderRadius:8,border:"1px solid #e7e7e5",marginBottom:10}}>
+          <div style={{fontSize:12,fontWeight:700,marginBottom:8,color:"#37352f"}}>
+            시드 번호 선택 → 팀 배정
+          </div>
+          <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+            {[0,1,2,3,4].map(idx=>(
+              <button key={idx} onClick={()=>setEditingSeed(idx)}
+                style={{padding:"6px 12px",borderRadius:6,
+                  border:`1.5px solid ${editingSeed===idx?"#f59e0b":"#e7e7e5"}`,
+                  background:editingSeed===idx?"#fef3c7":"#fff",
+                  color:"#37352f",cursor:"pointer",fontWeight:700,fontSize:13,fontFamily:"inherit"}}>
+                {idx+1}번 {pickedSeeds[idx]?`(${pickedSeeds[idx]})`:""}
+              </button>
+            ))}
+          </div>
+          {editingSeed!==null && (
             <>
-              <div style={{fontSize:12,fontWeight:700,marginBottom:8}}>
-                {editingSeed+1}번 시드에 배정할 팀
+              <div style={{fontSize:12,fontWeight:700,marginBottom:6,color:"#37352f"}}>
+                {editingSeed+1}번 시드에 배정할 팀:
               </div>
               <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
                 {TEAM_NAMES.map(t=>{
@@ -3965,15 +4020,13 @@ function TugBracket({state, update}) {
                   );
                 })}
               </div>
-              <button onClick={()=>setEditingSeed(null)} className="obtn" style={{marginTop:8,fontSize:12}}>닫기</button>
             </>
-          ) : (
-            <div style={{fontSize:13,color:"#787671",textAlign:"center"}}>
-              ↑ 시드 박스를 클릭해 팀을 배정하세요
-            </div>
           )}
         </div>
-      ) : (
+      )}
+
+      {/* 룰렛 모드 버튼 */}
+      {!manualMode && (
         <div style={{display:"flex",gap:6}}>
           {!drawing && pickedSeeds.length<5 && (
             <button onClick={startSpin} className="obtn primary"
@@ -4178,42 +4231,48 @@ function GroupBracketSVG({ groupAssignment, sport, results }) {
   const groups = ["g1","g2","g3","g4"];
   const groupLabels = {g1:"1조", g2:"2조", g3:"3조", g4:"4조"};
 
-  // 조 X 좌표 (시안 기준)
-  // 1조: x=15~305 (학급 박스), 2조: x=320~610, 3조: x=600~890, 4조: x=880~1110
-  const GROUP_X = {
-    g1: { boxX: 55,  boxW: 220, slotStart: 15,   labelOffset: 0 },
-    g2: { boxX: 335, boxW: 220, slotStart: 320,  labelOffset: 0 },
-    g3: { boxX: 615, boxW: 220, slotStart: 600,  labelOffset: 0 },
-    g4: { boxX: 895, boxW: 195, slotStart: 880,  labelOffset: 0 },
-  };
+  // 조 X 좌표 (4조 모두 동일 간격)
+  // 한 조 폭 = 5박스(46) + 4간격(8) = 262px
+  // 조 사이 간격 = 24
+  const GROUP_W = 262;       // 학급 박스 5개 영역 너비
+  const GROUP_GAP = 24;
+  const PADDING_LEFT = 16;
+
+  const groupX = (gi) => PADDING_LEFT + gi * (GROUP_W + GROUP_GAP);
+
+  const totalW = PADDING_LEFT*2 + GROUP_W*4 + GROUP_GAP*3;  // = 32 + 1048 + 72 = 1152
 
   const stroke = "#1f2937";
   const sw = 2.5;
-  const SLOT_W = 50;
-  const SLOT_GAP = 10;
+  const SLOT_W = 46;
+  const SLOT_GAP = 8;
 
   return (
     <div style={{overflowX:"auto",background:"#fff",borderRadius:8,
       border:"1px solid #e7e7e5",padding:10}}>
-      <svg viewBox="0 0 1110 510" style={{width:"100%",minWidth:1050,height:"auto"}}>
+      <svg viewBox={`0 0 ${totalW} 510`} style={{width:"100%",minWidth:totalW,height:"auto"}}>
 
         {groups.map((gk, gi) => {
           const cls = groupAssignment[gk] || [];
           const ranks = results?.[gk] || {};
-          const cfg = GROUP_X[gk];
 
-          // 첫 박스 / 마지막 박스 중심 X
-          const firstSlotX = cfg.slotStart + SLOT_W/2;
-          const lastSlotIdx = 4; // 5개 박스의 인덱스 4
-          const lastSlotX = cfg.slotStart + lastSlotIdx*(SLOT_W + SLOT_GAP) + SLOT_W/2;
-          const boxRight = cfg.boxX + cfg.boxW;
+          // 학급 박스 시작 X
+          const slotStart = groupX(gi);
+          // 조 박스: 안쪽으로 15씩 (학급 영역 290 → 조 박스 260)
+          const boxX = slotStart + 15;
+          const boxW = GROUP_W - 30;
+          const boxRight = boxX + boxW;
+
+          // 첫/마지막 박스 중심 X
+          const firstSlotX = slotStart + SLOT_W/2;
+          const lastSlotX = slotStart + 4*(SLOT_W + SLOT_GAP) + SLOT_W/2;
 
           return (
             <g key={gk}>
               {/* 조 박스 (상단) */}
-              <rect x={cfg.boxX} y={20} width={cfg.boxW} height={170}
+              <rect x={boxX} y={20} width={boxW} height={170}
                 fill="#fff" stroke={stroke} strokeWidth={sw}/>
-              <text x={cfg.boxX + cfg.boxW/2} y={48}
+              <text x={boxX + boxW/2} y={48}
                 textAnchor="middle" fontSize="22" fontWeight="800" fill={stroke}>
                 {groupLabels[gk]}
               </text>
@@ -4224,12 +4283,12 @@ function GroupBracketSVG({ groupAssignment, sport, results }) {
                 const team = winner ? classToTeam(winner) : null;
                 return (
                   <g key={rank}>
-                    <text x={cfg.boxX + 20} y={80 + ri*24}
+                    <text x={boxX + 20} y={80 + ri*24}
                       fontSize="14" fontWeight="800" fill={stroke}>
                       {rank}위:
                     </text>
                     {winner && (
-                      <text x={cfg.boxX + 60} y={80 + ri*24}
+                      <text x={boxX + 60} y={80 + ri*24}
                         fontSize="14" fontWeight="800"
                         fill={team?TEAM_COLORS[team]:stroke}>
                         {winner}
@@ -4241,11 +4300,10 @@ function GroupBracketSVG({ groupAssignment, sport, results }) {
 
               {/* 연결선: 조 박스 양 끝 → 첫/마지막 학급 박스 */}
               <g stroke={stroke} strokeWidth={sw} fill="none">
-                {/* 왼쪽 가지: 박스 좌하단 → 첫 학급 */}
-                <line x1={cfg.boxX} y1={190} x2={cfg.boxX} y2={285}/>
-                <line x1={cfg.boxX} y1={285} x2={firstSlotX} y2={285}/>
-                <line x1={firstSlotX} y1={285} x2={firstSlotX} y2={285}/>
-                {/* 오른쪽 가지: 박스 우하단 → 마지막 학급 */}
+                {/* 왼쪽 가지 */}
+                <line x1={boxX} y1={190} x2={boxX} y2={285}/>
+                <line x1={boxX} y1={285} x2={firstSlotX} y2={285}/>
+                {/* 오른쪽 가지 */}
                 <line x1={boxRight} y1={190} x2={boxRight} y2={285}/>
                 <line x1={boxRight} y1={285} x2={lastSlotX} y2={285}/>
               </g>
@@ -4253,7 +4311,7 @@ function GroupBracketSVG({ groupAssignment, sport, results }) {
               {/* 학급 박스 5개 (노란 라벨 + 흰 박스) */}
               {[0,1,2,3,4].map(ci => {
                 const c = cls[ci];
-                const slotX = cfg.slotStart + ci*(SLOT_W + SLOT_GAP);
+                const slotX = slotStart + ci*(SLOT_W + SLOT_GAP);
                 const slotCenterX = slotX + SLOT_W/2;
                 const team = c ? classToTeam(c) : null;
                 const globalNum = gi*5 + ci + 1;
