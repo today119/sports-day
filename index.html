@@ -698,6 +698,30 @@ const BASE_CSS = `
   .callout-bar{position:sticky;top:52px;z-index:29;
     padding:10px 16px;display:flex;align-items:center;gap:10px}
 
+  /* ── 조별 대진표 (반응형: PC 4열 / 태블릿 2열 / 모바일 1열) ── */
+  .group-bracket-grid{display:grid;grid-template-columns:repeat(4, minmax(0,1fr));
+    gap:10px;background:#fff;border:1px solid #e7e7e5;border-radius:8px;padding:14px}
+  @media (max-width: 900px) {
+    .group-bracket-grid{grid-template-columns:repeat(2, minmax(0,1fr))}
+  }
+  @media (max-width: 480px) {
+    .group-bracket-grid{grid-template-columns:1fr}
+  }
+  .group-card{background:#fff;display:flex;flex-direction:column;gap:6px;min-width:0}
+  .group-card-header{background:#0f172a;color:#fff;border-radius:14px;
+    padding:6px 0;text-align:center;font-size:13px;font-weight:600;
+    letter-spacing:.5px;margin-bottom:4px}
+  .group-slot{display:flex;align-items:center;gap:8px;padding:9px 12px;
+    background:#fff;border:1px solid #e5e7eb;border-radius:6px;min-width:0}
+  .group-slot.filled{border-color:#1f2937;border-width:1.5px}
+  .group-slot.podium{background:#fef9c3;border-color:#facc15}
+  .group-slot-name{flex:1;font-size:14px;font-weight:700;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .group-rank-chip{display:inline-flex;align-items:center;justify-content:center;
+    width:22px;height:22px;border-radius:50%;background:#d4d4d4;color:#fff;
+    font-size:11px;font-weight:800;flex-shrink:0}
+  .group-rank-chip.on{background:#bef264;color:#1f2937}
+
   /* ── 대시보드 카드 ── */
   .dash-now{background:linear-gradient(135deg,#37352f 0%,#555 100%);
     color:#fff;border-radius:10px;padding:20px 18px;margin-bottom:10px}
@@ -4450,7 +4474,7 @@ function TugTreeSVG({seeds, results, onPick}) {
   return (
     <div style={{overflowX:"auto",background:"#fff",borderRadius:8,
       border:"1px solid #e7e7e5",padding:10}}>
-      <svg viewBox="0 0 880 360" style={{width:"100%",minWidth:680,height:"auto"}}>
+      <svg viewBox="0 0 880 360" style={{width:"100%",height:"auto",display:"block"}} preserveAspectRatio="xMidYMid meet">
 
         {/* 라운드 헤더 */}
         <g>
@@ -4529,122 +4553,44 @@ function TugTreeSVG({seeds, results, onPick}) {
 
 
 function GroupBracketSVG({ groupAssignment, sport, results }) {
-  // 4조 × 5학급 - 시안 그대로
+  // 깔끔 스타일 HTML 카드 (반응형: PC 4열 / 태블릿 2열 / 모바일 1열)
   const groups = ["g1","g2","g3","g4"];
-  const groupLabels = {g1:"1조", g2:"2조", g3:"3조", g4:"4조"};
+  const labels = {g1:"1학년 1조", g2:"1학년 2조", g3:"2학년 1조", g4:"2학년 2조"};
 
-  // 조 X 좌표 (4조 모두 동일 간격)
-  // 한 조 폭 = 5박스(46) + 4간격(8) = 262px
-  // 조 사이 간격 = 24
-  const GROUP_W = 262;       // 학급 박스 5개 영역 너비
-  const GROUP_GAP = 24;
-  const PADDING_LEFT = 16;
-
-  const groupX = (gi) => PADDING_LEFT + gi * (GROUP_W + GROUP_GAP);
-
-  const totalW = PADDING_LEFT*2 + GROUP_W*4 + GROUP_GAP*3;  // = 32 + 1048 + 72 = 1152
-
-  const stroke = "#1f2937";
-  const sw = 2.5;
-  const SLOT_W = 46;
-  const SLOT_GAP = 8;
-
+  // 각 학급에 들어간 순위(1~5위) 계산
   return (
-    <div style={{overflowX:"auto",background:"#fff",borderRadius:8,
-      border:"1px solid #e7e7e5",padding:10}}>
-      <svg viewBox={`0 0 ${totalW} 510`} style={{width:"100%",minWidth:totalW,height:"auto"}}>
-
-        {groups.map((gk, gi) => {
-          const cls = groupAssignment[gk] || [];
-          const ranks = results?.[gk] || {};
-
-          // 학급 박스 시작 X
-          const slotStart = groupX(gi);
-          // 조 박스: 안쪽으로 15씩 (학급 영역 290 → 조 박스 260)
-          const boxX = slotStart + 15;
-          const boxW = GROUP_W - 30;
-          const boxRight = boxX + boxW;
-
-          // 첫/마지막 박스 중심 X
-          const firstSlotX = slotStart + SLOT_W/2;
-          const lastSlotX = slotStart + 4*(SLOT_W + SLOT_GAP) + SLOT_W/2;
-
-          return (
-            <g key={gk}>
-              {/* 조 박스 (상단) */}
-              <rect x={boxX} y={20} width={boxW} height={170}
-                fill="#fff" stroke={stroke} strokeWidth={sw}/>
-              <text x={boxX + boxW/2} y={48}
-                textAnchor="middle" fontSize="22" fontWeight="800" fill={stroke}>
-                {groupLabels[gk]}
-              </text>
-
-              {/* 1~5위 표시 */}
-              {[1,2,3,4,5].map((rank,ri)=>{
-                const winner = Object.entries(ranks).find(([c,r])=>r===rank)?.[0];
-                const team = winner ? classToTeam(winner) : null;
-                return (
-                  <g key={rank}>
-                    <text x={boxX + 20} y={80 + ri*24}
-                      fontSize="14" fontWeight="800" fill={stroke}>
-                      {rank}위:
-                    </text>
-                    {winner && (
-                      <text x={boxX + 60} y={80 + ri*24}
-                        fontSize="14" fontWeight="800"
-                        fill={team?TEAM_COLORS[team]:stroke}>
-                        {winner}
-                      </text>
-                    )}
-                  </g>
-                );
-              })}
-
-              {/* 연결선: 조 박스 양 끝 → 첫/마지막 학급 박스 */}
-              <g stroke={stroke} strokeWidth={sw} fill="none">
-                {/* 왼쪽 가지 */}
-                <line x1={boxX} y1={190} x2={boxX} y2={285}/>
-                <line x1={boxX} y1={285} x2={firstSlotX} y2={285}/>
-                {/* 오른쪽 가지 */}
-                <line x1={boxRight} y1={190} x2={boxRight} y2={285}/>
-                <line x1={boxRight} y1={285} x2={lastSlotX} y2={285}/>
-              </g>
-
-              {/* 학급 박스 5개 (노란 라벨 + 흰 박스) */}
-              {[0,1,2,3,4].map(ci => {
-                const c = cls[ci];
-                const slotX = slotStart + ci*(SLOT_W + SLOT_GAP);
-                const slotCenterX = slotX + SLOT_W/2;
-                const team = c ? classToTeam(c) : null;
-                const globalNum = gi*5 + ci + 1;
-
-                return (
-                  <g key={ci}>
-                    {/* 노란 번호 라벨 */}
-                    <rect x={slotX} y={285} width={SLOT_W} height={35}
-                      fill="#fde047" stroke={stroke} strokeWidth={sw}/>
-                    <text x={slotCenterX} y={310}
-                      textAnchor="middle" fontSize="16" fontWeight="800" fill={stroke}>
-                      {globalNum}
-                    </text>
-                    {/* 학급 박스 */}
-                    <rect x={slotX} y={320} width={SLOT_W} height={160}
-                      fill={team?TEAM_BG[team]:"#fff"}
-                      stroke={stroke} strokeWidth={sw}/>
-                    {c && (
-                      <text x={slotCenterX} y={405}
-                        textAnchor="middle" fontSize="14" fontWeight="900"
-                        fill={TEAM_COLORS[team]}>
-                        {c}
-                      </text>
-                    )}
-                  </g>
-                );
-              })}
-            </g>
-          );
-        })}
-      </svg>
+    <div className="group-bracket-grid">
+      {groups.map(gk=>{
+        const cls = groupAssignment[gk] || [];
+        const ranks = results?.[gk] || {};
+        return (
+          <div key={gk} className="group-card">
+            {/* 알약 헤더 */}
+            <div className="group-card-header">
+              <span>{labels[gk]}</span>
+            </div>
+            {/* 5위 슬롯 - 순위가 입력된 학급이 해당 위치로 정렬됨 */}
+            {[1,2,3,4,5].map(rank=>{
+              // 이 순위에 해당하는 학급 찾기
+              const cl = Object.entries(ranks).find(([c,r])=>r===rank)?.[0];
+              const fallback = cl ? null : cls[rank-1]; // 미입력 시 기본 학급
+              const targetCls = cl || fallback;
+              const team = targetCls ? classToTeam(targetCls) : null;
+              const isFilled = !!cl;
+              const isPodium = isFilled && rank<=3;
+              return (
+                <div key={rank}
+                  className={`group-slot ${isFilled?"filled":""} ${isPodium?"podium":""}`}>
+                  <span className="group-slot-name" style={{color: team?TEAM_COLORS[team]:"#9ca3af"}}>
+                    {targetCls ? `${targetCls}반` : "—"}
+                  </span>
+                  <span className={`group-rank-chip ${isFilled?"on":""}`}>{rank}</span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -4669,14 +4615,29 @@ function GroupDraw({state, update}) {
   };
 
   const reshuffle = () => {
-    const result = {};
-    for(const gk of ["g1","g2","g3","g4"]) {
-      const cls = [...DEFAULT_GROUPS[gk].cls];
-      for(let i=cls.length-1; i>0; i--) {
-        const j = Math.floor(Math.random()*(i+1));
-        [cls[i],cls[j]] = [cls[j],cls[i]];
+    // 같은 조에 같은 팀이 들어가지 않도록 분배
+    // 1학년: 각 팀에서 1명씩 1조에, 나머지 1명씩 2조에
+    // 2학년: 같은 방식
+    const result = { g1:[], g2:[], g3:[], g4:[] };
+
+    for(const grade of ["1","2"]) {
+      // 학년별 두 조 (1학년→g1,g2 / 2학년→g3,g4)
+      const [groupA, groupB] = grade==="1" ? ["g1","g2"] : ["g3","g4"];
+      // 각 팀에서 해당 학년 소속 학급 2개를 추출 → 무작위로 한쪽씩 배정
+      for(const team of TEAM_NAMES) {
+        const inGrade = (TEAM_MAP[team]||[]).filter(c=>c.startsWith(grade+"-"));
+        if(inGrade.length===0) continue;
+        const shuffled = [...inGrade].sort(()=>Math.random()-0.5);
+        result[groupA].push(shuffled[0]);
+        if(shuffled[1]) result[groupB].push(shuffled[1]);
       }
-      result[gk] = cls;
+      // 조 안에서 레인 순서 셔플
+      for(const gk of [groupA, groupB]) {
+        for(let i=result[gk].length-1; i>0; i--) {
+          const j = Math.floor(Math.random()*(i+1));
+          [result[gk][i], result[gk][j]] = [result[gk][j], result[gk][i]];
+        }
+      }
     }
     return result;
   };
