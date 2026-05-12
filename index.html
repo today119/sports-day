@@ -53,6 +53,8 @@ window.addEventListener("load", () => {
 });
 
 window.resetFirebaseConfig = () => { localStorage.removeItem(CFG_KEY); location.reload(); };
+window.FIREBASE_CONFIG = FIREBASE_CONFIG;
+window.firebaseConfig = FIREBASE_CONFIG;
 </script>
 
 <script type="text/babel">
@@ -148,7 +150,6 @@ const SCHED_DEFAULT = [
 
 // ─── Storage 키 (Firebase Realtime Database) ───
 const SK = "hanmaeum_v6";
-if(typeof window!=="undefined") window.firebaseConfig = FIREBASE_CONFIG;
 
 // ─── 초기 상태 ───
 function INIT() {
@@ -1304,6 +1305,19 @@ function VDash({cur, next, ranked, state}) {
   const [schedOpen, setSchedOpen] = useState(false);
 
   return(<>
+    {/* ── 슬로건 (최상단) ── */}
+    <div style={{
+      background:"linear-gradient(135deg,#fffbeb 0%,#fef3c7 100%)",
+      border:"2px solid #f59e0b",
+      borderRadius:14, padding:"20px 18px", marginBottom:14,
+      textAlign:"center", boxShadow:"0 6px 16px rgba(251,191,36,.18)"
+    }}>
+      <div style={{fontSize:10,fontWeight:800,color:"#92400e",letterSpacing:2,marginBottom:10}}>
+        🏅 {SLOGAN.year}
+      </div>
+      <SloganText size={15}/>
+    </div>
+
     {/* ── 현재 진행 종목 ── */}
     {cur ? (
       <div className="dash-now">
@@ -1768,65 +1782,229 @@ function VSport({state}) {
 }
 
 
-function VCheer({state}) {
-  // 학년별 학급 응원전 순위 계산
-  const ranks = {};
-  for(const grade of ["1","2"]) {
-    const gradeClasses = ALL_CLASSES.filter(c=>c.startsWith(grade+"-"));
-    const gradeScores = gradeClasses
-      .map(c=>{const cc=state.cheer?.[c]||{};return {c,total:(cc.c||0)+(cc.p||0)+(cc.u||0)+(cc.e||0),d:cc};})
-      .filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
-    ranks[grade] = gradeScores;
+// ════════════════════════════════════════════════════════
+//  올해 한마음 스포츠데이 슬로건
+// ════════════════════════════════════════════════════════
+const SLOGAN = {
+  year: "2026 한마음 스포츠데이"
+};
+
+// 슬로건 강조: 함께 / 같이 / 우리 라는 핵심어를 그라데이션 + 굵게 표시
+function SloganText({ size = 16, mainColor = "#1c1917", accentBg = "linear-gradient(135deg,#f59e0b,#ef4444)" }) {
+  const keywordStyle = {
+    background: accentBg,
+    WebkitBackgroundClip: "text",
+    backgroundClip: "text",
+    color: "transparent",
+    fontWeight: 900,
+    fontSize: size+4,
+    letterSpacing: "1px",
+  };
+  return (
+    <div>
+      {/* 슬로건 본문 2줄 */}
+      <div style={{fontSize:size, fontWeight:700, color:mainColor, lineHeight:1.7,textAlign:"center"}}>
+        함께 준비한 시간, 같이 달리는 오늘,
+        <br/>
+        우리 모두가 챔피언
+      </div>
+      {/* 핵심 키워드 3개 */}
+      <div style={{
+        marginTop:12,
+        display:"flex",
+        justifyContent:"center",
+        alignItems:"center",
+        gap:14
+      }}>
+        <span style={keywordStyle}>함께</span>
+        <span style={{color:"#d4d4d2",fontSize:size,fontWeight:300}}>·</span>
+        <span style={keywordStyle}>같이</span>
+        <span style={{color:"#d4d4d2",fontSize:size,fontWeight:300}}>·</span>
+        <span style={keywordStyle}>우리</span>
+      </div>
+    </div>
+  );
+}
+
+
+
+// 응원전 점수 집계 (13명 심판 → 팀별 평균)
+function computeCheerTotals(cheerData) {
+  // cheerData = { "교장_이재성": {scores: {A:{c,p,u,e}, B:{...}, ...}}, ... }
+  if(!cheerData) return null;
+  const judges = Object.values(cheerData);
+  if(judges.length===0) return null;
+
+  // 팀별 카테고리 합계
+  const teamStats = {};  // {A: {c:sum, p:sum, u:sum, e:sum, count:judges수}, ...}
+  for(const team of TEAM_NAMES) {
+    teamStats[team] = {c:0, p:0, u:0, e:0, count:0, totalSum:0};
   }
 
-  const anyData = ranks["1"].length>0 || ranks["2"].length>0;
-  if(!anyData) return <div className="card" style={{color:"#9ca3af",textAlign:"center",padding:40}}>채점 미완료</div>;
+  let participatingJudges = 0;
+  for(const judge of judges) {
+    const sc = judge.scores || {};
+    let judgeParticipated = false;
+    for(const team of TEAM_NAMES) {
+      const ts = sc[team];
+      if(ts && (ts.c||ts.p||ts.u||ts.e)) {
+        teamStats[team].c += (ts.c||0);
+        teamStats[team].p += (ts.p||0);
+        teamStats[team].u += (ts.u||0);
+        teamStats[team].e += (ts.e||0);
+        teamStats[team].count++;
+        teamStats[team].totalSum += (ts.c||0)+(ts.p||0)+(ts.u||0)+(ts.e||0);
+        judgeParticipated = true;
+      }
+    }
+    if(judgeParticipated) participatingJudges++;
+  }
+
+  // 평균 계산
+  const teamScores = TEAM_NAMES.map(team=>{
+    const ts = teamStats[team];
+    const cnt = Math.max(ts.count, 1);
+    return {
+      team,
+      avgC: ts.c/cnt,
+      avgP: ts.p/cnt,
+      avgU: ts.u/cnt,
+      avgE: ts.e/cnt,
+      avgTotal: ts.totalSum/cnt,
+      totalSum: ts.totalSum,
+      judgeCount: ts.count
+    };
+  }).sort((a,b)=>b.avgTotal-a.avgTotal);
+
+  return { teamScores, participatingJudges, totalJudges: 12 };
+}
+
+function VCheer({state}) {
+  const result = computeCheerTotals(state.cheer);
+
+  // 슬로건 카드 (항상 상단)
+  const SloganCard = () => (
+    <div className="card" style={{
+      background:"linear-gradient(135deg,#fffbeb 0%,#fef3c7 100%)",
+      border:"2px solid #f59e0b",
+      borderRadius:14, padding:"20px 18px", marginBottom:14,
+      textAlign:"center", boxShadow:"0 6px 16px rgba(251,191,36,.18)"
+    }}>
+      <div style={{fontSize:10,fontWeight:800,color:"#92400e",letterSpacing:2,marginBottom:10}}>
+        🏅 {SLOGAN.year}
+      </div>
+      <SloganText size={15}/>
+    </div>
+  );
+
+  if(!result || result.participatingJudges===0) {
+    return(<>
+      <SloganCard/>
+      <div className="card" style={{textAlign:"center",padding:40,color:"#9ca3af"}}>
+        <div style={{fontSize:36,marginBottom:10}}>⏳</div>
+        <div style={{fontSize:14,fontWeight:700,color:"#37352f",marginBottom:4}}>
+          응원전 채점이 아직 시작되지 않았습니다
+        </div>
+        <div style={{fontSize:12}}>
+          12분의 심판 선생님들이 채점 중이에요
+        </div>
+      </div>
+    </>);
+  }
+
+  const { teamScores, participatingJudges, totalJudges } = result;
 
   return(<>
-    {["1","2"].map(grade=>(
-      ranks[grade].length>0 && (
-        <div key={grade}>
-          <div className="sl">{grade}학년 응원전 순위</div>
-          {ranks[grade].map((r,i)=>{
-            const team=classToTeam(r.c);
-            const isTop3=i<3;
-            return(<div key={r.c} className="card" style={{
-              borderLeft:`4px solid ${TEAM_COLORS[team]}`,
-              background:isTop3?"linear-gradient(135deg,#fef3c7,#fff)":"#fff",
-              marginBottom:8}}>
-              <div style={{display:"flex",alignItems:"center",gap:11,marginBottom:isTop3?10:6}}>
-                <span style={{fontSize:22,minWidth:34,textAlign:"center"}}>
-                  {i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}위`}
-                </span>
-                <TeamBadge team={team} size={32}/>
-                <div style={{flex:1}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{fontWeight:900,fontSize:17,color:"#111827"}}>{r.c}반</span>
-                    {isTop3&&<span style={{fontSize:10,background:"#f59e0b",color:"#fff",
-                      padding:"2px 7px",borderRadius:10,fontWeight:800}}>응원상</span>}
-                  </div>
-                  <div style={{fontSize:11,color:"#9ca3af"}}>{team}팀</div>
-                </div>
-                <span style={{fontWeight:900,fontSize:22,color:TEAM_COLORS[team]}}>
-                  {r.total}<span style={{fontSize:12,color:"#9ca3af"}}>/100</span>
-                </span>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
-                {CHEER_CATS.map(c=>(<div key={c.id} style={{background:"rgba(249,250,251,.7)",
-                  borderRadius:8,padding:"6px 9px"}}>
-                  <div style={{fontSize:10,color:"#9ca3af",marginBottom:1}}>{c.label}</div>
-                  <div style={{fontWeight:700,color:TEAM_COLORS[team],fontSize:14}}>
-                    {r.d[c.id]||0}<span style={{fontSize:10,color:"#9ca3af"}}>/25</span>
-                  </div>
-                </div>))}
-              </div>
-            </div>);
-          })}
+    <SloganCard/>
+
+    {/* 채점 진행 상황 */}
+    <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",
+      marginBottom:14,padding:"10px 14px"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:20}}>⭐</span>
+        <div style={{flex:1}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#1d4ed8"}}>
+            응원전 채점 진행 중
+          </div>
+          <div style={{fontSize:11,color:"#1e40af",marginTop:2}}>
+            {participatingJudges}/{totalJudges}명 심판 참여 · 종합점수 미반영
+          </div>
         </div>
-      )
-    ))}
+      </div>
+    </div>
+
+    {/* 팀별 응원전 순위 */}
+    <div className="sl">🏆 팀별 응원전 순위 (심판 평균)</div>
+    {teamScores.map((ts, i)=>{
+      const team = ts.team;
+      const isTop = i===0;
+      return(
+        <div key={team} className="card" style={{
+          marginBottom:8,
+          borderLeft:`5px solid ${TEAM_COLORS[team]}`,
+          background: isTop?"linear-gradient(135deg,#fef9c3,#fff)":"#fff"
+        }}>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
+            <span style={{fontSize:24,minWidth:38,textAlign:"center"}}>
+              {i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}위`}
+            </span>
+            <TeamBadge team={team} size={32}/>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <span style={{fontWeight:900,fontSize:18,color:"#111827"}}>{team}팀</span>
+                {isTop && (
+                  <span style={{fontSize:10,background:"#f59e0b",color:"#fff",
+                    padding:"2px 7px",borderRadius:10,fontWeight:800}}>🏆 응원상</span>
+                )}
+              </div>
+              <div style={{fontSize:11,color:"#9ca3af",marginTop:2}}>
+                심판 {ts.judgeCount}명 참여
+              </div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontWeight:900,fontSize:24,color:TEAM_COLORS[team],lineHeight:1}}>
+                {ts.avgTotal.toFixed(1)}
+              </div>
+              <div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>
+                평균 / 100
+              </div>
+            </div>
+          </div>
+
+          {/* 카테고리별 평균 */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:5}}>
+            {CHEER_CATS.map(cat=>{
+              const avg = cat.id==="c"?ts.avgC:cat.id==="p"?ts.avgP:cat.id==="u"?ts.avgU:ts.avgE;
+              return(
+                <div key={cat.id} style={{
+                  background:"rgba(249,250,251,.7)",borderRadius:6,padding:"5px 6px",
+                  textAlign:"center"
+                }}>
+                  <div style={{fontSize:9,color:"#9ca3af",marginBottom:1}}>{cat.label}</div>
+                  <div style={{fontWeight:700,color:TEAM_COLORS[team],fontSize:13}}>
+                    {avg.toFixed(1)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 총점 (합계) */}
+          <div style={{marginTop:8,paddingTop:8,borderTop:"1px solid #f3f4f6",
+            display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:11,color:"#787671"}}>
+              심판 {ts.judgeCount}명 합계
+            </span>
+            <span style={{fontSize:13,fontWeight:700,color:"#37352f"}}>
+              {ts.totalSum}점
+            </span>
+          </div>
+        </div>
+      );
+    })}
   </>);
 }
+
 
 
 // ════════════════════════════════════════════════════════
@@ -1848,7 +2026,7 @@ const CHEER_JUDGES = [
 ];
 
 function VCheerScore({state}) {
-  const [step, setStep] = useState("login"); // login | score
+  const [step, setStep] = useState("pwd"); // pwd | select | score
   const [dept, setDept] = useState("");
   const [name, setName] = useState("");
   const [pwd, setPwd] = useState("");
@@ -1857,16 +2035,21 @@ function VCheerScore({state}) {
   // 점수 입력 상태
   const [scores, setScores] = useState({}); // {team: {c:0,p:0,u:0,e:0}}
 
-  // 로그인 (간단한 키워드 인증: 부서명 첫글자+이름)
-  const login = () => {
-    if(!dept || !name) { setErrMsg("부서와 이름을 모두 선택해주세요"); return; }
+  // 1단계: 비번 검증
+  const checkPwd = () => {
     if(!pwd) { setErrMsg("비밀번호를 입력해주세요"); return; }
-    // 비밀번호: yj2026
     const validPwds = ["yj2026"];
     if(!validPwds.includes(pwd.toLowerCase().trim())) {
       setErrMsg("비밀번호가 올바르지 않습니다");
       return;
     }
+    setErrMsg("");
+    setStep("select");
+  };
+
+  // 2단계: 부서/이름 선택 → 채점 시작
+  const startScoring = () => {
+    if(!dept || !name) { setErrMsg("부서와 이름을 모두 선택해주세요"); return; }
     setErrMsg("");
     // 이미 입력한 점수 불러오기
     const judgeId = `${dept}_${name}`;
@@ -1919,17 +2102,50 @@ function VCheerScore({state}) {
     return CHEER_CATS.reduce((sum, cat)=>sum+(s[cat.id]||0), 0);
   };
 
-  if(step==="login") {
+  // 1단계: 비밀번호 입력
+  if(step==="pwd") {
     return(<>
       <div className="page-title">⭐ 응원전 채점</div>
-      <div className="page-desc">심판 선생님 전용 · 부서와 이름 선택 후 채점</div>
+      <div className="page-desc">심판 선생님 전용 · 비밀번호 입력 후 진행</div>
+
+      <div className="card" style={{maxWidth:480,margin:"0 auto",padding:24}}>
+        <div style={{textAlign:"center",fontSize:36,marginBottom:14}}>🔐</div>
+        <div style={{fontSize:14,fontWeight:700,color:"#37352f",marginBottom:8,textAlign:"center"}}>
+          채점 비밀번호를 입력해주세요
+        </div>
+        <input type="password" value={pwd} onChange={e=>setPwd(e.target.value)}
+          placeholder="비밀번호"
+          className="oinput"
+          style={{marginBottom:14,fontSize:16,textAlign:"center",
+            padding:"12px",fontWeight:700,letterSpacing:2}}
+          onKeyDown={e=>e.key==="Enter"&&checkPwd()}
+          autoFocus/>
+
+        {errMsg && (
+          <div style={{padding:"8px 12px",background:"#fee2e2",borderRadius:6,
+            color:"#991b1b",fontSize:13,marginBottom:10,textAlign:"center"}}>{errMsg}</div>
+        )}
+
+        <button onClick={checkPwd} className="obtn primary"
+          style={{width:"100%",padding:14,fontSize:15,fontWeight:800}}>
+          확인 →
+        </button>
+      </div>
+    </>);
+  }
+
+  // 2단계: 부서/이름 선택
+  if(step==="select") {
+    return(<>
+      <div className="page-title">⭐ 응원전 채점</div>
+      <div className="page-desc">부서와 이름을 선택해주세요</div>
 
       <div className="card" style={{maxWidth:480,margin:"0 auto",padding:20}}>
         <div style={{fontSize:13,fontWeight:700,color:"#37352f",marginBottom:6}}>
           🏢 부서 선택
         </div>
         <select value={dept} onChange={e=>{setDept(e.target.value);setName("");}}
-          className="oinput" style={{marginBottom:14,fontSize:14}}>
+          className="oinput" style={{marginBottom:14,fontSize:14}} autoFocus>
           <option value="">-- 부서 선택 --</option>
           {CHEER_JUDGES.map(j=>(
             <option key={j.dept} value={j.dept}>{j.dept}</option>
@@ -1948,23 +2164,21 @@ function VCheerScore({state}) {
           ))}
         </select>
 
-        <div style={{fontSize:13,fontWeight:700,color:"#37352f",marginBottom:6}}>
-          🔐 채점 비밀번호
-        </div>
-        <input type="password" value={pwd} onChange={e=>setPwd(e.target.value)}
-          placeholder="학교에서 안내받은 비밀번호"
-          className="oinput" style={{marginBottom:14,fontSize:14}}
-          onKeyDown={e=>e.key==="Enter"&&login()}/>
-
         {errMsg && (
           <div style={{padding:"8px 12px",background:"#fee2e2",borderRadius:6,
             color:"#991b1b",fontSize:13,marginBottom:10}}>{errMsg}</div>
         )}
 
-        <button onClick={login} className="obtn primary"
-          style={{width:"100%",padding:12,fontSize:15}}>
-          입장하기 →
-        </button>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={()=>{setStep("pwd");setPwd("");}} className="obtn"
+            style={{flex:1,padding:12,fontSize:14}}>
+            ← 뒤로
+          </button>
+          <button onClick={startScoring} className="obtn primary"
+            style={{flex:2,padding:12,fontSize:15,fontWeight:800}}>
+            채점 시작 →
+          </button>
+        </div>
       </div>
     </>);
   }
@@ -1974,9 +2188,9 @@ function VCheerScore({state}) {
     <div className="page-title">⭐ 응원전 채점</div>
     <div className="page-desc">
       {dept} · {name} 선생님 ·
-      <button onClick={()=>setStep("login")}
+      <button onClick={()=>{setStep("select");}}
         style={{marginLeft:6,fontSize:12,color:"#3b82f6",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>
-        다시 로그인
+        다른 사람으로 변경
       </button>
     </div>
 
@@ -5254,9 +5468,10 @@ function WelcomeScreen({onEnter, onHelp, showHelp, onCloseHelp}) {
           한마음 스포츠데이
         </h1>
 
-        <div className="we-fadein" style={{marginTop:18,fontSize:16,fontWeight:500,
-          color:"#787671",letterSpacing:".3px",textAlign:"center",animationDelay:".25s"}}>
-          함께 뛰고, 함께 응원하고, 하나가 되다
+        <div className="we-fadein" style={{marginTop:20,marginBottom:8,
+          textAlign:"center",animationDelay:".25s",
+          padding:"0 8px"}}>
+          <SloganText size={15} mainColor="#37352f"/>
         </div>
 
         {/* 대회 정보 */}
