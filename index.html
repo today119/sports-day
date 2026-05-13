@@ -97,6 +97,8 @@ const ALL_SPORTS = [...TIME_TRIAL_SPORTS, ...SPORTS, ...EVENT_SPORTS];
 
 // 조별 종목 배점: 각 조 내 1~5위
 const GRP_PTS = [100, 90, 80, 70, 60];
+const TYP_PTS = [100, 90, 80, 70];          // 태풍의눈: 4학급 → 4단계
+const TYP_KEYS = ["g1","g2","g3","g4","g5"]; // 태풍의눈: 5조
 // 계주 결승/예선탈락 배점
 const RELAY_FINAL_PTS = [100, 80, 60, 40];
 const RELAY_ELIM_PTS  = 30;
@@ -391,14 +393,19 @@ function calcScores(state) {
     }
   }
 
-  // ── 조별 종목 (장애물달리기, 태풍의눈): 각 조 1~5위 ──
+  // ── 조별 종목 (장애물달리기): 각 조 1~5위 ──
   const gs = state.groupScores||{};
-  for(const sp of GRP_SPORTS) {
-    for(const gk of GRP_KEYS) {
-      const gResult = gs[sp]?.[gk]||{};
-      for(const [cls, rank] of Object.entries(gResult))
-        classPts[cls] = (classPts[cls]||0) + (GRP_PTS[rank-1]||0);
-    }
+  for(const gk of GRP_KEYS) {
+    const gResult = gs["장애물달리기"]?.[gk]||{};
+    for(const [cls, rank] of Object.entries(gResult))
+      classPts[cls] = (classPts[cls]||0) + (GRP_PTS[rank-1]||0);
+  }
+
+  // ── 태풍의눈: 5조 × 4학급, 1~4위 배점 ──
+  for(const gk of TYP_KEYS) {
+    const gResult = gs["태풍의눈"]?.[gk]||{};
+    for(const [cls, rank] of Object.entries(gResult))
+      classPts[cls] = (classPts[cls]||0) + (TYP_PTS[rank-1]||0);
   }
 
   // ── 계주: 예선(조별 1~5위) + 결승(1~4위 차등) ──
@@ -1260,24 +1267,31 @@ function VSportDetail({sel, state}) {
 
   // ── 조별 종목 (장애물달리기, 태풍의눈) ──
   if(GRP_SPORTS.includes(sel)) {
+    const isTyp = sel === "태풍의눈";
+    const KEYS  = isTyp ? TYP_KEYS : GRP_KEYS;
+    const PTS   = isTyp ? TYP_PTS  : GRP_PTS;
     const gs = state.groupScores?.[sel]||{};
     const drawn = state.groupDraws?.[sel] || {};
-    const hasData = GRP_KEYS.some(gk=>Object.keys(gs[gk]||{}).length>0);
+    const hasData = KEYS.some(gk=>Object.keys(gs[gk]||{}).length>0);
 
     // 조 편성: 추첨된 것 우선, 없으면 기본
-    const groupAssignment = Object.keys(drawn).length>0 ? drawn : {
-      g1: GRP_DEF.g1.cls,
-      g2: GRP_DEF.g2.cls,
-      g3: GRP_DEF.g3.cls,
-      g4: GRP_DEF.g4.cls,
-    };
+    const defaultAssign = isTyp
+      ? { g1:["1-1","1-4","2-2","2-7"], g2:["1-2","1-5","2-3","2-8"],
+          g3:["1-3","1-6","2-4","2-9"], g4:["1-7","1-9","2-1","2-5"],
+          g5:["1-8","1-10","2-6","2-10"] }
+      : { g1:GRP_DEF.g1.cls, g2:GRP_DEF.g2.cls, g3:GRP_DEF.g3.cls, g4:GRP_DEF.g4.cls };
+    const groupAssignment = Object.keys(drawn).length>0 ? drawn : defaultAssign;
     const hasDraw = Object.keys(drawn).length>0;
 
+    const grpName = (gk) => isTyp
+      ? `${parseInt(gk.replace("g",""))}조`
+      : GRP_DEF[gk].name;
+
     const teamSum={};
-    for(const gk of GRP_KEYS)
+    for(const gk of KEYS)
       for(const [cls,rank] of Object.entries(gs[gk]||{})){
         const t=classToTeam(cls);
-        teamSum[t]=(teamSum[t]||0)+(GRP_PTS[rank-1]||0);
+        teamSum[t]=(teamSum[t]||0)+(PTS[rank-1]||0);
       }
 
     return(<>
@@ -1295,27 +1309,29 @@ function VSportDetail({sel, state}) {
       {/* 점수 산정 */}
       <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",marginBottom:10}}>
         <div style={{fontSize:15,fontWeight:800,color:"#1d4ed8",marginBottom:8}}>📊 점수 산정</div>
-        <div style={{fontSize:14,color:"#1e40af",lineHeight:1.7,fontWeight:500}}>
-          4개 조(5팀씩) 추첨 → 각 조 1~5위 차등 점수<br/>
-          🥇 1위 <b>100점</b> · 🥈 2위 <b>90점</b> · 🥉 3위 <b>80점</b> · 4위 <b>70점</b> · 5위 <b>60점</b>
-        </div>
+        {isTyp ? (
+          <div style={{fontSize:14,color:"#1e40af",lineHeight:1.7,fontWeight:500}}>
+            5개 조(4팀씩) 추첨 → 각 조 1~4위 차등 점수<br/>
+            🥇 1위 <b>100점</b> · 🥈 2위 <b>90점</b> · 🥉 3위 <b>80점</b> · 4위 <b>70점</b>
+          </div>
+        ) : (
+          <div style={{fontSize:14,color:"#1e40af",lineHeight:1.7,fontWeight:500}}>
+            4개 조(5팀씩) 추첨 → 각 조 1~5위 차등 점수<br/>
+            🥇 1위 <b>100점</b> · 🥈 2위 <b>90점</b> · 🥉 3위 <b>80점</b> · 4위 <b>70점</b> · 5위 <b>60점</b>
+          </div>
+        )}
       </div>
 
-      {/* 대진표 - 항상 표시 */}
-      <div className="sl">🚧 대진표 {hasDraw ? "" : "(추첨 전 · 기본 편성)"}</div>
+      {/* 대진표 */}
+      <div className="sl">{isTyp?"🌀":"🚧"} 대진표 {hasDraw ? "" : "(추첨 전 · 기본 편성)"}</div>
       <GroupBracketSVG groupAssignment={groupAssignment} sport={sel} results={gs}/>
 
-      {/* 추첨 전 안내 */}
       {!hasDraw && !hasData && (
         <div className="card" style={{textAlign:"center",padding:"20px",
           background:"#fffbeb",borderColor:"#fde68a",marginTop:10}}>
           <div style={{fontSize:28,marginBottom:6}}>🎰</div>
-          <div style={{fontWeight:800,fontSize:14,color:"#92400e"}}>
-            아직 레인 추첨 전입니다
-          </div>
-          <div style={{fontSize:12,color:"#a16207",marginTop:4}}>
-            운영자가 추첨하면 학급 레인이 결정됩니다
-          </div>
+          <div style={{fontWeight:800,fontSize:14,color:"#92400e"}}>아직 레인 추첨 전입니다</div>
+          <div style={{fontSize:12,color:"#a16207",marginTop:4}}>운영자가 추첨하면 학급 레인이 결정됩니다</div>
         </div>
       )}
 
@@ -1333,12 +1349,12 @@ function VSportDetail({sel, state}) {
           </div>
 
           {/* 조별 결과 */}
-          {GRP_KEYS.map(gk=>{
+          {KEYS.map(gk=>{
             const gr=gs[gk]||{};
             if(!Object.keys(gr).length) return null;
             return(
               <div key={gk}>
-                <div className="sl">{GRP_DEF[gk].name}</div>
+                <div className="sl">{grpName(gk)}</div>
                 <div className="card">
                   {Object.entries(gr).sort((a,b)=>a[1]-b[1]).map(([cls,rank])=>{
                     const team=classToTeam(cls);
@@ -1349,7 +1365,7 @@ function VSportDetail({sel, state}) {
                         </span>
                         <TeamBadge team={team} size={28}/>
                         <span className="rrow-main">{cls}반 ({team}팀)</span>
-                        <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{GRP_PTS[rank-1]}점</Chip>
+                        <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{PTS[rank-1]}점</Chip>
                       </div>
                     );
                   })}
@@ -1652,15 +1668,20 @@ function LiveBriefing({cur, next, state, pickSbTab, getTab}) {
     // ── 장애물달리기 / 태풍의 눈 ──
     if(t.includes("장애물") || t.includes("태풍")) {
       const sp = t.includes("장애물") ? "장애물달리기" : "태풍의눈";
+      const isTyp2 = sp === "태풍의눈";
       const gs = state.groupScores?.[sp] || {};
-      const GK = ["g1","g2","g3","g4"];
-      const GN = ["1조","2조","3조","4조"];
-      const done = GK.filter(k => Object.keys(gs[k]||{}).length >= 4).length;
-      const nextG = GK.findIndex(k => Object.keys(gs[k]||{}).length < 4);
-      if(done >= 4)
+      const KEYS2 = isTyp2 ? TYP_KEYS : GRP_KEYS;
+      const total = isTyp2 ? 5 : 4;
+      const perGroup = isTyp2 ? 4 : 5;
+      const done = KEYS2.filter(k => Object.keys(gs[k]||{}).length >= perGroup).length;
+      const nextG = KEYS2.findIndex(k => Object.keys(gs[k]||{}).length < perGroup);
+      const gNames = isTyp2
+        ? ["1조","2조","3조","4조","5조"]
+        : ["1학년 A조","1학년 B조","2학년 A조","2학년 B조"];
+      if(done >= total)
         return [{icon:"✅", txt:"전 조 완료", sub:"결과 집계 중입니다"}];
       if(nextG >= 0)
-        return [{icon:"⚡", txt:`${GN[nextG]} 경기 준비`, sub:`${GN[nextG]} 참가 학급 입장해주세요 (${done}/4조 완료)`}];
+        return [{icon:"⚡", txt:`${gNames[nextG]} 경기 준비`, sub:`${gNames[nextG]} 참가 학급 입장해주세요 (${done}/${total}조 완료)`}];
       return [{icon:"🚀", txt:"진행 대기", sub:"조 편성 후 순서대로 진행합니다"}];
     }
 
@@ -2614,6 +2635,7 @@ const CHEER_JUDGES = [
   { dept:"교감",        names:["차영신"] },
   { dept:"교무기획부",  names:["김현옥"] },
   { dept:"교육과정부",  names:["김소영"] },
+  { dept:"교육연구부",  names:["김미영"] },
   { dept:"정보융합부",  names:["박현미"] },
   { dept:"진로진학부",  names:["박삼병"] },
   { dept:"결대로자람부",names:["김효곤"] },
@@ -5609,32 +5631,60 @@ function GroupDraw({state, update}) {
     g4:{name:"2학년 B조 (6~10반)", cls:["2-6","2-7","2-8","2-9","2-10"]},
   };
 
-  const reshuffle = () => {
-    // 같은 조에 같은 팀이 들어가지 않도록 분배
-    // 1학년: 각 팀에서 1명씩 1조에, 나머지 1명씩 2조에
-    // 2학년: 같은 방식
-    const result = { g1:[], g2:[], g3:[], g4:[] };
+  // 태풍의눈 기본 편성 (5조×4학급, 같은팀 같은조 없음)
+  const TYP_DEFAULT = {
+    g1:["1-1","1-4","2-2","2-7"], g2:["1-2","1-5","2-3","2-8"],
+    g3:["1-3","1-6","2-4","2-9"], g4:["1-7","1-9","2-1","2-5"],
+    g5:["1-8","1-10","2-6","2-10"],
+  };
+  const TYP_GRP_NAMES = {g1:"1조",g2:"2조",g3:"3조",g4:"4조",g5:"5조"};
 
-    for(const grade of ["1","2"]) {
-      // 학년별 두 조 (1학년→g1,g2 / 2학년→g3,g4)
-      const [groupA, groupB] = grade==="1" ? ["g1","g2"] : ["g3","g4"];
-      // 각 팀에서 해당 학년 소속 학급 2개를 추출 → 무작위로 한쪽씩 배정
-      for(const team of TEAM_NAMES) {
-        const inGrade = (TEAM_MAP[team]||[]).filter(c=>c.startsWith(grade+"-"));
-        if(inGrade.length===0) continue;
-        const shuffled = [...inGrade].sort(()=>Math.random()-0.5);
-        result[groupA].push(shuffled[0]);
-        if(shuffled[1]) result[groupB].push(shuffled[1]);
-      }
-      // 조 안에서 레인 순서 셔플
-      for(const gk of [groupA, groupB]) {
-        for(let i=result[gk].length-1; i>0; i--) {
-          const j = Math.floor(Math.random()*(i+1));
-          [result[gk][i], result[gk][j]] = [result[gk][j], result[gk][i]];
+  const isTyp = sport === "태풍의눈";
+  const CUR_KEYS = isTyp ? TYP_KEYS : GRP_KEYS;
+  const CUR_PTS  = isTyp ? TYP_PTS  : GRP_PTS;
+  const RANK_MAX = isTyp ? 4 : 5;
+
+  const reshuffle = () => {
+    if(isTyp) {
+      // 5조 × 4학급: 각 팀 4학급을 4개 조에 1개씩 배정 (5번째 조엔 배정 안 됨, 순환)
+      // 팀i → 그룹 (i+j)%5 에 j번째 학급 배정 (j=0..3)
+      const result = {g1:[],g2:[],g3:[],g4:[],g5:[]};
+      const keys = ["g1","g2","g3","g4","g5"];
+      TEAM_NAMES.forEach((team, ti) => {
+        const cls = [...(TEAM_MAP[team]||[])].sort(()=>Math.random()-0.5);
+        cls.slice(0,4).forEach((c, j) => {
+          result[keys[(ti + j) % 5]].push(c);
+        });
+      });
+      // 각 조 레인 순서 셔플
+      for(const gk of keys) {
+        for(let i=result[gk].length-1;i>0;i--) {
+          const j=Math.floor(Math.random()*(i+1));
+          [result[gk][i],result[gk][j]]=[result[gk][j],result[gk][i]];
         }
       }
+      return result;
+    } else {
+      // 기존 4조 × 5학급 로직 (장애물달리기/계주)
+      const result = { g1:[], g2:[], g3:[], g4:[] };
+      for(const grade of ["1","2"]) {
+        const [groupA, groupB] = grade==="1" ? ["g1","g2"] : ["g3","g4"];
+        for(const team of TEAM_NAMES) {
+          const inGrade = (TEAM_MAP[team]||[]).filter(c=>c.startsWith(grade+"-"));
+          if(inGrade.length===0) continue;
+          const shuffled = [...inGrade].sort(()=>Math.random()-0.5);
+          result[groupA].push(shuffled[0]);
+          if(shuffled[1]) result[groupB].push(shuffled[1]);
+        }
+        for(const gk of [groupA, groupB]) {
+          for(let i=result[gk].length-1;i>0;i--) {
+            const j=Math.floor(Math.random()*(i+1));
+            [result[gk][i],result[gk][j]]=[result[gk][j],result[gk][i]];
+          }
+        }
+      }
+      return result;
     }
-    return result;
   };
 
   const startSpin = () => {
@@ -5681,17 +5731,19 @@ function GroupDraw({state, update}) {
     });
   };
 
-  // display: 항상 { g1:[...], g2:[...], g3:[...], g4:[...] } 배열 형태
-  const display = Object.keys(picked).length>0 ? picked
-    : Object.keys(drawn).length>0 ? drawn
+  // display: 항상 { g1:[...], ... } 배열 형태
+  const defaultDisp = isTyp ? TYP_DEFAULT
     : { g1:DEFAULT_GROUPS.g1.cls, g2:DEFAULT_GROUPS.g2.cls,
         g3:DEFAULT_GROUPS.g3.cls, g4:DEFAULT_GROUPS.g4.cls };
+  const display = Object.keys(picked).length>0 ? picked
+    : Object.keys(drawn).length>0 ? drawn
+    : defaultDisp;
   const hasDrawn = Object.keys(drawn).length > 0;
   const hasPicked = Object.keys(picked).length > 0;
 
   // 점수 산정 (계주는 다른 로직)
   const isRelay = sport === "계주";
-  const PTS = isRelay ? null : (sport==="장애물달리기"||sport==="태풍의눈" ? [100,90,80,70,60] : []);
+  const PTS = isRelay ? null : CUR_PTS;
 
   return(<>
     <div style={{display:"flex",gap:6,marginBottom:14}}>
@@ -5722,6 +5774,9 @@ function GroupDraw({state, update}) {
           {isRelay ? (
             <>학년별 2조 예선 → 각 조 1·2위 결승 (학년별 4팀)<br/>
             결승 1위 100 · 2위 80 · 3위 60 · 4위 40 / 예선탈락 동일 30점</>
+          ) : isTyp ? (
+            <>5개 조 · 각 조 4학급 · 조 내 1~4위 차등 점수<br/>
+            1위 100 · 2위 90 · 3위 80 · 4위 70 / 같은 팀 학급은 다른 조</>
           ) : (
             <>학년별 2조 · 각 조 5팀 · 조 내 1~5위 차등 점수<br/>
             1위 100 · 2위 90 · 3위 80 · 4위 70 · 5위 60</>
@@ -5767,8 +5822,8 @@ function GroupDraw({state, update}) {
         {/* 순위 입력 모드 */}
         <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",marginBottom:10,padding:"10px 14px"}}>
           <div style={{fontSize:12,color:"#1e40af",lineHeight:1.6}}>
-            👇 각 학급별로 1~5위 버튼 클릭하여 순위 입력
-            {PTS && <div style={{marginTop:2,fontSize:11}}>1위 {PTS[0]}점 · 2위 {PTS[1]}점 · 3위 {PTS[2]}점 · 4위 {PTS[3]}점 · 5위 {PTS[4]}점</div>}
+            👇 각 학급별로 1~{RANK_MAX}위 버튼 클릭하여 순위 입력
+            {PTS && <div style={{marginTop:2,fontSize:11}}>{PTS.map((p,i)=>`${i+1}위 ${p}점`).join(' · ')}</div>}
           </div>
         </div>
 
@@ -5790,14 +5845,15 @@ function GroupDraw({state, update}) {
           </div>
         )}
 
-        {["g1","g2","g3","g4"].map(gk=>{
-          const list = drawn[gk] || DEFAULT_GROUPS[gk].cls;
+        {CUR_KEYS.map(gk=>{
+          const list = drawn[gk] || (isTyp ? TYP_DEFAULT[gk] : DEFAULT_GROUPS[gk]?.cls || []);
+          const grpName = isTyp ? TYP_GRP_NAMES[gk] : DEFAULT_GROUPS[gk]?.name || gk;
           const grpScores = groupScores[gk] || {};
           return(
             <div key={gk} className="card" style={{marginBottom:10,padding:12}}>
               <div style={{fontSize:13,fontWeight:800,color:"#37352f",marginBottom:8,
                 paddingBottom:6,borderBottom:"1px solid #f5f5f3"}}>
-                {DEFAULT_GROUPS[gk].name}
+                {grpName}
               </div>
               {list.map((cls,i)=>{
                 const team = classToTeam(cls);
@@ -5813,7 +5869,7 @@ function GroupDraw({state, update}) {
                       {cls}반
                     </div>
                     <div style={{display:"flex",gap:3}}>
-                      {[1,2,3,4,5].map(r=>(
+                      {Array.from({length:RANK_MAX},(_,i)=>i+1).map(r=>(
                         <button key={r} onClick={()=>setRank(gk,cls,rank===r?null:r)}
                           style={{
                             width:32,height:32,borderRadius:6,
