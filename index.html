@@ -813,6 +813,8 @@ const BASE_CSS = `
 
   /* ── 애니메이션 ── */
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+  @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  @keyframes signalPulse{from{box-shadow:0 0 0 2px rgba(239,68,68,.5)}to{box-shadow:0 0 0 8px rgba(239,68,68,.0)}}
   .blink{animation:blink 1.5s infinite}
 
   /* ── 매치 카드 ── */
@@ -838,6 +840,7 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
   const [mainTab, setMainTab] = useState("dash");
   const [sbTab, setSbTab]     = useState(null);
   const [sbOpen, setSbOpen]   = useState(false);
+  const [sportSheetOpen, setSportSheetOpen] = useState(false);
 
   const {teamPts} = calcScores(state);
   const ranked = TEAM_NAMES.map(t=>({team:t,pts:teamPts[t]||0})).sort((a,b)=>b.pts-a.pts);
@@ -881,7 +884,7 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
   ];
 
   const renderContent = () => {
-    if(mainTab==="dash")   return <VDash cur={cur} next={next} ranked={ranked} state={state}/>;
+    if(mainTab==="dash")   return <VDash cur={cur} next={next} ranked={ranked} state={state} pickSbTab={pickSbTab}/>;
     if(mainTab==="cheer")  return <VCheer state={state}/>;
     if(mainTab==="rank")   return <VRank ranked={ranked} state={state}/>;
     if(mainTab==="cheerscore") return <VCheerScore state={state}/>;
@@ -920,16 +923,17 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
       {/* 상단 메인 탭 */}
       <div className="v-topbar">
         <button className="menu-btn" onClick={()=>setSbOpen(true)}>☰</button>
-        <button className={`v-main-tab${mainTab==="dash"?" on":""}`} onClick={()=>pickMainTab("dash")}>
-          <span className="vt-icon">🏠</span><span className="vt-l">대시보드</span>
+        <button className={`v-main-tab${mainTab==="dash"&&!sbTab?" on":""}`} onClick={()=>{pickMainTab("dash");setSportSheetOpen(false);}}>
+          <span className="vt-icon">📅</span><span className="vt-l">일정</span>
         </button>
-        <button className={`v-main-tab${mainTab==="cheer"?" on":""}`} onClick={()=>pickMainTab("cheer")}>
+        <button className={`v-main-tab${sportSheetOpen?" on":""}`}
+          onClick={()=>{setSportSheetOpen(v=>!v);}}>
+          <span className="vt-icon">🏅</span><span className="vt-l">종목</span>
+        </button>
+        <button className={`v-main-tab${mainTab==="cheer"?" on":""}`} onClick={()=>{pickMainTab("cheer");setSportSheetOpen(false);}}>
           <span className="vt-icon">📣</span><span className="vt-l">응원전</span>
         </button>
-        <button className={`v-main-tab${mainTab==="rank"?" on":""}`} onClick={()=>pickMainTab("rank")}>
-          <span className="vt-icon">🏆</span><span className="vt-l">순위</span>
-        </button>
-        <button className={`v-main-tab${mainTab==="cheerscore"?" on":""}`} onClick={()=>pickMainTab("cheerscore")}>
+        <button className={`v-main-tab${mainTab==="cheerscore"?" on":""}`} onClick={()=>{pickMainTab("cheerscore");setSportSheetOpen(false);}}>
           <span className="vt-icon">⭐</span><span className="vt-l">채점</span>
         </button>
         <div style={{flex:1}}/>
@@ -940,6 +944,57 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
           <span className="vt-l">갱신</span>
         </button>
       </div>
+
+      {/* 종목 하단 슬라이드 시트 */}
+      {sportSheetOpen && (
+        <div style={{position:"fixed",inset:0,zIndex:200}}
+          onClick={()=>setSportSheetOpen(false)}>
+          <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,.45)"}}/>
+          <div onClick={e=>e.stopPropagation()}
+            style={{position:"absolute",bottom:0,left:0,right:0,
+              background:"#fff",borderRadius:"18px 18px 0 0",
+              boxShadow:"0 -8px 40px rgba(0,0,0,.18)",
+              maxHeight:"75vh",overflow:"auto",
+              animation:"slideUp .22s ease-out"}}>
+            {/* 핸들 */}
+            <div style={{display:"flex",justifyContent:"center",padding:"12px 0 4px"}}>
+              <div style={{width:36,height:4,borderRadius:2,background:"#e5e7eb"}}/>
+            </div>
+            <div style={{padding:"0 16px 8px",fontWeight:800,fontSize:16,color:"#37352f"}}>
+              🏅 종목 바로가기
+            </div>
+            {/* 종목 목록 */}
+            {[
+              {id:"1학년 8자마라톤", icon:"⏱", l:"1학년 8자마라톤"},
+              {id:"2학년 8자마라톤", icon:"⏱", l:"2학년 8자마라톤"},
+              {id:"줄다리기",        icon:"🪢", l:"줄다리기"},
+              {id:"장애물달리기",    icon:"🚧", l:"장애물달리기"},
+              {id:"태풍의눈",        icon:"🌀", l:"태풍의 눈"},
+              {id:"계주",            icon:"🏃", l:"계주"},
+              {id:"피지컬100",       icon:"🏋️", l:"피지컬100"},
+              {id:"골때녀",          icon:"⚽", l:"골때녀 (이벤트)"},
+              {id:"미션달리기",      icon:"🎯", l:"미션달리기 (이벤트)"},
+            ].map((sp,i,arr)=>(
+              <div key={sp.id}
+                onClick={()=>{pickSbTab(sp.id);setSportSheetOpen(false);}}
+                style={{display:"flex",alignItems:"center",gap:14,
+                  padding:"14px 20px",
+                  borderBottom:i<arr.length-1?"1px solid #f3f4f6":"none",
+                  cursor:"pointer",transition:"background .1s",
+                  background:sbTab===sp.id?"#f0fdf4":"#fff"}}
+                onMouseEnter={e=>e.currentTarget.style.background="#f9fafb"}
+                onMouseLeave={e=>e.currentTarget.style.background=sbTab===sp.id?"#f0fdf4":"#fff"}>
+                <span style={{fontSize:22,width:28,textAlign:"center",flexShrink:0}}>{sp.icon}</span>
+                <span style={{fontSize:15,fontWeight:sbTab===sp.id?800:600,
+                  color:sbTab===sp.id?"#15803d":"#37352f",flex:1}}>{sp.l}</span>
+                {sbTab===sp.id && <span style={{fontSize:12,color:"#15803d",fontWeight:700}}>● 현재</span>}
+                <span style={{fontSize:16,color:"#d1d5db"}}>›</span>
+              </div>
+            ))}
+            <div style={{height:24}}/>
+          </div>
+        </div>
+      )}
 
       <div style={{display:"flex",flex:1,minHeight:0,overflow:"hidden"}}>
         <div className={`sb-overlay${sbOpen?" open":""}`} onClick={()=>setSbOpen(false)}/>
@@ -1547,81 +1602,258 @@ function VSportDetail({sel, state}) {
 
 
 
-function VDash({cur, next, ranked, state}) {
-  const [schedOpen, setSchedOpen] = useState(false);
+// ════════════════════════════════════════════════════════
+//  LiveBriefing: 현재 종목 대진 기반 운영 안내
+// ════════════════════════════════════════════════════════
+function LiveBriefing({cur, next, state, pickSbTab, getTab}) {
+
+  // 종목별 다음 준비 안내 메시지 생성
+  const getBriefing = () => {
+    if(!cur) return null;
+    const t = cur.title;
+
+    // ── 줄다리기 ──
+    if(t.includes("줄다리기")) {
+      const br = state.brackets?.["줄다리기"] || {};
+      const seeds = br.seeds || [];
+      const results = br.results || {};
+      if(seeds.length >= 5) {
+        const comp = compute5SpecialBracket(seeds, results);
+        const [m1, sf1, sf2, mF] = comp.matches;
+        const msgs = [];
+        if(!m1.winner && seeds[1] && seeds[2])
+          msgs.push({icon:"⚡", txt:`1라운드 준비`, sub:`${seeds[1]}팀 vs ${seeds[2]}팀 — 입장해주세요`});
+        else if(m1.winner && !sf1.winner && seeds[0])
+          msgs.push({icon:"⚡", txt:`준결승 ① 준비`, sub:`${seeds[0]}팀(부전승) vs ${m1.winner}팀 — 입장해주세요`});
+        else if(m1.winner && !sf2.winner && seeds[3] && seeds[4])
+          msgs.push({icon:"⚡", txt:`준결승 ② 준비`, sub:`${seeds[3]}팀 vs ${seeds[4]}팀 — 입장해주세요`});
+        else if(sf1.winner && sf2.winner && !mF.winner)
+          msgs.push({icon:"🏆", txt:`결승 준비`, sub:`${sf1.winner}팀 vs ${sf2.winner}팀 — 결승 입장해주세요`});
+        else if(mF.winner)
+          msgs.push({icon:"🎉", txt:`경기 종료`, sub:`우승: ${mF.winner}팀 — 시상 준비`});
+        if(msgs.length) return msgs;
+      }
+      return [{icon:"🪢", txt:"줄다리기 진행 중", sub:"대진 추첨 후 안내가 표시됩니다"}];
+    }
+
+    // ── 8자마라톤 ──
+    if(t.includes("8자마라톤")) {
+      const sp = t.includes("1학년") ? "1학년 8자마라톤" : "2학년 8자마라톤";
+      const counts = state.timeTrial?.[sp] || {};
+      const done = Object.keys(counts).length;
+      const total = 10; // 학급 수
+      if(done >= total)
+        return [{icon:"✅", txt:"전 학급 기록 완료", sub:"결과 페이지에서 순위를 확인하세요"}];
+      if(done > 0)
+        return [{icon:"⏱", txt:`${done}/${total}반 완료`, sub:`다음: ${done+1}반 준비해주세요`}];
+      return [{icon:"⏱", txt:"기록 측정 대기 중", sub:"1반부터 순서대로 준비해주세요"}];
+    }
+
+    // ── 장애물달리기 / 태풍의 눈 ──
+    if(t.includes("장애물") || t.includes("태풍")) {
+      const sp = t.includes("장애물") ? "장애물달리기" : "태풍의눈";
+      const gs = state.groupScores?.[sp] || {};
+      const GK = ["g1","g2","g3","g4"];
+      const GN = ["1조","2조","3조","4조"];
+      const done = GK.filter(k => Object.keys(gs[k]||{}).length >= 4).length;
+      const nextG = GK.findIndex(k => Object.keys(gs[k]||{}).length < 4);
+      if(done >= 4)
+        return [{icon:"✅", txt:"전 조 완료", sub:"결과 집계 중입니다"}];
+      if(nextG >= 0)
+        return [{icon:"⚡", txt:`${GN[nextG]} 경기 준비`, sub:`${GN[nextG]} 참가 학급 입장해주세요 (${done}/4조 완료)`}];
+      return [{icon:"🚀", txt:"진행 대기", sub:"조 편성 후 순서대로 진행합니다"}];
+    }
+
+    // ── 계주 ──
+    if(t.includes("계주")) {
+      const rf = state.relayFinals || {};
+      const gs = state.groupScores?.["계주"] || {};
+      const isF = t.includes("결승");
+      if(isF) {
+        const gradesDone = ["grade1","grade2"].filter(g=>rf[g]&&Object.keys(rf[g]).length>=4).length;
+        if(gradesDone >= 2)
+          return [{icon:"🏁", txt:"결승 완료", sub:"1·2학년 계주 결승 종료"}];
+        const nextGrade = !rf["grade1"]||Object.keys(rf["grade1"]||{}).length<4 ? "1학년" : "2학년";
+        return [{icon:"🏁", txt:`${nextGrade} 계주 결승`, sub:`${nextGrade} 결승 진출팀 입장해주세요`}];
+      }
+      const GK = ["g1","g2","g3","g4"];
+      const done = GK.filter(k=>Object.keys(gs[k]||{}).length>=4).length;
+      return [{icon:"🏃", txt:`예선 진행 중 (${done}/4조)`, sub:done<4?`${done+1}조 준비해주세요`:"예선 완료 · 결선 준비"}];
+    }
+
+    // ── 피지컬100 ──
+    if(t.includes("피지컬")) {
+      const p = state.p100 || {};
+      const r1m = Object.keys(p.r1?.m||{}).length;
+      const r1f = Object.keys(p.r1?.f||{}).length;
+      if(!r1m && !r1f)
+        return [{icon:"🏋️", txt:"피지컬100 시작 대기", sub:"1차전 참가자 번호 확인 후 입장해주세요"}];
+      return [{icon:"💪", txt:`1차 통과 — 남 ${r1m}명 · 여 ${r1f}명`, sub:"다음 라운드 대기자 준비해주세요"}];
+    }
+
+    // ── 골때녀 ──
+    if(t.includes("골때녀")) {
+      const gd = state.golddanya || {};
+      const h1 = gd.half1 || {}, h2 = gd.half2 || {};
+      const msgs = [];
+      if(h1.status==="upcoming") msgs.push({icon:"⚽", txt:"전반전 준비", sub:"교사팀 vs 1학년 — 선수 입장해주세요"});
+      else if(h1.status==="live") msgs.push({icon:"🔴", txt:`전반전 진행 중`, sub:`교사 ${h1.score?.teacher||0} : ${h1.score?.student||0} 1학년`});
+      else if(h2.status==="upcoming") msgs.push({icon:"⚽", txt:"후반전 준비", sub:"교사팀 vs 2학년 — 선수 입장해주세요"});
+      else if(h2.status==="live") msgs.push({icon:"🔴", txt:`후반전 진행 중`, sub:`교사 ${h2.score?.teacher||0} : ${h2.score?.student||0} 2학년`});
+      else msgs.push({icon:"⚽", txt:"골때녀 이벤트", sub:"경기 운영자 안내에 따라 진행합니다"});
+      return msgs;
+    }
+
+    // ── 응원전 ──
+    if(t.includes("응원전")) {
+      const grade = t.includes("1학년") ? "1학년" : t.includes("2학년") ? "2학년" : "";
+      return [{icon:"📣", txt:`${grade} 응원전 진행 중`, sub:"채점단 준비 · 채점탭에서 점수 입력하세요"}];
+    }
+
+    // ── 미션달리기 ──
+    if(t.includes("미션")) {
+      return [{icon:"🎯", txt:"미션달리기 이벤트", sub:"학생회 진행 · 참가 학생 운동장 집결해주세요"}];
+    }
+
+    return null;
+  };
+
+  const briefs = getBriefing();
+  const tab = cur ? getTab(cur.title) : null;
+
+  if(!cur) {
+    // 경기 전 — 다음 종목 안내
+    return (
+      <div style={{background:"#f8fafc",borderRadius:12,padding:"16px",
+        marginBottom:10,border:"1px solid #e2e8f0"}}>
+        <div style={{fontSize:11,color:"#94a3b8",fontWeight:700,letterSpacing:2,marginBottom:8}}>
+          경기 준비 중
+        </div>
+        {next ? (
+          <div style={{display:"flex",alignItems:"center",gap:12}}
+            onClick={()=>{const t=getTab(next.title);if(t&&pickSbTab)pickSbTab(t);}}
+            style={{cursor: getTab(next?.title)&&pickSbTab?"pointer":"default",
+              display:"flex",alignItems:"center",gap:12}}>
+            <span style={{fontSize:36}}>{next.emoji}</span>
+            <div>
+              <div style={{fontSize:12,color:"#64748b",fontWeight:600,marginBottom:2}}>
+                다음 종목 · {next.time}
+              </div>
+              <div style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>{next.title}</div>
+              <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>
+                참가 선수·학급은 미리 준비해주세요
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{color:"#94a3b8",fontSize:14,textAlign:"center",padding:"8px 0"}}>
+            오늘 일정이 시작되기를 기다리고 있습니다
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="dash-now"
+      onClick={()=>{ if(tab&&pickSbTab) pickSbTab(tab); }}
+      style={{cursor: tab&&pickSbTab?"pointer":"default",marginBottom:10}}>
+
+      {/* 헤더 */}
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+        <span className="blink" style={{width:8,height:8,borderRadius:"50%",
+          background:"#ef4444",flexShrink:0,display:"inline-block"}}/>
+        <span style={{fontSize:11,color:"rgba(255,255,255,.6)",fontWeight:700,letterSpacing:2,flex:1}}>
+          NOW PLAYING
+        </span>
+        <span style={{fontSize:20}}>{cur.emoji}</span>
+        <span style={{fontSize:15,fontWeight:800,color:"#fff"}}>{cur.title}</span>
+        {tab && pickSbTab && (
+          <span style={{fontSize:11,color:"rgba(255,255,255,.45)",marginLeft:4}}>›</span>
+        )}
+      </div>
+
+      {/* 대진 안내 */}
+      {briefs && briefs.map((b,i)=>(
+        <div key={i} style={{background:"rgba(255,255,255,.12)",borderRadius:10,
+          padding:"12px 14px",marginBottom: i<briefs.length-1?8:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:24,flexShrink:0}}>{b.icon}</span>
+            <div>
+              <div style={{fontSize:15,fontWeight:800,color:"#fff",lineHeight:1.2}}>
+                {b.txt}
+              </div>
+              <div style={{fontSize:13,color:"rgba(255,255,255,.75)",marginTop:3,
+                lineHeight:1.4,fontWeight:500}}>
+                {b.sub}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function VDash({cur, next, ranked, state, pickSbTab}) {
+
+  // 일정 제목 → sbTab ID 매핑
+  const TITLE_TO_TAB = {
+    "1학년 8자마라톤":  "1학년 8자마라톤",
+    "2학년 8자마라톤":  "2학년 8자마라톤",
+    "줄다리기":         "줄다리기",
+    "장애물달리기":     "장애물달리기",
+    "태풍의 눈":        "태풍의 논",
+    "계주":             "계주",
+    "미션달리기":       "미선달리기 (이벤트)",
+    "피지컬100":        "피지컬100",
+    "골때녀":           "골때녀",
+    "입장식":           "entry",
+    "응원전":           "cheershow",
+  };
+  const getTab = (title) => {
+    for(const [key,tab] of Object.entries(TITLE_TO_TAB)) {
+      if(title.includes(key)) return tab;
+    }
+    return null;
+  };
 
   return(<>
-    {/* ── 현재 진행 종목 ── */}
-    {cur ? (
-      <div className="dash-now">
-        <div style={{fontSize:11,color:"rgba(255,255,255,.6)",fontWeight:700,
-          letterSpacing:2,marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
-          <span className="blink" style={{width:8,height:8,borderRadius:"50%",
-            background:"#ef4444",display:"inline-block"}}/>
-          NOW PLAYING
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <span style={{fontSize:40}}>{cur.emoji}</span>
-          <div>
-            <div style={{fontSize:22,fontWeight:900,color:"#fff",letterSpacing:-.5}}>{cur.title}</div>
-            <div style={{fontSize:13,color:"rgba(255,255,255,.6)",marginTop:2}}>{cur.time}</div>
-          </div>
-        </div>
-      </div>
-    ) : (
-      <div style={{background:"#fafaf9",borderRadius:10,padding:"16px",
-        textAlign:"center",color:"#9b9a97",marginBottom:10,fontSize:14}}>
-        현재 진행 중인 일정이 없습니다
-      </div>
-    )}
+    {/* ── 라이브 운영 안내 ── */}
+    <LiveBriefing cur={cur} next={next} state={state} pickSbTab={pickSbTab} getTab={getTab}/>
 
-    {/* ── 다음 일정 ── */}
-    {next && (
-      <div className="dash-next">
-        <div style={{fontSize:11,color:"#9b9a97",fontWeight:700,letterSpacing:1.5,marginBottom:6}}>
-          NEXT →
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:26,opacity:.7}}>{next.emoji}</span>
-          <div>
-            <div style={{fontSize:16,fontWeight:700,color:"#37352f"}}>{next.title}</div>
-            <div style={{fontSize:12,color:"#9b9a97"}}>{next.time}</div>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* ── 전체 일정 (토글) ── */}
+    {/* ── 전체 일정 (항상 표시) ── */}
     <div className="card" style={{marginBottom:10,padding:0,overflow:"hidden"}}>
-      <button onClick={()=>setSchedOpen(v=>!v)}
-        style={{width:"100%",padding:"12px 16px",background:"none",border:"none",
-          cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}>
+      <div style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:8,
+        borderBottom:"1px solid #ebebea"}}>
         <span style={{fontSize:15}}>📅</span>
-        <span style={{fontWeight:700,color:"#37352f",fontSize:14,flex:1,textAlign:"left"}}>
-          전체 일정
-        </span>
-        <span style={{fontSize:13,color:"#9b9a97",fontWeight:700}}>
-          {schedOpen ? "▴ 접기" : "▾ 펼치기"}
-        </span>
-      </button>
-      {schedOpen && (
-        <div style={{borderTop:"1px solid #ebebea"}}>
-          {(state.schedule||[]).map((s,i)=>{
+        <span style={{fontWeight:700,color:"#37352f",fontSize:14}}>오늘 일정</span>
+      </div>
+      <div>
+        {(state.schedule||[]).map((s,i)=>{
             const isDone = s.status==="done";
             const isCur  = s.status==="current";
+            const tab    = getTab(s.title);
+            const canNav = !!tab && !!pickSbTab;
             return(
-              <div key={s.id} style={{
-                display:"flex",alignItems:"center",gap:12,padding:"14px 16px",
-                borderBottom: i<(state.schedule||[]).length-1?"1px solid #f5f5f3":"none",
-                background: isCur?"#fffbf0":isDone?"#fafaf9":"#fff",
-                opacity: isDone?0.55:1,
-              }}>
+              <div key={s.id}
+                onClick={canNav ? ()=>pickSbTab(tab) : undefined}
+                style={{
+                  display:"flex",alignItems:"center",gap:12,padding:"14px 16px",
+                  borderBottom: i<(state.schedule||[]).length-1?"1px solid #f5f5f3":"none",
+                  background: isCur?"#fffbf0":isDone?"#fafaf9":"#fff",
+                  opacity: isDone?0.55:1,
+                  cursor: canNav?"pointer":"default",
+                  transition:"background .12s",
+                }}
+                onMouseEnter={e=>{if(canNav)e.currentTarget.style.background=isCur?"#fef3c7":"#f5f5f3"}}
+                onMouseLeave={e=>{if(canNav)e.currentTarget.style.background=isCur?"#fffbf0":isDone?"#fafaf9":"#fff"}}
+              >
                 <span style={{
                   fontSize:16,fontWeight:900,fontFamily:"monospace",
                   color:isDone?"#787671":"#fff",
                   background:isCur?"#eb5757":isDone?"#f3f4f6":"#1f2937",
-                  padding:"6px 10px",
-                  borderRadius:8,
+                  padding:"6px 10px", borderRadius:8,
                   minWidth:72,flexShrink:0,letterSpacing:"-.5px",
                   textAlign:"center"
                 }}>{s.time}</span>
@@ -1634,12 +1866,17 @@ function VDash({cur, next, ranked, state}) {
                 {isCur&&<span className="blink" style={{fontSize:12,fontWeight:900,
                   color:"#fff",background:"#eb5757",padding:"3px 9px",borderRadius:10,
                   letterSpacing:1,flexShrink:0}}>LIVE</span>}
-                {isDone&&<span style={{fontSize:14,color:"#9b9a97",flexShrink:0}}>✓</span>}
+                {isDone&&!canNav&&<span style={{fontSize:14,color:"#9b9a97",flexShrink:0}}>✓</span>}
+                {isDone&&canNav&&<span style={{fontSize:13,color:"#9b9a97",flexShrink:0}}>✓ &rsaquo;</span>}
+                {!isDone&&!isCur&&canNav&&(
+                  <span style={{fontSize:12,color:"#9b9a97",flexShrink:0,
+                    background:"#f3f4f6",padding:"3px 8px",borderRadius:8,
+                    fontWeight:600}}>바로가기 ›</span>
+                )}
               </div>
             );
           })}
-        </div>
-      )}
+      </div>
     </div>
 
     {/* ── 팀 종합순위 ── */}
@@ -1666,8 +1903,8 @@ function VDash({cur, next, ranked, state}) {
 
 
 // VNow는 VDash로 대체됨 (호환용 alias)
-function VNow({cur,next,ranked,state}) {
-  return <VDash cur={cur} next={next} ranked={ranked} state={state}/>;
+function VNow({cur,next,ranked,state,pickSbTab}) {
+  return <VDash cur={cur} next={next} ranked={ranked} state={state} pickSbTab={pickSbTab}/>;
 }
 
 
@@ -3768,6 +4005,128 @@ function P100Roster({ p, gk, setGk }) {
   );
 }
 
+// ════════════════════════════════════════════
+//  StartSignal: 제자리에 → 차렷 → 탕! 신호
+// ════════════════════════════════════════════
+function StartSignal() {
+  const [phase, setPhase] = useState("idle");
+  const [lang, setLang]   = useState("ko"); // "ko" | "en"
+
+  const speak = (text, rate=0.85, pitch=0.9, forceLang) => new Promise(res => {
+    if(!window.speechSynthesis) { res(); return; }
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const l = forceLang || (lang==="ko" ? "ko-KR" : "en-US");
+    u.lang = l; u.rate = rate; u.pitch = pitch; u.volume = 1;
+    u.onend = res; u.onerror = res;
+    const voices = window.speechSynthesis.getVoices();
+    const v = voices.find(v=>v.lang===l) || voices.find(v=>v.lang.startsWith(l.split("-")[0]));
+    if(v) u.voice = v;
+    window.speechSynthesis.speak(u);
+  });
+
+  const gunShot = () => {
+    try {
+      const ctx = new (window.AudioContext||window.webkitAudioContext)();
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.4, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for(let i=0;i<data.length;i++) data[i]=(Math.random()*2-1);
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(1.8, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.35);
+      const filter = ctx.createBiquadFilter();
+      filter.type="lowpass"; filter.frequency.value=1800;
+      src.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+      src.start(); src.stop(ctx.currentTime+0.4);
+      const echo = ctx.createGain();
+      echo.gain.setValueAtTime(0.4, ctx.currentTime+0.1);
+      echo.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.6);
+      const src2 = ctx.createBufferSource(); src2.buffer = buf;
+      src2.connect(filter); filter.connect(echo); echo.connect(ctx.destination);
+      src2.start(ctx.currentTime+0.08); src2.stop(ctx.currentTime+0.65);
+    } catch(e) { console.warn("AudioContext error:", e); }
+  };
+
+  const SCRIPTS = {
+    ko: { ready:"제자리에", set:"차렷",       rate:0.8, pitch:0.85 },
+    en: { ready:"On your marks", set:"Get set", rate:0.9, pitch:1.0  },
+  };
+
+  const runSequence = async () => {
+    if(phase !== "idle" && phase !== "cooldown") return;
+    const sc = SCRIPTS[lang];
+    setPhase("ready");
+    await speak(sc.ready, sc.rate, sc.pitch);
+    await new Promise(r=>setTimeout(r,600));
+    setPhase("set");
+    await speak(sc.set, sc.rate, sc.pitch);
+    await new Promise(r=>setTimeout(r,800));
+    setPhase("bang");
+    gunShot();
+    await new Promise(r=>setTimeout(r,1200));
+    setPhase("cooldown");
+    setTimeout(()=>setPhase("idle"), 2000);
+  };
+
+  const PHASES = {
+    idle:     { label: lang==="ko"?"🔫 출발 신호":"🔫 Start Signal", bg:"#1e3a8a", sub: lang==="ko"?"탭하면 자동 시퀀스 시작":"Tap to run the full sequence", pulse:false },
+    ready:    { label: lang==="ko"?"제자리에…":"On your marks…",     bg:"#78350f", sub: lang==="ko"?"선수 준비 중":"Athletes, take your position",  pulse:true  },
+    set:      { label: lang==="ko"?"차렷!":"Get set!",                bg:"#7f1d1d", sub: lang==="ko"?"출발 준비":"Ready to go",                      pulse:true  },
+    bang:     { label:"💥 Bang!",                                     bg:"#991b1b", sub: lang==="ko"?"출발!":"GO!",                                  pulse:true  },
+    cooldown: { label:"✅ Done",                                      bg:"#14532d", sub: lang==="ko"?"다시 누르면 재시작":"Tap again to restart",     pulse:false },
+  };
+  const ph = PHASES[phase];
+  const sc = SCRIPTS[lang];
+
+  return (
+    <div style={{marginBottom:14}}>
+      {/* 언어 토글 */}
+      <div style={{display:"flex",gap:6,marginBottom:8}}>
+        {[{id:"ko",label:"🇰🇷 한국어"},{id:"en",label:"🇺🇸 English"}].map(l=>(
+          <button key={l.id} onClick={()=>setLang(l.id)}
+            style={{flex:1,padding:"8px 4px",borderRadius:8,
+              border:`1.5px solid ${lang===l.id?"#1e3a8a":"#e5e7eb"}`,
+              background:lang===l.id?"#1e3a8a":"#fff",
+              color:lang===l.id?"#fff":"#37352f",
+              fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit",
+              transition:"all .15s"}}>
+            {l.label}
+          </button>
+        ))}
+      </div>
+
+      {/* 자동 시퀀스 */}
+      <button onClick={runSequence} disabled={phase!=="idle"&&phase!=="cooldown"}
+        style={{width:"100%",padding:"16px 20px",borderRadius:12,border:"none",
+          background:ph.bg,cursor:phase==="idle"||phase==="cooldown"?"pointer":"default",
+          fontFamily:"inherit",transition:"all .2s",
+          animation:ph.pulse?"signalPulse .6s ease-in-out infinite alternate":"none"}}>
+        <div style={{fontSize:22,fontWeight:900,color:"#fff",letterSpacing:1,marginBottom:4}}>
+          {ph.label}
+        </div>
+        <div style={{fontSize:12,color:"rgba(255,255,255,.7)",fontWeight:600}}>{ph.sub}</div>
+      </button>
+
+      {/* 개별 버튼 */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginTop:6}}>
+        {[
+          {label: lang==="ko"?"📢 제자리에":"📢 On your marks", fn:()=>speak(sc.ready, sc.rate, sc.pitch)},
+          {label: lang==="ko"?"📢 차렷":"📢 Get set",           fn:()=>speak(sc.set,   sc.rate, sc.pitch)},
+          {label:"💥 Bang!",                                     fn:()=>gunShot()},
+        ].map((b,i)=>(
+          <button key={i} onClick={b.fn}
+            style={{padding:"9px 4px",borderRadius:8,border:"1.5px solid #e5e7eb",
+              background:"#fff",cursor:"pointer",fontFamily:"inherit",
+              fontSize:11,fontWeight:700,color:"#37352f",textAlign:"center"}}>
+            {b.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function P100Round1({ p, gk }) {
   const gLabel = gk==="m"?"남자":"여자";
   const totalDone = ALL_HEATS_LIST.filter(hk => p.r1[gk]?.[hk]).length;
@@ -3801,6 +4160,7 @@ function P100Round1({ p, gk }) {
 
   return (
     <div>
+      <StartSignal/>
       <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:10,
         padding:"10px 14px",marginBottom:12,fontSize:13,color:"#1d4ed8"}}>
         🏃 {gLabel} 50m 달리기 1차전 ({totalDone}/20조 완료)<br/>
