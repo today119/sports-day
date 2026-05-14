@@ -713,7 +713,7 @@ const BASE_CSS = `
     padding:10px 16px;display:flex;align-items:center;gap:10px}
 
   /* ── 조별 대진표 (반응형: PC 4열 / 태블릿 2열 / 모바일 1열) ── */
-  .group-bracket-grid{display:grid;grid-template-columns:repeat(4, minmax(0,1fr));
+  .group-bracket-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(140px,1fr));
     gap:10px;background:#fff;border:1px solid #e7e7e5;border-radius:8px;padding:14px}
   @media (max-width: 900px) {
     .group-bracket-grid{grid-template-columns:repeat(2, minmax(0,1fr))}
@@ -5958,11 +5958,14 @@ function TugTreeSVG({seeds, results, onPick}) {
 
 
 function GroupBracketSVG({ groupAssignment, sport, results }) {
-  // 깔끔 스타일 HTML 카드 (반응형: PC 4열 / 태블릿 2열 / 모바일 1열)
-  const groups = ["g1","g2","g3","g4"];
-  const labels = {g1:"1학년 1조", g2:"1학년 2조", g3:"2학년 1조", g4:"2학년 2조"};
+  const isTyp = sport === "태풍의눈";
+  // 태풍의눈: 5조×4학급(1~4위), 그 외: 4조×5학급(1~5위)
+  const groups    = isTyp ? ["g1","g2","g3","g4","g5"] : ["g1","g2","g3","g4"];
+  const rankCount = isTyp ? 4 : 5;
+  const labels    = isTyp
+    ? {g1:"1조", g2:"2조", g3:"3조", g4:"4조", g5:"5조"}
+    : {g1:"1학년 1조", g2:"1학년 2조", g3:"2학년 1조", g4:"2학년 2조"};
 
-  // 각 학급에 들어간 순위(1~5위) 계산
   return (
     <div className="group-bracket-grid">
       {groups.map(gk=>{
@@ -5970,15 +5973,13 @@ function GroupBracketSVG({ groupAssignment, sport, results }) {
         const ranks = results?.[gk] || {};
         return (
           <div key={gk} className="group-card">
-            {/* 알약 헤더 */}
             <div className="group-card-header">
               <span>{labels[gk]}</span>
+              {isTyp && <span style={{fontSize:10,opacity:.7,marginLeft:4}}>학년 혼합</span>}
             </div>
-            {/* 5위 슬롯 - 순위가 입력된 학급이 해당 위치로 정렬됨 */}
-            {[1,2,3,4,5].map(rank=>{
-              // 이 순위에 해당하는 학급 찾기
+            {Array.from({length:rankCount},(_,i)=>i+1).map(rank=>{
               const cl = Object.entries(ranks).find(([c,r])=>r===rank)?.[0];
-              const fallback = cl ? null : cls[rank-1]; // 미입력 시 기본 학급
+              const fallback = cl ? null : cls[rank-1];
               const targetCls = cl || fallback;
               const team = targetCls ? classToTeam(targetCls) : null;
               const isFilled = !!cl;
@@ -6163,8 +6164,8 @@ function GroupDraw({state, update}) {
             <>학년별 2조 예선 → 각 조 1·2위 결승 (학년별 4팀)<br/>
             결승 1위 100 · 2위 80 · 3위 60 · 4위 40 / 예선탈락 동일 30점</>
           ) : isTyp ? (
-            <>5개 조 · 각 조 4학급 · 조 내 1~4위 차등 점수<br/>
-            1위 100 · 2위 90 · 3위 80 · 4위 70 / 같은 팀 학급은 다른 조</>
+            <>5개 조 · 각 조 4학급 · <b>학년 혼합 추첨</b> · 같은 팀 다른 조 배정<br/>
+            1위 100 · 2위 90 · 3위 80 · 4위 70</>
           ) : (
             <>학년별 2조 · 각 조 5팀 · 조 내 1~5위 차등 점수<br/>
             1위 100 · 2위 90 · 3위 80 · 4위 70 · 5위 60</>
