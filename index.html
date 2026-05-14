@@ -3231,12 +3231,15 @@ function VSeat({state}) {
   </>);
 }
 
-function sheetToCSV(url) {
+function sheetToCSV(url, sheetName) {
   if(!url) return null;
-  // https://docs.google.com/spreadsheets/d/{ID}/edit?gid={GID}
   const m = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
   if(!m) return null;
   const id = m[1];
+  // 탭 이름이 지정되면 sheet 파라미터로 특정 탭 읽기
+  if(sheetName) {
+    return `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+  }
   const gidMatch = url.match(/[?#&]gid=(\d+)/);
   const gid = gidMatch ? gidMatch[1] : "0";
   return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
@@ -7140,74 +7143,103 @@ function ORoster({state, update}) {
 
   const SPORT_COLS = ["줄다리기","장애물달리기","계주","태풍의눈","8자마라톤","피지컬100","미션달리기","골때녀"];
 
-  // 시트 형식:
-  // 행 1: 헤더
-  // A=학급(1-1), B=담임, C=반장, D=부반장, E=체육부장, F=팀 소개 멘트
-  // G~ 이후: 학생 명단 (학번|이름|성별|종목1,종목2,...)
-  // 
-  // 또는 다른 구조: 한 시트에 학급별 섹션 구분
-  // 여기서는 단순화: 시트 1행=학급, 그 다음행~12명 학생 묶음
-  // 더 깔끔한 방식: 학급 정보 시트 + 학생 시트 분리
-  
-  // 실제 구현: 단일 시트 / 한 학생당 한 행
-  // A=학급(1-1), B=학번, C=이름, D=성별(남/여), 
-  // E=담임여부(✓), F=반장여부(✓), G=부반장(✓), H=체육부장(✓),
-  // I=팀소개멘트(첫 행만), J~Q=종목 8개 (체크된 종목)
+  // ── 새 참가신청서 형식 파싱 ──────────────────────────
+  // 행1: 제목 (병합)
+  // 행2: B2=학년숫자, D2=반숫자, 담임, 슬로건
+  // 행3: 팀 소개 멘트 (전체 병합)
+  // 행4: 종목 그룹 헤더 (병합)
+  // 행5: 남/여 서브헤더 (자동입력/선택/남/여/구분없음...)
+  // 행6~: 학생 데이터
+  //   A(0)=번호, B(1)=이름, C(2)=성별, D(3)=역할
+  //   E(4)=줄다리기남, F(5)=줄다리기여
+  //   G(6)=장애물남, H(7)=장애물여
+  //   I(8)=계주남, J(9)=계주여
+  //   K(10)=태풍의눈, L(11)=8자마라톤
+  //   M(12)=피지컬100남, N(13)=피지컬100여
+  //   O(14)=미션달리기, P(15)=골때녀
+  // 종목 참가 여부: 해당 열에 ✓ 가 있으면 참가
+
+  // 종목→열 인덱스 매핑 (체크 여부는 OR로 판단)
+  const SPORT_IDX = {
+    '줄다리기':     [4, 5],
+    '장애물달리기': [6, 7],
+    '계주':         [8, 9],
+    '태풍의눈':     [10],
+    '8자마라톤':    [11],
+    '피지컬100':    [12, 13],
+    '미션달리기':   [14],
+    '골때녀':       [15],
+  };
+
+  const isChecked = (v) => v && v.trim() && v.trim() !== '0' &&
+    v.toLowerCase() !== 'false' && v.toLowerCase() !== 'x';
 
   const loadFromSheet = async () => {
-    const csvUrl = sheetToCSV(sheetUrl);
+    // 참가신청서 탭을 CSV로 가져오기
+    const csvUrl = sheetToCSV(sheetUrl, '참가신청서');
     if(!csvUrl) { alert("구글 시트 공유 URL이 올바르지 않습니다"); return; }
     setLoading(true);
     try {
       const res = await fetch(csvUrl);
       const text = await res.text();
       const rows = parseCSV(text);
-      const classes = {};
+      if(rows.length < 6) throw new Error("데이터가 너무 적습니다. 시트 형식을 확인해주세요.");
 
-      // 첫 행 헤더 건너뛰기
-      for(let i=1; i<rows.length; i++) {
+      // 행2: 학년(index1), 반(index3)
+      const row2 = rows[1] || [];
+      const gradeNum = (row2[1]||"").trim();
+      const clsNum   = (row2[3]||"").trim();
+
+      if(!gradeNum || !clsNum) throw new Error("학년/반 정보를 읽을 수 없습니다.\nB2(학년), D2(반) 셀을 확인해주세요.");
+
+      const clsKey = `${gradeNum}-${clsNum}`;
+
+      // 행3: 팀 소개 멘트 (첫 번째 비어있지 않은 셀)
+      const row3 = rows[2] || [];
+      const intro = row3.find(v => v && v.trim() && !v.includes('팀 소개 멘트') && !v.includes('📣')) || "";
+
+      // 행6(index5)~: 학생 데이터
+      const students = [];
+      for(let i = 5; i < rows.length; i++) {
         const r = rows[i];
-        const cls = (r[0]||"").trim();
-        if(!cls) continue;
-        if(!classes[cls]) {
-          classes[cls] = {
-            teacher:"", leader:"", vleader:"", sportLead:"",
-            intro:"", students:[]
-          };
-        }
-        const c = classes[cls];
-        const stuId   = (r[1]||"").trim();
-        const stuName = (r[2]||"").trim();
-        const gender  = (r[3]||"").trim();
-        const isHomeroom = !!(r[4]||"").trim();
-        const isLeader   = !!(r[5]||"").trim();
-        const isVleader  = !!(r[6]||"").trim();
-        const isSportLead= !!(r[7]||"").trim();
-        const introText  = (r[8]||"").trim();
+        const name   = (r[1]||"").trim();
+        const gender = (r[2]||"").trim();
 
-        // 종목들 (J~Q열, 인덱스 9~16)
+        // 이름 없거나 유효하지 않은 성별(전출/자퇴 등) 건너뜀
+        if(!name) continue;
+        if(gender !== '남' && gender !== '여') continue;
+
+        const stuId = (r[0]||"").trim();  // 번호
+        const role  = (r[3]||"").trim();  // 역할
+
+        // 종목 참가 여부
         const sports = [];
-        for(let s=0; s<SPORT_COLS.length; s++) {
-          const v = (r[9+s]||"").trim();
-          if(v && v!=="0" && v.toLowerCase()!=="false") sports.push(SPORT_COLS[s]);
+        for(const [sp, idxArr] of Object.entries(SPORT_IDX)) {
+          if(idxArr.some(idx => isChecked(r[idx]||""))) {
+            sports.push(sp);
+          }
         }
 
-        if(introText && !c.intro) c.intro = introText;
-        if(isHomeroom && stuName) c.teacher = stuName;
-        if(isLeader   && stuName) c.leader = stuName;
-        if(isVleader  && stuName) c.vleader = stuName;
-        if(isSportLead&& stuName) c.sportLead = stuName;
-        if(stuName && (gender==="남"||gender==="여")) {
-          c.students.push({id:stuId, name:stuName, gender, sports});
-        }
+        students.push({id: stuId, name, gender, role, sports});
       }
 
-      update(s => ({
-        ...s, roster:{ sheetUrl, classes }
-      }));
-      alert(`✅ ${Object.keys(classes).length}개 학급, 명단 불러왔습니다`);
+      if(!students.length) throw new Error("학생 데이터를 찾을 수 없습니다.\n시트 공유 설정을 '뷰어'로 해주세요.");
+
+      // 역할별 분류
+      const teacher   = students.find(s=>s.role==='담임')?.name   || "";
+      const leader    = students.find(s=>s.role==='반장')?.name   || "";
+      const vleader   = students.find(s=>s.role==='부반장')?.name || "";
+      const sportLead = students.find(s=>s.role==='체육부장')?.name || "";
+
+      const classes = {
+        ...(roster.classes||{}),   // 기존 데이터 유지 (다른 반)
+        [clsKey]: { teacher, leader, vleader, sportLead, intro, students }
+      };
+
+      update(s => ({...s, roster:{ sheetUrl, classes }}));
+      alert(`✅ ${clsKey}반 명단 불러왔습니다\n👥 ${students.length}명 / 종목 신청자: ${students.filter(s=>s.sports.length>0).length}명`);
     } catch(e) {
-      alert("불러오기 실패: "+e.message+"\n시트 공유를 '링크가 있는 모든 사용자: 뷰어'로 설정해주세요");
+      alert("불러오기 실패: "+e.message+"\n\n시트 공유 설정: '링크가 있는 모든 사용자 → 뷰어'");
     }
     setLoading(false);
   };
@@ -7260,18 +7292,33 @@ function ORoster({state, update}) {
     {/* 시트 URL 입력 */}
     <div className="card" style={{marginBottom:12}}>
       <div style={{fontSize:13,fontWeight:700,color:"#37352f",marginBottom:8}}>
-        🔗 구글 시트 공유 URL
+        🔗 반별 참가신청서 URL 입력
+      </div>
+      <div style={{fontSize:11,color:"#1e40af",background:"#eff6ff",
+        borderRadius:6,padding:"8px 10px",marginBottom:8,lineHeight:1.6}}>
+        💡 <b>새 참가신청서 형식</b> 지원<br/>
+        • 반별로 작성된 사본 URL을 하나씩 입력해 불러오기<br/>
+        • 기존에 불러온 반 데이터는 유지됩니다<br/>
+        • 읽는 시트 탭: <b>참가신청서</b>
       </div>
       <input value={sheetUrl} onChange={e=>setSheetUrl(e.target.value)}
         placeholder="https://docs.google.com/spreadsheets/d/..."
         className="oinput" style={{marginBottom:8,fontFamily:"monospace",fontSize:12}}/>
-      <div style={{fontSize:11,color:"#9b9a97",marginBottom:8,lineHeight:1.5}}>
+      <div style={{fontSize:11,color:"#9b9a97",marginBottom:8}}>
         ⚠️ 시트 공유 설정: "링크가 있는 모든 사용자 → 뷰어"
       </div>
-      <button onClick={loadFromSheet} disabled={loading}
-        className="obtn primary" style={{width:"100%",padding:10,fontSize:14}}>
-        {loading?"불러오는 중...":"📥 시트에서 명단 불러오기"}
-      </button>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+        <button onClick={loadFromSheet} disabled={loading}
+          className="obtn primary" style={{padding:10,fontSize:13}}>
+          {loading?"불러오는 중...":"📥 이 반 명단 추가"}
+        </button>
+        <button onClick={()=>{
+          if(confirm("모든 학급 명단을 초기화하시겠습니까?"))
+            update(s=>({...s,roster:{sheetUrl:"",classes:{}}}));
+        }} className="obtn danger" style={{padding:10,fontSize:13}}>
+          🗑 전체 초기화
+        </button>
+      </div>
     </div>
 
     {/* 학급 목록 + 통계 */}
