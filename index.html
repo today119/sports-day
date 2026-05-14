@@ -2083,7 +2083,7 @@ function VDash({cur, next, ranked, state, pickSbTab}) {
                   color:"#fff",background:"#eb5757",padding:"3px 9px",borderRadius:10,
                   letterSpacing:1,flexShrink:0}}>LIVE</span>}
                 {isDone&&!canNav&&<span style={{fontSize:14,color:"#9b9a97",flexShrink:0}}>✓</span>}
-                {isDone&&canNav&&<span style={{fontSize:13,color:"#9b9a97",flexShrink:0}}>✓ &rsaquo;</span>}
+                {isDone&&canNav&&<span style={{fontSize:13,color:"#9b9a97",flexShrink:0}}>{"✓ ›"}</span>}
                 {!isDone&&!isCur&&canNav&&(
                   <span style={{fontSize:12,color:"#9b9a97",flexShrink:0,
                     background:"#f3f4f6",padding:"3px 8px",borderRadius:8,
