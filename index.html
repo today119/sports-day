@@ -1200,10 +1200,141 @@ function VSportDetail({sel, state}) {
     const ranks  = getTimeTrialRanks(counts);
     const sorted = Object.entries(counts).filter(([,c])=>parseCount(c)>=0)
                     .sort((a,b)=>parseCount(b[1])-parseCount(a[1]));
+    const grade = sel.startsWith("1")?"1":"2";
+    const gradeClasses = ALL_CLASSES.filter(c=>c.startsWith(grade+"-"));
+
+    // ── 학생심판 입력 패널 ──
+    const StudentJudgePanel = () => {
+      const [judgeStep, setJudgeStep] = useState("login"); // login | input | done
+      const [pwdInput, setPwdInput]   = useState("");
+      const [myClass,  setMyClass]    = useState(null);
+      const [countVal, setCountVal]   = useState("");
+      const [saving,   setSaving]     = useState(false);
+      const [errMsg,   setErrMsg]     = useState("");
+
+      // 비번 = 반번호 2자리 (1반→"01", 10반→"10")
+      const checkPwd = () => {
+        const trimmed = pwdInput.trim().padStart(2,"0");
+        const matched = gradeClasses.find(c => {
+          const num = c.split("-")[1].padStart(2,"0");
+          return num === trimmed;
+        });
+        if(!matched) { setErrMsg("비밀번호가 올바르지 않습니다"); return; }
+        const existing = counts[matched];
+        setMyClass(matched);
+        if(existing !== undefined) setCountVal(String(existing));
+        setErrMsg("");
+        setJudgeStep("input");
+      };
+
+      const saveCount = async () => {
+        const num = parseInt(countVal);
+        if(isNaN(num)||num<0) { setErrMsg("올바른 횟수를 입력해주세요"); return; }
+        setSaving(true);
+        try {
+          const path = `timeTrial/${encodeURIComponent(sel)}/${encodeURIComponent(myClass)}`;
+          const url = `${window.FIREBASE_URL}/${path}.json`;
+          const res = await fetch(url,{method:"PUT",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify(num)});
+          if(!res.ok) throw new Error("저장 실패");
+          setJudgeStep("done");
+        } catch(e) { setErrMsg("저장 실패: "+e.message); }
+        setSaving(false);
+      };
+
+      return (
+        <div className="card" style={{marginTop:12,
+          background:"linear-gradient(135deg,#eff6ff,#f0fdf4)",
+          border:"2px solid #bfdbfe"}}>
+          <div style={{fontSize:13,fontWeight:800,color:"#1e40af",marginBottom:10,
+            display:"flex",alignItems:"center",gap:6}}>
+            ✏️ 학생심판 기록 입력
+            <span style={{fontSize:11,color:"#6b7280",fontWeight:500}}>
+              ({grade}학년 담당 심판용)
+            </span>
+          </div>
+
+          {judgeStep==="login" && (<>
+            <div style={{fontSize:12,color:"#374151",marginBottom:8,lineHeight:1.6}}>
+              담당 반 번호를 입력하세요<br/>
+              <span style={{fontSize:11,color:"#9ca3af"}}>예) 1반 → 01, 10반 → 10</span>
+            </div>
+            <div style={{display:"flex",gap:6}}>
+              <input value={pwdInput} onChange={e=>setPwdInput(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&checkPwd()}
+                placeholder="반 번호" type="number" className="oinput"
+                style={{flex:1,fontSize:20,fontWeight:800,textAlign:"center",
+                  padding:"10px",letterSpacing:2}}/>
+              <button onClick={checkPwd} className="obtn primary"
+                style={{padding:"10px 18px",fontSize:14,fontWeight:800}}>
+                확인
+              </button>
+            </div>
+            {errMsg&&<div style={{color:"#dc2626",fontSize:12,marginTop:6}}>{errMsg}</div>}
+          </>)}
+
+          {judgeStep==="input" && (<>
+            <div style={{marginBottom:10,padding:"8px 12px",background:"#fff",
+              borderRadius:8,border:"1px solid #e5e7eb",
+              display:"flex",alignItems:"center",gap:8}}>
+              <TeamBadge team={classToTeam(myClass)} size={28}/>
+              <span style={{fontWeight:800,fontSize:16,color:"#37352f"}}>{myClass}반</span>
+              <span style={{fontSize:12,color:"#9ca3af",marginLeft:"auto"}}>담당 학급</span>
+            </div>
+            <div style={{fontSize:12,color:"#374151",marginBottom:8}}>
+              줄넘기 8자 통과 횟수 입력 (경기 종료 후 입력)
+            </div>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <button onClick={()=>setCountVal(v=>String(Math.max(0,(parseInt(v)||0)-1)))}
+                style={{width:44,height:44,borderRadius:8,border:"1.5px solid #e5e7eb",
+                  background:"#fff",fontSize:22,fontWeight:700,cursor:"pointer",flexShrink:0}}>−</button>
+              <input value={countVal} onChange={e=>setCountVal(e.target.value)}
+                type="number" className="oinput"
+                style={{flex:1,fontSize:32,fontWeight:900,textAlign:"center",
+                  padding:"8px",letterSpacing:1}}/>
+              <button onClick={()=>setCountVal(v=>String((parseInt(v)||0)+1))}
+                style={{width:44,height:44,borderRadius:8,border:"1.5px solid #e5e7eb",
+                  background:"#fff",fontSize:22,fontWeight:700,cursor:"pointer",flexShrink:0}}>+</button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginTop:8}}>
+              <button onClick={()=>{setJudgeStep("login");setPwdInput("");setMyClass(null);setCountVal("");setErrMsg("");}}
+                className="obtn"
+                style={{padding:"10px",fontSize:13,fontWeight:700}}>
+                ← 돌아가기
+              </button>
+              <button onClick={saveCount} disabled={saving} className="obtn primary"
+                style={{padding:"10px",fontSize:14,fontWeight:800}}>
+                {saving?"저장 중...":"💾 기록 저장"}
+              </button>
+            </div>
+            {errMsg&&<div style={{color:"#dc2626",fontSize:12,marginTop:6}}>{errMsg}</div>}
+          </>)}
+
+          {judgeStep==="done" && (<>
+            <div style={{textAlign:"center",padding:"16px 0"}}>
+              <div style={{fontSize:40,marginBottom:8}}>✅</div>
+              <div style={{fontSize:16,fontWeight:800,color:"#15803d",marginBottom:4}}>
+                {myClass}반 기록 저장 완료!
+              </div>
+              <div style={{fontSize:24,fontWeight:900,color:"#37352f",marginBottom:4}}>
+                {countVal}개
+              </div>
+              <div style={{fontSize:12,color:"#9ca3af",marginBottom:12}}>
+                실시간으로 반영되었습니다
+              </div>
+              <button onClick={()=>{setJudgeStep("login");setPwdInput("");setMyClass(null);setCountVal("");}}
+                className="obtn" style={{fontSize:13,padding:"8px 20px"}}>
+                다른 반 입력하기
+              </button>
+            </div>
+          </>)}
+        </div>
+      );
+    };
+
     if(!sorted.length) {
       // 학년별 학급 10개 미리보기
-      const grade = sel.startsWith("1")?"1":"2";
-      const gradeClasses = ALL_CLASSES.filter(c=>c.startsWith(grade+"-"));
       return <NotYet extraInfo={
         <>
           <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",marginBottom:8}}>
@@ -1229,6 +1360,7 @@ function VSportDetail({sel, state}) {
               );
             })}
           </div>
+          <StudentJudgePanel/>
         </>
       }/>;
     }
@@ -1248,7 +1380,7 @@ function VSportDetail({sel, state}) {
           </div>
         ))}
       </div>
-      <div className="card">
+      <div className="card" style={{marginBottom:8}}>
         <div style={{fontSize:15,color:"#37352f",fontWeight:800,marginBottom:12}}>📋 학급별 결과</div>
         {sorted.map(([c,v])=>{const team=classToTeam(c);const rank=ranks[c];return(
           <div key={c} className="rrow">
@@ -1262,6 +1394,7 @@ function VSportDetail({sel, state}) {
           </div>
         );})}
       </div>
+      <StudentJudgePanel/>
     </>);
   }
 
@@ -2709,38 +2842,41 @@ function VCheerScore({state}) {
     });
   };
 
-  // 순위 → 점수 변환 (등간격: max × (11-rank) / 10)
-  const rankToScore = (max, rank) => {
-    return Math.round(max * (11 - rank) / 10);
-  };
+  // 순위 → 점수 변환 (1~4위 지정, 나머지 동점)
+  // 1위=max, 2위=max*0.9, 3위=max*0.8, 4위=max*0.7, 나머지=max*0.6
+  const TOP_RANK = 4;
+  const rankToScore = (max, rank) => Math.round(max * (11 - rank) / 10);
+  const tieScore   = (max) => Math.round(max * 6 / 10); // 5위 동점
 
-  // 저장: 순위 데이터를 학급별 점수로 변환해 저장
+  // 저장: 1~4위 배치 + 나머지는 동점(tieScore)
   const save = async () => {
     setSaving(true);
     try {
-      // ranks → scores 변환
-      // scores = {"1-1": {flag, uniform, entry, daily, order, cheer}, ...}
       const scores = {};
       for(const g of ["1","2"]) {
         const gradeRanks = ranks[g] || {};
+        const gradeClasses = ALL_CLASSES.filter(c=>c.startsWith(g+"-"));
         for(const cat of CHEER_CATS) {
           const catRanks = gradeRanks[cat.id] || {};
+          const ranked = Object.values(catRanks).filter(Boolean);
+          const unranked = gradeClasses.filter(c=>!ranked.includes(c));
+          // 1~4위 점수
           for(const rank in catRanks) {
             const cls = catRanks[rank];
             if(!cls) continue;
             if(!scores[cls]) scores[cls] = {};
             scores[cls][cat.id] = rankToScore(cat.max, parseInt(rank));
           }
+          // 나머지 동점
+          for(const cls of unranked) {
+            if(!scores[cls]) scores[cls] = {};
+            scores[cls][cat.id] = tieScore(cat.max);
+          }
         }
       }
 
       const judgeId = `${dept}_${name}`;
-      const payload = {
-        dept, name,
-        ranks,         // 원본 순위 데이터
-        scores,        // 변환된 점수
-        updatedAt: Date.now()
-      };
+      const payload = { dept, name, ranks, scores, updatedAt: Date.now() };
       const url = `${window.FIREBASE_URL}/cheer/${encodeURIComponent(judgeId)}.json`;
       const res = await fetch(url, {
         method:"PUT",
@@ -2828,11 +2964,11 @@ function VCheerScore({state}) {
     </div>
   </>);
 
-  // ════ 3단계: 순위 기반 채점 (학년 탭 + 컬럼 레이아웃) ════
+  // ════ 3단계: 1~4위 지정 채점 ════
   const gradeRanks = ranks[grade] || {};
   const gradeClasses = ALL_CLASSES.filter(c=>c.startsWith(grade+"-"));
 
-  // 각 항목별 채점 진행 카운트
+  // 항목별 지정된 순위 수
   const progressByCat = {};
   for(const cat of CHEER_CATS) {
     progressByCat[cat.id] = Object.values(gradeRanks[cat.id]||{}).filter(v=>v).length;
@@ -2852,8 +2988,7 @@ function VCheerScore({state}) {
     {/* 학년 탭 */}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,marginBottom:12}}>
       {["1","2"].map(g=>(
-        <button key={g} onClick={()=>setGrade(g)}
-          className="obtn"
+        <button key={g} onClick={()=>setGrade(g)} className="obtn"
           style={{
             padding:"12px",fontSize:14,fontWeight:800,
             background:grade===g?"#3b82f6":"#fff",
@@ -2868,70 +3003,72 @@ function VCheerScore({state}) {
     {/* 안내 */}
     <div className="card" style={{background:"#eff6ff",borderColor:"#bfdbfe",
       padding:"10px 14px",marginBottom:12}}>
-      <div style={{fontSize:12,color:"#1e40af",lineHeight:1.6}}>
-        💡 각 항목별로 1위~10위에 학급을 배치하세요. 자동으로 점수 계산됩니다.<br/>
-        한 학급은 한 순위에만 배치됩니다 (다른 슬롯에 있으면 자동 이동).
+      <div style={{fontSize:12,color:"#1e40af",lineHeight:1.7}}>
+        💡 각 항목별로 <b>1~4위만 지정</b>하세요. 나머지 학급은 자동으로 <b>동점</b> 처리됩니다.<br/>
+        <span style={{fontSize:11,color:"#3b82f6"}}>
+          1위 100% · 2위 90% · 3위 80% · 4위 70% · <b>나머지 60% 동점</b>
+        </span>
       </div>
     </div>
 
-    {/* 컬럼 레이아웃 - 가로 스크롤 */}
-    <div style={{overflowX:"auto",marginBottom:12,paddingBottom:6}}>
-      <div style={{display:"grid",
-        gridTemplateColumns:`repeat(${CHEER_CATS.length}, 145px)`,gap:8}}>
-        {CHEER_CATS.map(cat=>{
-          const catRanks = gradeRanks[cat.id]||{};
-          const usedClasses = Object.values(catRanks).filter(Boolean);
-          const remaining = gradeClasses.filter(c=>!usedClasses.includes(c));
-          const isHidden = cat.hidden;
-          return (
-            <div key={cat.id}>
-              {/* 항목 헤더 */}
-              <div style={{
-                background:isHidden?"#fef2f2":"#f3f4f6",
-                border:`1px solid ${isHidden?"#fecaca":"#e5e7eb"}`,
-                padding:"8px 6px",borderRadius:8,textAlign:"center",marginBottom:6
-              }}>
-                <div style={{fontSize:13,fontWeight:800,
-                  color:isHidden?"#b91c1c":"#37352f"}}>
-                  {isHidden && "🔒 "}{cat.label}
-                </div>
-                <div style={{fontSize:10,color:isHidden?"#dc2626":"#787671",marginTop:1}}>
-                  최고 {cat.max}점 · {progressByCat[cat.id]}/10
-                </div>
-              </div>
+    {/* 항목별 세로 카드 */}
+    <div style={{marginBottom:12}}>
+      {CHEER_CATS.map(cat=>{
+        const catRanks = gradeRanks[cat.id]||{};
+        const usedClasses = Object.values(catRanks).filter(Boolean);
+        const remaining = gradeClasses.filter(c=>!usedClasses.includes(c));
+        const isHidden = cat.hidden;
+        const done = progressByCat[cat.id];
+        return (
+          <div key={cat.id} className="card" style={{marginBottom:10,padding:"12px 14px",
+            borderLeft:`4px solid ${isHidden?"#f87171":done>=TOP_RANK?"#22c55e":"#e5e7eb"}`}}>
 
-              {/* 1위~10위 슬롯 */}
-              {[1,2,3,4,5,6,7,8,9,10].map(rank=>{
-                const cls = catRanks[rank] || "";
+            {/* 항목 헤더 */}
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+              <div style={{flex:1}}>
+                <span style={{fontSize:14,fontWeight:800,
+                  color:isHidden?"#b91c1c":"#37352f"}}>
+                  {isHidden&&"🔒 "}{cat.label}
+                </span>
+                <span style={{fontSize:11,color:"#787671",marginLeft:8}}>
+                  최고 {cat.max}점
+                </span>
+              </div>
+              <span style={{fontSize:12,fontWeight:700,
+                color:done>=TOP_RANK?"#16a34a":"#9ca3af"}}>
+                {done}/{TOP_RANK}위 완료 {done>=TOP_RANK?"✅":""}
+              </span>
+            </div>
+
+            {/* 1~4위 슬롯 (2열 그리드) */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}}>
+              {[1,2,3,4].map(rank=>{
+                const cls = catRanks[rank]||"";
                 const score = rankToScore(cat.max, rank);
-                const isPodium = rank<=3;
+                const medal = rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":"4️⃣";
                 const isFilled = !!cls;
-                const medal = rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":rank;
                 return(
                   <div key={rank} style={{
-                    display:"flex",alignItems:"center",gap:4,padding:"5px 6px",
-                    background:isFilled
-                      ? (isPodium?"#fef3c7":"#f9fafb")
-                      : "#fff",
-                    border:`1px ${isFilled?"solid":"dashed"} ${isFilled?(isPodium?"#fde68a":"#e5e7eb"):"#d1d5db"}`,
-                    borderRadius:6,marginBottom:3
-                  }}>
-                    <div style={{minWidth:30,fontSize:11,fontWeight:700,
-                      color:isPodium?"#854f0b":"#37352f",lineHeight:1.2,textAlign:"center"}}>
-                      <div>{medal}</div>
-                      <div style={{fontSize:9,color:"#787671",fontWeight:600,marginTop:1}}>{score}점</div>
+                    display:"flex",alignItems:"center",gap:6,
+                    padding:"7px 10px",borderRadius:8,
+                    background:isFilled?"#fef3c7":"#f9fafb",
+                    border:`1.5px solid ${isFilled?"#fde68a":"#e5e7eb"}`}}>
+                    <div style={{flexShrink:0,textAlign:"center",minWidth:32}}>
+                      <div style={{fontSize:16,lineHeight:1}}>{medal}</div>
+                      <div style={{fontSize:9,color:"#a16207",fontWeight:700,marginTop:1}}>
+                        {score}점
+                      </div>
                     </div>
                     <select value={cls}
                       onChange={e=>setRank(cat.id, rank, e.target.value)}
                       style={{
-                        flex:1,fontSize:11,padding:"3px 2px",
+                        flex:1,fontSize:13,padding:"3px 2px",
                         border:"none",background:"transparent",
                         color:cls?"#37352f":"#9ca3af",
                         fontWeight:cls?700:400,fontFamily:"inherit",
                         cursor:"pointer",minWidth:0
                       }}>
-                      <option value="">—</option>
-                      {/* 현재 선택된 학급 + 미사용 학급 */}
+                      <option value="">— 선택 —</option>
                       {gradeClasses.filter(c=>c===cls||!usedClasses.includes(c)).map(c=>(
                         <option key={c} value={c}>{c}반</option>
                       ))}
@@ -2939,30 +3076,45 @@ function VCheerScore({state}) {
                   </div>
                 );
               })}
-
-              {/* 미배치 학급 표시 */}
-              {remaining.length>0 && remaining.length<gradeClasses.length && (
-                <div style={{fontSize:9,color:"#9ca3af",padding:"4px 4px",
-                  textAlign:"center",lineHeight:1.4}}>
-                  미배치: {remaining.map(c=>c.split("-")[1]).join(",")}
-                </div>
-              )}
             </div>
-          );
-        })}
-      </div>
+
+            {/* 나머지 동점 */}
+            <div style={{
+              padding:"7px 10px",borderRadius:8,
+              background:"#f1f5f9",border:"1px solid #e2e8f0",
+              display:"flex",alignItems:"center",gap:8}}>
+              <div style={{flexShrink:0,fontSize:12,fontWeight:700,color:"#64748b",minWidth:64}}>
+                나머지 동점<br/>
+                <span style={{color:"#3b82f6",fontSize:13}}>{tieScore(cat.max)}점</span>
+              </div>
+              <div style={{fontSize:12,color:"#475569",lineHeight:1.6,fontWeight:600}}>
+                {remaining.length>0
+                  ? remaining.map(c=>c.split("-")[1]+"반").join("  ·  ")
+                  : <span style={{color:"#94a3b8",fontWeight:400}}>없음</span>}
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
 
     {/* 진행 + 저장 */}
     <div style={{position:"sticky",bottom:0,background:"#fff",
       padding:"10px 0",borderTop:"1px solid #e5e7eb",
       display:"flex",gap:8,alignItems:"center"}}>
-      <div style={{flex:1,fontSize:11,color:"#787671"}}>
-        {grade}학년 진행: {CHEER_CATS.map(c=>`${c.label.slice(0,2)} ${progressByCat[c.id]}/10`).join(" · ")}
+      <div style={{flex:1,fontSize:11,color:"#787671",lineHeight:1.5}}>
+        {grade}학년 진행<br/>
+        {CHEER_CATS.map(c=>{
+          const d=progressByCat[c.id];
+          return <span key={c.id} style={{marginRight:6,
+            color:d>=TOP_RANK?"#16a34a":"#787671",fontWeight:d>=TOP_RANK?700:400}}>
+            {c.label.slice(0,2)} {d}/{TOP_RANK}
+          </span>;
+        })}
       </div>
       <button onClick={save} disabled={saving}
         className="obtn primary"
-        style={{padding:"10px 20px",fontSize:14,fontWeight:800}}>
+        style={{padding:"10px 20px",fontSize:14,fontWeight:800,flexShrink:0}}>
         {saving?"저장 중...":"💾 저장"}
       </button>
     </div>
@@ -4655,11 +4807,14 @@ function FootballPitch({ half }) {
   const grade   = student.grade || "1";
 
   const parseRows = (formation, players) => {
+    const safeP = Array.isArray(players) ? players
+      : players && typeof players==="object" ? Object.values(players)
+      : [];
     const counts = [1, ...formation.split("-").map(n=>parseInt(n)||0)];
     let idx=0;
     return counts.map(count => {
       const row=[];
-      for(let i=0;i<count;i++) row.push(players[idx++]||null);
+      for(let i=0;i<count;i++) row.push(safeP[idx++]||null);
       return row;
     });
   };
@@ -4913,15 +5068,24 @@ function OGolddanya({ state, update }) {
     upd({score:{...c,[team]:Math.max(0,(c[team]||0)+delta)}});
   };
   const setPlayerField = (team,idx,field,val) => {
-    const ps=[...((half[team]?.players)||[])];
-    if(!ps[idx]) ps[idx]={};
+    const raw = half[team]?.players;
+    // Firebase가 배열을 객체로 저장할 수 있음 → 안전하게 변환
+    const ps = Array.isArray(raw) ? [...raw]
+      : raw && typeof raw==="object" ? Object.values(raw)
+      : [];
+    while(ps.length<=idx) ps.push({name:"",number:""});
+    if(!ps[idx]||typeof ps[idx]!=="object") ps[idx]={};
     ps[idx]={...ps[idx],[field]:val};
     updTeam(team,{players:ps});
   };
   const getPlayers = (team) => {
-    const ps=[...((half[team]?.players)||[])];
-    while(ps.length<11) ps.push({name:"",number:""});
-    return ps.slice(0,11);
+    const raw = half[team]?.players;
+    const ps = Array.isArray(raw) ? [...raw]
+      : raw && typeof raw==="object" ? Object.values(raw)
+      : [];
+    const result = ps.map(p=>(p&&typeof p==="object"?p:{name:"",number:"",photo:""}));
+    while(result.length<11) result.push({name:"",number:"",photo:""});
+    return result.slice(0,11);
   };
   const submitGoal = () => {
     if(!goalName.trim()) return;
