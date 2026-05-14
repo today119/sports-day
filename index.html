@@ -4965,13 +4965,18 @@ function PlayerInputGrid({team, label, color, players, onFieldChange}) {
 //  FootballPitch: 프리미엄 다크 라인업 (Best XI 스타일)
 // ════════════════════════════════════════════════════════
 function FootballPitch({ half }) {
-  const teacher = half?.teacher || { formation:"4-3-3", players:[] };
+  const teacher = half?.teacher || { formation:"4-3-3", players:[], staff:[] };
   const student = half?.student || { grade:"1", formation:"4-4-2", players:[] };
   const score   = half?.score   || { teacher:0, student:0 };
   const goals   = half?.goals   || [];
   const status  = half?.status  || "upcoming";
   const grade   = student.grade || "1";
-  const [view, setView] = useState("score"); // "score" | "teacher" | "student"
+  const [view, setView] = useState("score");
+
+  // staff 안전하게 파싱
+  const staff = Array.isArray(teacher.staff) ? teacher.staff
+    : teacher.staff && typeof teacher.staff==="object"
+      ? Object.values(teacher.staff) : [];
 
   const T_BG="#1e3a8a", S_BG="#9f1239", GOLD="#d4af37";
 
@@ -5099,7 +5104,6 @@ function FootballPitch({ half }) {
     const rows = parseRows(teamData.formation||"4-4-2", teamData.players||[]);
     const dr   = isTeacher ? rows : [...rows].reverse();
     const teamGoals = goalsByTeam(teamKey);
-    const hasStaff  = isTeacher && staff.some(s=>s.name||s.photo);
 
     return (
       <div style={{borderRadius:14,overflow:"hidden",
@@ -5110,39 +5114,85 @@ function FootballPitch({ half }) {
           background: isTeacher
             ? `linear-gradient(135deg,#111827,${T_BG})`
             : `linear-gradient(135deg,${S_BG},#7f1d1d)`,
-          padding:"12px 16px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-            <span style={{color:"#fff",fontWeight:900,fontSize:16}}>
-              {isTeacher ? "👨‍🏫 교사팀" : `🎓 ${grade}학년`}
-            </span>
-            <span style={{color:isTeacher?"#93c5fd":"#fca5a5",fontSize:13,fontWeight:700,
-              background:"rgba(255,255,255,.12)",padding:"3px 10px",borderRadius:10}}>
-              {teamData.formation}
-            </span>
-          </div>
+          padding:"12px 14px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:28,fontWeight:900,color:"#fff",lineHeight:1,
-              textShadow:`0 0 20px ${isTeacher?"rgba(59,130,246,.6)":"rgba(239,68,68,.6)"}`}}>
-              {isTeacher ? score.teacher : score.student}
-            </span>
-            <div style={{flex:1}}>
-              {teamGoals.length>0
-                ? <div style={{fontSize:11,color:"rgba(255,255,255,.75)",lineHeight:1.5}}>
-                    ⚽ {teamGoals.map(g=>`${g.name}${g.time?" "+g.time:""}`).join("  ·  ")}
-                  </div>
-                : <div style={{fontSize:11,color:"rgba(255,255,255,.35)"}}>득점 없음</div>
-              }
+
+            {/* 좌측: 팀명·포메이션·스코어 */}
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <span style={{color:"#fff",fontWeight:900,fontSize:15}}>
+                  {isTeacher ? "👨‍🏫 교사팀" : `🎓 ${grade}학년`}
+                </span>
+                <span style={{color:isTeacher?"#93c5fd":"#fca5a5",fontSize:12,fontWeight:700,
+                  background:"rgba(255,255,255,.12)",padding:"2px 9px",borderRadius:10}}>
+                  {teamData.formation}
+                </span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:26,fontWeight:900,color:"#fff",lineHeight:1,
+                  textShadow:`0 0 20px ${isTeacher?"rgba(59,130,246,.6)":"rgba(239,68,68,.6)"}`}}>
+                  {isTeacher ? score.teacher : score.student}
+                </span>
+                <div style={{flex:1,minWidth:0}}>
+                  {teamGoals.length>0
+                    ? <div style={{fontSize:10,color:"rgba(255,255,255,.75)",lineHeight:1.5,
+                        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                        ⚽ {teamGoals.map(g=>`${g.name}${g.time?" "+g.time:""}`).join(" · ")}
+                      </div>
+                    : <div style={{fontSize:10,color:"rgba(255,255,255,.3)"}}>득점 없음</div>
+                  }
+                </div>
+                <div style={{flexShrink:0}}>{statusEl}</div>
+              </div>
             </div>
-            <div>{statusEl}</div>
+
+            {/* 우측: 감독/코치 미니카드 (교사팀만) */}
+            {isTeacher && staff.filter(s=>s.name||s.photo).length>0 && (
+              <div style={{display:"flex",gap:6,flexShrink:0}}>
+                {staff.map((s,i)=>{
+                  if(!s.name&&!s.photo) return null;
+                  const roleColor = i===0 ? GOLD : "#93c5fd";
+                  const W=52, H=62;
+                  return(
+                    <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                      <div style={{width:W,height:H,borderRadius:8,overflow:"hidden",
+                        border:`1.5px solid ${roleColor}`,
+                        boxShadow:`0 0 8px ${roleColor}55`,
+                        background:s.photo?"#0a0a0a":"rgba(255,255,255,.08)",
+                        position:"relative"}}>
+                        {s.photo ? (
+                          <img src={s.photo} alt={s.name}
+                            style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"top center"}}
+                            onError={e=>{e.target.style.display="none";}}/>
+                        ) : (
+                          <div style={{width:"100%",height:"100%",display:"flex",
+                            alignItems:"center",justifyContent:"center",
+                            fontSize:22,opacity:.3}}>👤</div>
+                        )}
+                        <div style={{position:"absolute",top:2,left:0,right:0,textAlign:"center",
+                          fontSize:8,fontWeight:800,color:roleColor,letterSpacing:.3,
+                          textShadow:"0 1px 4px #000"}}>
+                          {s.role||( i===0?"감독":"코치")}
+                        </div>
+                      </div>
+                      <div style={{fontSize:9,color:"rgba(255,255,255,.85)",fontWeight:700,
+                        textAlign:"center",maxWidth:W,overflow:"hidden",
+                        textOverflow:"ellipsis",whiteSpace:"nowrap",
+                        textShadow:"0 1px 4px #000"}}>
+                        {s.name}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* 피치 — 교사팀은 상단에 감독/코치 영역 추가 */}
+        {/* 피치 */}
         <div style={{
           background:"linear-gradient(180deg,#0a2410 0%,#0c3318 30%,#0e4020 50%,#0c3318 75%,#0a1c08 100%)",
-          position:"relative",
-          paddingTop: hasStaff ? 14 : 10,
-          paddingBottom:14, paddingLeft:4, paddingRight:4}}>
+          position:"relative",padding:"10px 4px 14px"}}>
           {/* 필드 장식 */}
           <div style={{position:"absolute",inset:0,pointerEvents:"none"}}>
             <div style={{position:"absolute",left:"10%",right:"10%",top:"50%",height:1,
@@ -5155,21 +5205,10 @@ function FootballPitch({ half }) {
             <div style={{position:"absolute",left:"20%",right:"20%",bottom:"3%",height:28,
               border:"1px solid rgba(255,255,255,.07)",borderBottom:"none"}}/>
           </div>
-
-          {/* 감독/코치 카드 — GK 위 */}
-          {hasStaff && (
-            <div style={{display:"flex",justifyContent:"center",
-              gap:8,marginBottom:10,position:"relative",zIndex:1}}>
-              {staff.map((s,i)=>(
-                (s.name||s.photo) && <StaffCard key={i} person={s}/>
-              ))}
-            </div>
-          )}
-
           {/* 선수 배치 */}
           {dr.map((row,ri)=>(
             <div key={ri} style={{display:"flex",justifyContent:"center",
-              alignItems:"flex-end",flexWrap:"wrap",marginBottom:8,position:"relative",zIndex:1}}>
+              alignItems:"flex-end",flexWrap:"wrap",marginBottom:8}}>
               {row.map((p,pi)=><PCard key={pi} player={p} color={color} large={true}/>)}
             </div>
           ))}
