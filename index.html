@@ -846,7 +846,7 @@ const BASE_CSS = `
 
 
 // ══════════════════════════════════════════
-function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
+function ViewerPage({state, update, onOpClick, onRefresh, refreshing}) {
   const [mainTab, setMainTab] = useState("dash");
   const [sbTab, setSbTab]     = useState(null);
   const [sbOpen, setSbOpen]   = useState(false);
@@ -902,10 +902,10 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
     if(sbTab==="cheershow") return <VCheerShow state={state}/>;
     if(sbTab==="roster")    return <VRoster state={state}/>;
     if(sbTab==="좌석")      return <VSeat state={state}/>;
-    if(sbTab==="피지컬100") return <VSportDetail sel="피지컬100" state={state}/>;
+    if(sbTab==="피지컬100") return <VSportDetail sel="피지컬100" state={state} update={update}/>;
     if(sbTab==="골때녀") return <VGolddanya state={state}/>;
     if(sbTab && [...TIME_TRIAL_SPORTS,...SPORTS,...EVENT_SPORTS].includes(sbTab))
-      return <VSportDetail sel={sbTab} state={state}/>;
+      return <VSportDetail sel={sbTab} state={state} update={update}/>;
     return <VDash cur={cur} next={next} ranked={ranked} state={state}/>;
   };
 
@@ -1052,7 +1052,7 @@ function ViewerPage({state, onOpClick, onRefresh, refreshing}) {
 
 
 // ── 학생심판 기록 입력 패널 (독립 컴포넌트) ──
-function StudentJudgePanel({sel, state}) {
+function StudentJudgePanel({sel, state, update}) {
   const [judgeStep, setJudgeStep] = useState("login");
   const [pwdInput, setPwdInput]   = useState("");
   const [myClass,  setMyClass]    = useState(null);
@@ -1079,16 +1079,16 @@ function StudentJudgePanel({sel, state}) {
     setJudgeStep("input");
   };
 
-  const saveCount = async () => {
+  const saveCount = () => {
     const num = parseInt(countVal);
     if(isNaN(num)||num<0) { setErrMsg("올바른 횟수를 입력해주세요"); return; }
     setSaving(true);
     try {
-      const url = `${window.FIREBASE_URL}/timeTrial/${encodeURIComponent(sel)}/${encodeURIComponent(myClass)}.json`;
-      const res = await fetch(url,{method:"PUT",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify(num)});
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      update(s => {
+        const cur = {...(s.timeTrial?.[sel]||{})};
+        cur[myClass] = num;
+        return {...s, timeTrial:{...(s.timeTrial||{}), [sel]:cur}};
+      });
       setJudgeStep("done");
     } catch(e) { setErrMsg("저장 실패: "+e.message); }
     setSaving(false);
@@ -1257,7 +1257,7 @@ function EightMusicPlayer({ sport, state }) {
   );
 }
 
-function VSportDetail({sel, state}) {
+function VSportDetail({sel, state, update}) {
   useEffect(()=>{ window.scrollTo(0,0); },[sel]);
 
   const SPORT_META = {
@@ -1327,7 +1327,7 @@ function VSportDetail({sel, state}) {
 
 
     // ── 학생심판 패널 (독립 컴포넌트 사용)
-    const JudgePanel = () => <StudentJudgePanel sel={sel} state={state}/>;
+    const JudgePanel = () => <StudentJudgePanel sel={sel} state={state} update={update}/>;
 
     if(!sorted.length) {
       return <NotYet extraInfo={
@@ -2877,7 +2877,7 @@ function VCheerScore({state}) {
     // Firebase에서 기존 점수 불러오기 (재채점)
     try {
       const judgeId = `${dept}_${name}`;
-      const url = `${window.FIREBASE_URL}/cheer/${encodeURIComponent(judgeId)}.json`;
+      const url = `${window.FIREBASE_URL}/hanmaeum_v6/cheer/${encodeURIComponent(judgeId)}.json`;
       const res = await fetch(url);
       const data = await res.json();
       if(data && data.ranks) setRanks(data.ranks);
@@ -2941,7 +2941,7 @@ function VCheerScore({state}) {
 
       const judgeId = `${dept}_${name}`;
       const payload = { dept, name, ranks, scores, updatedAt: Date.now() };
-      const url = `${window.FIREBASE_URL}/cheer/${encodeURIComponent(judgeId)}.json`;
+      const url = `${window.FIREBASE_URL}/hanmaeum_v6/cheer/${encodeURIComponent(judgeId)}.json`;
       const res = await fetch(url, {
         method:"PUT",
         headers:{"Content-Type":"application/json"},
@@ -7863,7 +7863,7 @@ function App() {
       )}
       {isOp
         ? <OperatorPage state={state} update={update} role={role} onLogout={()=>{setIsOp(false);setRole("operator");}}/>
-        : <ViewerPage   state={state} onOpClick={()=>setShowPwModal(true)} onRefresh={refresh} refreshing={refreshing}/>
+        : <ViewerPage   state={state} update={update} onOpClick={()=>setShowPwModal(true)} onRefresh={refresh} refreshing={refreshing}/>
       }
     </div>
   );
