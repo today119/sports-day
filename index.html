@@ -4668,7 +4668,6 @@ function OTimeTrial({state,update}) {
   const [sel, setSel] = useState(TIME_TRIAL_SPORTS[0]);
   const [showCodes, setShowCodes] = useState(false);
   const counts = state.timeTrial?.[sel]||{};
-  const judgeCodes = state.judgeCodes?.[sel]||{};
 
   const set = (cls, v) => update(s => {
     const cur = {...(s.timeTrial?.[sel]||{})};
@@ -4680,23 +4679,6 @@ function OTimeTrial({state,update}) {
     return {...s, timeTrial:{...(s.timeTrial||{}), [sel]:cur}};
   });
 
-  const setCode = (cls, v) => update(s => ({
-    ...s, judgeCodes:{ ...(s.judgeCodes||{}),
-      [sel]:{ ...(s.judgeCodes?.[sel]||{}), [cls]: v.trim() }}
-  }));
-
-  // 랜덤 코드 생성 (6자리 영숫자)
-  const genCode = () => {
-    const chars = "abcdefghjkmnpqrstuvwxyz23456789";
-    return Array.from({length:6}, ()=>chars[Math.floor(Math.random()*chars.length)]).join("");
-  };
-  const genAllCodes = () => {
-    const grade = sel.startsWith("1") ? "1" : "2";
-    const cls = ALL_CLASSES.filter(c=>c.startsWith(grade+"-"));
-    cls.forEach(c => setCode(c, genCode()));
-  };
-
-  // 학년별 학급
   const grade = sel.startsWith("1") ? "1" : "2";
   const gradeClasses = ALL_CLASSES.filter(c => c.startsWith(grade+"-"));
   const filled = gradeClasses.filter(c=>counts[c]!==undefined&&counts[c]!=="").length;
@@ -4725,59 +4707,6 @@ function OTimeTrial({state,update}) {
       <div style={{fontSize:11,color:"#1e40af",marginTop:4}}>
         배점: 1위 100 · 2위 90 · 3위 80 · 4위 70 · 5위 60 · 6위 50 · 7위 40 · 8위 30 · 9위 20 · 10위 10
       </div>
-    </div>
-
-    {/* 심판 코드 설정 */}
-    <div className="card" style={{marginBottom:12,padding:"10px 14px",
-      background:"#fffbeb",borderColor:"#fde68a"}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom: showCodes?10:0}}>
-        <span style={{fontSize:14}}>🔑</span>
-        <span style={{fontSize:13,fontWeight:700,color:"#92400e",flex:1}}>
-          학생심판 개인 코드
-        </span>
-        <button onClick={genAllCodes}
-          style={{fontSize:11,fontWeight:700,color:"#b45309",background:"#fef3c7",
-            border:"1px solid #fde68a",borderRadius:6,padding:"4px 10px",
-            cursor:"pointer",fontFamily:"inherit"}}>
-          🎲 전체 랜덤 생성
-        </button>
-        <button onClick={()=>setShowCodes(v=>!v)}
-          style={{fontSize:11,fontWeight:700,color:"#92400e",background:"transparent",
-            border:"1px solid #fde68a",borderRadius:6,padding:"4px 10px",
-            cursor:"pointer",fontFamily:"inherit"}}>
-          {showCodes?"접기 ▴":"설정 ▾"}
-        </button>
-      </div>
-
-      {showCodes && (<>
-        <div style={{fontSize:11,color:"#a16207",marginBottom:8,lineHeight:1.6}}>
-          각 심판에게 본인 반 코드만 개별 전달하세요.<br/>
-          학생 화면 → 8자마라톤 → 하단 입력칸에 코드 입력
-        </div>
-        {gradeClasses.map(cls=>{
-          const code = judgeCodes[cls]||"";
-          const team = classToTeam(cls);
-          return(
-            <div key={cls} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
-              <TeamBadge team={team} size={20}/>
-              <span style={{fontSize:12,fontWeight:700,color:"#37352f",minWidth:40}}>{cls}반</span>
-              <input value={code}
-                onChange={e=>setCode(cls, e.target.value)}
-                placeholder="코드 입력"
-                className="oinput"
-                style={{flex:1,fontSize:13,fontWeight:700,padding:"5px 8px",
-                  fontFamily:"monospace",letterSpacing:1,
-                  background: code?"#fff":"#fef9c3"}}/>
-              <button onClick={()=>setCode(cls, genCode())}
-                style={{fontSize:11,padding:"5px 8px",borderRadius:6,
-                  border:"1px solid #e5e7eb",background:"#fff",
-                  cursor:"pointer",fontFamily:"inherit",color:"#6b7280",fontWeight:600}}>
-                🎲
-              </button>
-            </div>
-          );
-        })}
-      </>)}
     </div>
 
     {/* 잘못된 값 경고 */}
@@ -4811,7 +4740,6 @@ function OTimeTrial({state,update}) {
       const team = classToTeam(cls);
       const rank = ranks[cls];
       const v = counts[cls]||"";
-      const code = judgeCodes[cls];
       return(
         <div key={cls} className="card" style={{
           marginBottom:6, padding:"10px 14px",
@@ -4820,11 +4748,6 @@ function OTimeTrial({state,update}) {
           <TeamBadge team={team} size={26}/>
           <div style={{minWidth:60}}>
             <div style={{fontWeight:800,fontSize:15,color:"#37352f"}}>{cls}반</div>
-            {code
-              ? <div style={{fontSize:10,color:"#92400e",fontWeight:700,
-                  fontFamily:"monospace",letterSpacing:.5}}>🔑 {code}</div>
-              : <div style={{fontSize:10,color:"#d1d5db"}}>코드 미설정</div>
-            }
           </div>
           <input type="number" inputMode="numeric"
             value={v}
