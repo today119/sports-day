@@ -355,7 +355,8 @@ function parseTime(t) {
 function parseCount(v) {
   if(v===null||v===undefined||v==="") return -1;
   const n = parseFloat(String(v).replace(",","."));
-  return isNaN(n)?-1:n;
+  if(isNaN(n)||n<0) return -1;
+  return n;
 }
 function getTimeTrialRanks(counts) {
   const entries = Object.entries(counts||{})
@@ -1319,7 +1320,7 @@ function VSportDetail({sel, state}) {
   if(TIME_TRIAL_SPORTS.includes(sel)) {
     const counts = state.timeTrial?.[sel]||{};
     const ranks  = getTimeTrialRanks(counts);
-    const sorted = Object.entries(counts).filter(([,c])=>parseCount(c)>=0)
+    const sorted = Object.entries(counts).filter(([,c])=>parseCount(c)>0)
                     .sort((a,b)=>parseCount(b[1])-parseCount(a[1]));
     const grade = sel.startsWith("1")?"1":"2";
     const gradeClasses = ALL_CLASSES.filter(c=>c.startsWith(grade+"-"));
@@ -4774,6 +4775,33 @@ function OTimeTrial({state,update}) {
       </>)}
     </div>
 
+    {/* 잘못된 값 경고 */}
+    {gradeClasses.some(c => {
+      const raw = counts[c];
+      const val = parseFloat(String(raw).replace(",","."));
+      return raw !== undefined && raw !== "" && (isNaN(val) || val < 0);
+    }) && (
+      <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,
+        padding:"8px 12px",marginBottom:10,display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:13}}>⚠️</span>
+        <span style={{fontSize:12,color:"#b91c1c",flex:1}}>
+          잘못된 값(음수 등)이 입력된 반이 있어요
+        </span>
+        <button onClick={()=>{
+          gradeClasses.forEach(c=>{
+            const raw = counts[c];
+            const val = parseFloat(String(raw).replace(",","."));
+            if(raw !== undefined && raw !== "" && (isNaN(val) || val < 0))
+              set(c, "");
+          });
+        }} style={{fontSize:11,fontWeight:700,color:"#b91c1c",
+          background:"#fff",border:"1px solid #fecaca",borderRadius:5,
+          padding:"4px 10px",cursor:"pointer",fontFamily:"inherit"}}>
+          잘못된 값 삭제
+        </button>
+      </div>
+    )}
+
     {gradeClasses.map(cls=>{
       const team = classToTeam(cls);
       const rank = ranks[cls];
@@ -4795,7 +4823,21 @@ function OTimeTrial({state,update}) {
           </div>
           <input type="number" inputMode="numeric"
             value={v}
-            onChange={e=>set(cls, e.target.value)}
+            onChange={e=>{
+              const val = e.target.value;
+              // 음수 입력 방지
+              if(val !== "" && parseInt(val) < 0) return;
+              set(cls, val);
+            }}
+            onBlur={e=>{
+              const val = e.target.value;
+              const num = parseInt(val);
+              // blur 시 유효하지 않은 값이면 초기화
+              if(val !== "" && (isNaN(num) || num < 0)) {
+                set(cls, "");
+              }
+            }}
+            min="0"
             placeholder="개수"
             className="oinput"
             style={{flex:1,fontSize:18,textAlign:"center",fontFamily:"monospace",fontWeight:700,padding:"10px 12px"}}/>
