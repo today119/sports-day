@@ -1212,12 +1212,12 @@ function VSportDetail({sel, state}) {
       const [saving,   setSaving]     = useState(false);
       const [errMsg,   setErrMsg]     = useState("");
 
-      // 비번 = 반번호 2자리 (1반→"01", 10반→"10")
+      // 비번 = "yj" + 반번호 2자리 (1반→"yj01", 10반→"yj10")
       const checkPwd = () => {
-        const trimmed = pwdInput.trim().padStart(2,"0");
+        const trimmed = pwdInput.trim().toLowerCase();
         const matched = gradeClasses.find(c => {
           const num = c.split("-")[1].padStart(2,"0");
-          return num === trimmed;
+          return trimmed === "yj"+num;
         });
         if(!matched) { setErrMsg("비밀번호가 올바르지 않습니다"); return; }
         const existing = counts[matched];
@@ -1257,15 +1257,15 @@ function VSportDetail({sel, state}) {
 
           {judgeStep==="login" && (<>
             <div style={{fontSize:12,color:"#374151",marginBottom:8,lineHeight:1.6}}>
-              담당 반 번호를 입력하세요<br/>
-              <span style={{fontSize:11,color:"#9ca3af"}}>예) 1반 → 01, 10반 → 10</span>
+              담당 반 비밀번호를 입력하세요<br/>
+              <span style={{fontSize:11,color:"#9ca3af"}}>예) 1반 → yj01, 10반 → yj10</span>
             </div>
             <div style={{display:"flex",gap:6}}>
               <input value={pwdInput} onChange={e=>setPwdInput(e.target.value)}
                 onKeyDown={e=>e.key==="Enter"&&checkPwd()}
-                placeholder="반 번호" type="number" className="oinput"
+                placeholder="yj01" type="text" className="oinput"
                 style={{flex:1,fontSize:20,fontWeight:800,textAlign:"center",
-                  padding:"10px",letterSpacing:2}}/>
+                  padding:"10px",letterSpacing:3}}/>
               <button onClick={checkPwd} className="obtn primary"
                 style={{padding:"10px 18px",fontSize:14,fontWeight:800}}>
                 확인
@@ -4805,11 +4805,13 @@ function FootballPitch({ half }) {
   const goals   = half?.goals   || [];
   const status  = half?.status  || "upcoming";
   const grade   = student.grade || "1";
+  const [view, setView] = useState("score"); // "score" | "teacher" | "student"
+
+  const T_BG="#1e3a8a", S_BG="#9f1239", GOLD="#d4af37";
 
   const parseRows = (formation, players) => {
     const safeP = Array.isArray(players) ? players
-      : players && typeof players==="object" ? Object.values(players)
-      : [];
+      : players && typeof players==="object" ? Object.values(players) : [];
     const counts = [1, ...formation.split("-").map(n=>parseInt(n)||0)];
     let idx=0;
     return counts.map(count => {
@@ -4819,23 +4821,28 @@ function FootballPitch({ half }) {
     });
   };
 
-  const teacherRows = parseRows(teacher.formation||"4-3-3", teacher.players||[]);
-  const studentRows = parseRows(student.formation||"4-4-2", student.players||[]);
-  const T_BG="#1e3a8a", S_BG="#9f1239", GOLD="#d4af37";
   const goalsByTeam = (t) => goals.filter(g=>g.team===t);
 
-  // 선수 카드
-  const PCard = ({player, color}) => {
-    if(!player) return <div style={{width:50,height:72,margin:"2px 3px"}}/>;
+  const statusEl = status==="live"
+    ? <span style={{color:"#ef4444",fontWeight:900,fontSize:11,letterSpacing:1,
+        animation:"blink 1.2s infinite",display:"inline-block"}}>● LIVE</span>
+    : status==="done"
+    ? <span style={{color:GOLD,fontWeight:800,fontSize:11,letterSpacing:2}}>FULL TIME</span>
+    : <span style={{color:"#64748b",fontWeight:600,fontSize:10,letterSpacing:2}}>PREVIEW</span>;
+
+  // ── 선수 카드 (큰 버전) ──
+  const PCard = ({player, color, large}) => {
+    if(!player) return <div style={{width:large?70:50,height:large?84:60,margin:"3px 4px"}}/>;
     const photo = player?.photo?.trim();
     const num   = player?.number || "?";
     const name  = player?.name   || "";
+    const W = large ? 66 : 50, H = large ? 78 : 58;
     return (
-      <div style={{display:"flex",flexDirection:"column",alignItems:"center",margin:"2px 3px",
-        minWidth:50,maxWidth:62}}>
-        <div style={{width:46,height:54,borderRadius:8,overflow:"hidden",position:"relative",
-          border:"2px solid rgba(255,255,255,.5)",
-          boxShadow:"0 4px 16px rgba(0,0,0,.7)",
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",
+        margin:"3px 4px",minWidth:W,maxWidth:large?80:66}}>
+        <div style={{width:W,height:H,borderRadius:10,overflow:"hidden",position:"relative",
+          border:"2px solid rgba(255,255,255,.55)",
+          boxShadow:"0 4px 20px rgba(0,0,0,.75)",
           background:photo?"#0a0a0a":`linear-gradient(150deg,${color}99 0%,${color} 60%,${color}ee 100%)`}}>
           {photo ? (
             <img src={photo} alt={name}
@@ -4846,22 +4853,22 @@ function FootballPitch({ half }) {
               }}/>
           ) : (
             <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",
-              alignItems:"center",justifyContent:"center",gap:1}}>
-              <div style={{fontSize:15,opacity:.3,lineHeight:1}}>👤</div>
-              <div style={{fontSize:17,fontWeight:900,color:"rgba(255,255,255,.95)",lineHeight:1}}>{num}</div>
+              alignItems:"center",justifyContent:"center",gap:2}}>
+              <div style={{fontSize:large?20:15,opacity:.3,lineHeight:1}}>👤</div>
+              <div style={{fontSize:large?22:17,fontWeight:900,color:"rgba(255,255,255,.95)",lineHeight:1}}>{num}</div>
             </div>
           )}
           {photo && (
             <div style={{position:"absolute",bottom:0,left:0,right:0,
-              background:"linear-gradient(transparent,rgba(0,0,0,.85))",
-              padding:"12px 3px 2px",textAlign:"center",
-              fontSize:9,fontWeight:900,color:"#fff",letterSpacing:.5}}>{num}</div>
+              background:"linear-gradient(transparent,rgba(0,0,0,.88))",
+              padding:"14px 3px 3px",textAlign:"center",
+              fontSize:large?11:9,fontWeight:900,color:"#fff",letterSpacing:.5}}>{num}</div>
           )}
           <div style={{position:"absolute",top:0,left:0,right:0,height:3,
-            background:`linear-gradient(90deg,${GOLD}99,transparent)`}}/>
+            background:`linear-gradient(90deg,${GOLD}bb,transparent)`}}/>
         </div>
-        <div style={{fontSize:9,color:"#e2e8f0",marginTop:3,width:54,textAlign:"center",
-          fontWeight:700,lineHeight:1.15,
+        <div style={{fontSize:large?11:9,color:"#e2e8f0",marginTop:3,
+          width:large?72:54,textAlign:"center",fontWeight:700,lineHeight:1.2,
           textShadow:"0 1px 6px rgba(0,0,0,1)",
           overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",padding:"0 2px"}}>
           {name||num}
@@ -4870,116 +4877,168 @@ function FootballPitch({ half }) {
     );
   };
 
-  const TRows = ({rows, color, rev}) => {
-    const dr = rev ? [...rows].reverse() : rows;
+  // ── 단일팀 피치 (큰 카드) ──
+  const TeamPitch = ({teamKey}) => {
+    const isTeacher = teamKey==="teacher";
+    const teamData  = isTeacher ? teacher : student;
+    const color     = isTeacher ? T_BG : S_BG;
+    const rows = parseRows(teamData.formation||"4-4-2", teamData.players||[]);
+    const dr   = isTeacher ? rows : [...rows].reverse(); // 학생은 FW위→GK아래
+    const teamGoals = goalsByTeam(teamKey);
+
     return (
-      <div style={{display:"flex",flexDirection:"column",gap:6,padding:"10px 2px"}}>
-        {dr.map((row,ri)=>(
-          <div key={ri} style={{display:"flex",justifyContent:"center",alignItems:"flex-end",flexWrap:"wrap"}}>
-            {row.map((p,pi)=><PCard key={pi} player={p} color={color}/>)}
+      <div style={{borderRadius:14,overflow:"hidden",
+        boxShadow:"0 8px 40px rgba(0,0,0,.5)"}}>
+
+        {/* 팀 헤더 */}
+        <div style={{
+          background: isTeacher
+            ? `linear-gradient(135deg,#111827,${T_BG})`
+            : `linear-gradient(135deg,${S_BG},#7f1d1d)`,
+          padding:"12px 16px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+            <span style={{color:"#fff",fontWeight:900,fontSize:16}}>
+              {isTeacher ? "👨‍🏫 교사팀" : `🎓 ${grade}학년`}
+            </span>
+            <span style={{color:isTeacher?"#93c5fd":"#fca5a5",fontSize:13,fontWeight:700,
+              background:"rgba(255,255,255,.12)",padding:"3px 10px",borderRadius:10}}>
+              {teamData.formation}
+            </span>
           </div>
-        ))}
+          {/* 스코어 미니 */}
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:28,fontWeight:900,color:"#fff",lineHeight:1,
+              textShadow:`0 0 20px ${isTeacher?"rgba(59,130,246,.6)":"rgba(239,68,68,.6)"}`}}>
+              {isTeacher ? score.teacher : score.student}
+            </span>
+            <div style={{flex:1}}>
+              {teamGoals.length>0
+                ? <div style={{fontSize:11,color:"rgba(255,255,255,.75)",lineHeight:1.5}}>
+                    ⚽ {teamGoals.map(g=>`${g.name}${g.time?" "+g.time:""}`).join("  ·  ")}
+                  </div>
+                : <div style={{fontSize:11,color:"rgba(255,255,255,.35)"}}>득점 없음</div>
+              }
+            </div>
+            <div>{statusEl}</div>
+          </div>
+        </div>
+
+        {/* 피치 */}
+        <div style={{background:"linear-gradient(180deg,#0a2410 0%,#0c3318 30%,#0e4020 50%,#0c3318 70%,#0a2410 100%)",
+          position:"relative",padding:"10px 4px"}}>
+          {/* 필드 장식 */}
+          <div style={{position:"absolute",inset:0,pointerEvents:"none"}}>
+            <div style={{position:"absolute",left:"10%",right:"10%",top:"50%",height:1,
+              background:"rgba(255,255,255,.12)",transform:"translateY(-50%)"}}/>
+            <div style={{position:"absolute",left:"50%",top:"50%",width:36,height:36,
+              borderRadius:"50%",border:"1px solid rgba(255,255,255,.12)",
+              transform:"translate(-50%,-50%)"}}/>
+            <div style={{position:"absolute",left:"20%",right:"20%",top:"4%",height:28,
+              border:"1px solid rgba(255,255,255,.08)",borderTop:"none"}}/>
+            <div style={{position:"absolute",left:"20%",right:"20%",bottom:"4%",height:28,
+              border:"1px solid rgba(255,255,255,.08)",borderBottom:"none"}}/>
+          </div>
+          {dr.map((row,ri)=>(
+            <div key={ri} style={{display:"flex",justifyContent:"center",
+              alignItems:"flex-end",flexWrap:"wrap",marginBottom:8}}>
+              {row.map((p,pi)=><PCard key={pi} player={p} color={color} large={true}/>)}
+            </div>
+          ))}
+        </div>
       </div>
     );
   };
 
-  const statusEl = status==="live"
-    ? <span style={{color:"#ef4444",fontWeight:900,fontSize:10,letterSpacing:1,
-        animation:"blink 1.2s infinite",display:"inline-block"}}>● LIVE</span>
-    : status==="done"
-    ? <span style={{color:GOLD,fontWeight:800,fontSize:10,letterSpacing:2}}>FULL TIME</span>
-    : <span style={{color:"#334155",fontWeight:600,fontSize:9,letterSpacing:2}}>PREVIEW</span>;
+  // ── 스코어 보드 뷰 ──
+  const ScoreView = () => (
+    <div style={{borderRadius:14,overflow:"hidden",
+      background:"linear-gradient(180deg,#060d1a,#050810)",
+      boxShadow:"0 8px 40px rgba(0,0,0,.5)"}}>
+
+      {/* 골드 타이틀 */}
+      <div style={{borderBottom:`2px solid ${GOLD}`,padding:"14px 16px 12px",textAlign:"center"}}>
+        <div style={{fontSize:9,color:GOLD,fontWeight:700,letterSpacing:4,marginBottom:4,
+          textTransform:"uppercase"}}>한마음 스포츠데이 · 골때녀</div>
+        <div style={{fontSize:17,color:"#fff",fontWeight:900,letterSpacing:1.5,
+          textShadow:`0 0 20px ${GOLD}55`}}>
+          교사팀 ⚔️ {grade}학년
+        </div>
+      </div>
+
+      {/* 스코어 */}
+      <div style={{padding:"20px 20px",display:"flex",alignItems:"center"}}>
+        <div style={{flex:1,textAlign:"center"}}>
+          <div style={{fontSize:11,color:"#93c5fd",fontWeight:700,letterSpacing:1,marginBottom:8}}>교사팀</div>
+          <div style={{fontSize:64,fontWeight:900,color:"#fff",lineHeight:1,
+            textShadow:"0 0 40px rgba(59,130,246,.6)"}}>{score.teacher}</div>
+          {goalsByTeam("teacher").length>0 && (
+            <div style={{fontSize:11,color:"#93c5fd",marginTop:8,lineHeight:1.6}}>
+              {goalsByTeam("teacher").map(g=>`⚽ ${g.name}${g.time?" "+g.time:""}`).join("\n")}
+            </div>
+          )}
+        </div>
+        <div style={{padding:"0 10px",textAlign:"center",minWidth:52}}>
+          <div style={{marginBottom:6}}>{statusEl}</div>
+          <div style={{fontSize:28,color:"#1e293b",fontWeight:100,lineHeight:1}}>:</div>
+        </div>
+        <div style={{flex:1,textAlign:"center"}}>
+          <div style={{fontSize:11,color:"#fca5a5",fontWeight:700,letterSpacing:1,marginBottom:8}}>{grade}학년</div>
+          <div style={{fontSize:64,fontWeight:900,color:"#fff",lineHeight:1,
+            textShadow:"0 0 40px rgba(239,68,68,.6)"}}>{score.student}</div>
+          {goalsByTeam("student").length>0 && (
+            <div style={{fontSize:11,color:"#fca5a5",marginTop:8,lineHeight:1.6}}>
+              {goalsByTeam("student").map(g=>`⚽ ${g.name}${g.time?" "+g.time:""}`).join("\n")}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 라인업 탭 안내 */}
+      <div style={{borderTop:`1px solid rgba(255,255,255,.08)`,
+        padding:"10px 16px",display:"flex",gap:8}}>
+        <button onClick={()=>setView("teacher")}
+          style={{flex:1,padding:"10px 8px",borderRadius:8,border:"1.5px solid #1e3a8a",
+            background:"#1e3a8a22",color:"#93c5fd",fontWeight:700,fontSize:12,
+            cursor:"pointer",fontFamily:"inherit"}}>
+          👨‍🏫 교사팀 라인업 →
+        </button>
+        <button onClick={()=>setView("student")}
+          style={{flex:1,padding:"10px 8px",borderRadius:8,border:`1.5px solid ${S_BG}`,
+            background:`${S_BG}22`,color:"#fca5a5",fontWeight:700,fontSize:12,
+            cursor:"pointer",fontFamily:"inherit"}}>
+          🎓 {grade}학년 라인업 →
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── 탭 헤더 ──
+  const TabBar = () => (
+    <div style={{display:"flex",gap:6,marginBottom:10}}>
+      {[
+        {id:"score",   label:"📊 스코어",      color:"#475569"},
+        {id:"teacher", label:"👨‍🏫 교사팀",    color:T_BG},
+        {id:"student", label:`🎓 ${grade}학년`, color:S_BG},
+      ].map(t=>(
+        <button key={t.id} onClick={()=>setView(t.id)}
+          style={{flex:1,padding:"9px 4px",borderRadius:8,
+            border:`1.5px solid ${view===t.id?t.color:"#e5e7eb"}`,
+            background:view===t.id?t.color:"#fff",
+            color:view===t.id?"#fff":"#374151",
+            fontWeight:view===t.id?800:600,fontSize:12,
+            cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}}>
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
-    <div style={{borderRadius:14,overflow:"hidden",fontFamily:"'Inter','Noto Sans KR',sans-serif",
-      boxShadow:"0 10px 50px rgba(0,0,0,.6)"}}>
-
-      {/* 타이틀 */}
-      <div style={{background:"linear-gradient(180deg,#050c1a 0%,#0c1a35 100%)",
-        padding:"12px 16px 10px",textAlign:"center",
-        borderBottom:`2px solid ${GOLD}`}}>
-        <div style={{fontSize:9,color:GOLD,fontWeight:700,letterSpacing:4,marginBottom:5,
-          textTransform:"uppercase"}}>한마음 스포츠데이 · 골때녀</div>
-        <div style={{fontSize:18,color:"#fff",fontWeight:900,letterSpacing:2,
-          textShadow:`0 0 20px ${GOLD}55`}}>
-          교사팀 &nbsp;⚔️&nbsp; {grade}학년
-        </div>
-      </div>
-
-      {/* 교사팀 헤더 */}
-      <div style={{background:`linear-gradient(135deg,#111827,${T_BG})`,padding:"7px 14px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{color:"#fff",fontWeight:800,fontSize:13}}>👨‍‍🏫 교사팀</span>
-          <span style={{color:"#93c5fd",fontSize:11,fontWeight:700,
-            background:"rgba(255,255,255,.1)",padding:"2px 9px",borderRadius:10}}>
-            {teacher.formation}
-          </span>
-        </div>
-        {goalsByTeam("teacher").length>0 && (
-          <div style={{fontSize:10,color:"#bfdbfe",marginTop:4,lineHeight:1.5}}>
-            ⚽ {goalsByTeam("teacher").map(g=>`${g.name}${g.time?" "+g.time:""}`).join(" · ")}
-          </div>
-        )}
-      </div>
-
-      {/* 피치 */}
-      <div style={{background:"linear-gradient(180deg,#0a2410 0%,#0c3318 25%,#0e4020 50%,#0c3318 75%,#0a2410 100%)",
-        position:"relative"}}>
-        <div style={{position:"absolute",inset:0,pointerEvents:"none",overflow:"hidden"}}>
-          <div style={{position:"absolute",left:"8%",right:"8%",top:"50%",height:1,
-            background:"rgba(255,255,255,.1)",transform:"translateY(-50%)"}}/>
-          <div style={{position:"absolute",left:"50%",top:"50%",width:30,height:30,
-            borderRadius:"50%",border:"1px solid rgba(255,255,255,.1)",
-            transform:"translate(-50%,-50%)"}}/>
-          <div style={{position:"absolute",left:"18%",right:"18%",top:"3%",height:22,
-            border:"1px solid rgba(255,255,255,.07)",borderTop:"none"}}/>
-          <div style={{position:"absolute",left:"18%",right:"18%",bottom:"3%",height:22,
-            border:"1px solid rgba(255,255,255,.07)",borderBottom:"none"}}/>
-        </div>
-        <TRows rows={teacherRows} color={T_BG} rev={false}/>
-        <div style={{margin:"0 20px",height:1,background:"rgba(255,255,255,.12)",position:"relative"}}>
-          <div style={{position:"absolute",left:"50%",top:-7,width:14,height:14,
-            borderRadius:"50%",border:"1px solid rgba(255,255,255,.15)",
-            transform:"translateX(-50%)"}}/>
-        </div>
-        <TRows rows={studentRows} color={S_BG} rev={true}/>
-      </div>
-
-      {/* 스코어 배너 */}
-      <div style={{background:"linear-gradient(180deg,#060d1a,#040810)",
-        borderTop:`2px solid ${GOLD}`,borderBottom:`2px solid ${GOLD}`,
-        padding:"14px 20px",display:"flex",alignItems:"center"}}>
-        <div style={{flex:1,textAlign:"center"}}>
-          <div style={{fontSize:10,color:"#93c5fd",fontWeight:700,letterSpacing:1,marginBottom:5}}>교사팀</div>
-          <div style={{fontSize:50,fontWeight:900,color:"#fff",lineHeight:1,
-            textShadow:"0 0 30px rgba(59,130,246,.5)"}}>{score.teacher}</div>
-        </div>
-        <div style={{padding:"0 14px",textAlign:"center",minWidth:64}}>
-          {statusEl}
-          <div style={{fontSize:22,color:"#1e293b",fontWeight:100,marginTop:4,lineHeight:1}}>:</div>
-        </div>
-        <div style={{flex:1,textAlign:"center"}}>
-          <div style={{fontSize:10,color:"#fca5a5",fontWeight:700,letterSpacing:1,marginBottom:5}}>{grade}학년</div>
-          <div style={{fontSize:50,fontWeight:900,color:"#fff",lineHeight:1,
-            textShadow:"0 0 30px rgba(239,68,68,.5)"}}>{score.student}</div>
-        </div>
-      </div>
-
-      {/* 학생팀 헤더 */}
-      <div style={{background:`linear-gradient(135deg,${S_BG},#7f1d1d)`,padding:"7px 14px"}}>
-        {goalsByTeam("student").length>0 && (
-          <div style={{fontSize:10,color:"#fecdd3",marginBottom:4,lineHeight:1.5}}>
-            ⚽ {goalsByTeam("student").map(g=>`${g.name}${g.time?" "+g.time:""}`).join(" · ")}
-          </div>
-        )}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{color:"#fff",fontWeight:800,fontSize:13}}>🎓 {grade}학년</span>
-          <span style={{color:"#fca5a5",fontSize:11,fontWeight:700,
-            background:"rgba(255,255,255,.1)",padding:"2px 9px",borderRadius:10}}>
-            {student.formation}
-          </span>
-        </div>
-      </div>
+    <div>
+      <TabBar/>
+      {view==="score"   && <ScoreView/>}
+      {view==="teacher" && <TeamPitch teamKey="teacher"/>}
+      {view==="student" && <TeamPitch teamKey="student"/>}
     </div>
   );
 }
