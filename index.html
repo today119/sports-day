@@ -1358,19 +1358,19 @@ function VSportDetail({sel, state}) {
         </>
       }/>;
     }
-    const teamSum={};
+    const ttTeamSum={};
     for(const[cls,rank] of Object.entries(ranks)){
       const t=classToTeam(cls);
-      teamSum[t]=(teamSum[t]||0)+(TT_PTS[rank-1]||0);
+      ttTeamSum[t]=(ttTeamSum[t]||0)+(TT_PTS[rank-1]||0);
     }
     return(<>
       <div style={{fontSize:20,fontWeight:800,color:"#37352f",marginBottom:12}}>{meta.icon} {sel}</div>
       <div className="card" style={{marginBottom:8}}>
         <div style={{fontSize:11,color:"#787671",fontWeight:700,marginBottom:8}}>팀별 합산</div>
-        {TEAM_NAMES.filter(t=>teamSum[t]).sort((a,b)=>teamSum[b]-teamSum[a]).map(t=>(
+        {TEAM_NAMES.filter(t=>ttTeamSum[t]).sort((a,b)=>ttTeamSum[b]-ttTeamSum[a]).map(t=>(
           <div key={t} className="rrow"><TeamBadge team={t} size={28}/>
             <span className="rrow-main">{t}팀</span>
-            <span className="rrow-points" style={{color:TEAM_COLORS[t]}}>{teamSum[t]}점</span>
+            <span className="rrow-points" style={{color:TEAM_COLORS[t]}}>{ttTeamSum[t]}점</span>
           </div>
         ))}
       </div>
@@ -1421,19 +1421,19 @@ function VSportDetail({sel, state}) {
         </>
       }/>;
     }
-    const teamSum={};
+    const grpTeamSum={};
     for(const[cls,rank] of Object.entries(ranks)){
       const t=classToTeam(cls);
-      teamSum[t]=(teamSum[t]||0)+(TT_PTS[rank-1]||0);
+      grpTeamSum[t]=(grpTeamSum[t]||0)+(TT_PTS[rank-1]||0);
     }
     return(<>
       <div style={{fontSize:20,fontWeight:800,color:"#37352f",marginBottom:12}}>{meta.icon} {sel}</div>
       <div className="card" style={{marginBottom:8}}>
         <div style={{fontSize:11,color:"#787671",fontWeight:700,marginBottom:8}}>팀별 합산</div>
-        {TEAM_NAMES.filter(t=>teamSum[t]).sort((a,b)=>teamSum[b]-teamSum[a]).map(t=>(
+        {TEAM_NAMES.filter(t=>grpTeamSum[t]).sort((a,b)=>grpTeamSum[b]-grpTeamSum[a]).map(t=>(
           <div key={t} className="rrow"><TeamBadge team={t} size={28}/>
             <span className="rrow-main">{t}팀</span>
-            <span className="rrow-points" style={{color:TEAM_COLORS[t]}}>{teamSum[t]}점</span>
+            <span className="rrow-points" style={{color:TEAM_COLORS[t]}}>{grpTeamSum[t]}점</span>
           </div>
         ))}
       </div>
@@ -1477,11 +1477,11 @@ function VSportDetail({sel, state}) {
       ? `${parseInt(gk.replace("g",""))}조`
       : GRP_DEF[gk].name;
 
-    const teamSum={};
+    const relayTeamSum={};
     for(const gk of KEYS)
       for(const [cls,rank] of Object.entries(gs[gk]||{})){
         const t=classToTeam(cls);
-        teamSum[t]=(teamSum[t]||0)+(PTS[rank-1]||0);
+        relayTeamSum[t]=(relayTeamSum[t]||0)+(PTS[rank-1]||0);
       }
 
     return(<>
@@ -1530,10 +1530,10 @@ function VSportDetail({sel, state}) {
         <>
           <div className="sl">🏆 팀별 합산</div>
           <div className="card">
-            {TEAM_NAMES.filter(t=>teamSum[t]).sort((a,b)=>teamSum[b]-teamSum[a]).map(t=>(
+            {TEAM_NAMES.filter(t=>relayTeamSum[t]).sort((a,b)=>relayTeamSum[b]-relayTeamSum[a]).map(t=>(
               <div key={t} className="rrow"><TeamBadge team={t} size={28}/>
                 <span style={{flex:1,fontWeight:800,fontSize:17}}>{t}팀</span>
-                <span style={{fontWeight:900,color:TEAM_COLORS[t],fontSize:20}}>{teamSum[t]}점</span>
+                <span style={{fontWeight:900,color:TEAM_COLORS[t],fontSize:20}}>{relayTeamSum[t]}점</span>
               </div>
             ))}
           </div>
@@ -1583,15 +1583,15 @@ function VSportDetail({sel, state}) {
     };
     const hasDraw = Object.keys(drawn).length>0;
 
-    const teamSum={};
+    const tourTeamSum={};
     const finalSet=new Set([...Object.keys(rf.grade1||{}),...Object.keys(rf.grade2||{})]);
     for(const gk of GRP_KEYS)
       for(const [cls,rank] of Object.entries(gs[gk]||{}))
-        if(!finalSet.has(cls)){const t=classToTeam(cls);teamSum[t]=(teamSum[t]||0)+RELAY_ELIM_PTS;}
+        if(!finalSet.has(cls)){const t=classToTeam(cls);tourTeamSum[t]=(tourTeamSum[t]||0)+RELAY_ELIM_PTS;}
     for(const gk of ["grade1","grade2"])
       for(const [cls,rank] of Object.entries(rf[gk]||{})){
         const t=classToTeam(cls);
-        teamSum[t]=(teamSum[t]||0)+(RELAY_FINAL_PTS[rank-1]||0);
+        tourTeamSum[t]=(tourTeamSum[t]||0)+(RELAY_FINAL_PTS[rank-1]||0);
       }
 
     return(<>
@@ -1636,10 +1636,10 @@ function VSportDetail({sel, state}) {
         <>
           <div className="sl">🏆 팀별 합산</div>
           <div className="card">
-            {TEAM_NAMES.filter(t=>teamSum[t]).sort((a,b)=>teamSum[b]-teamSum[a]).map(t=>(
+            {TEAM_NAMES.filter(t=>tourTeamSum[t]).sort((a,b)=>tourTeamSum[b]-tourTeamSum[a]).map(t=>(
               <div key={t} className="rrow"><TeamBadge team={t} size={28}/>
                 <span style={{flex:1,fontWeight:800,fontSize:17}}>{t}팀</span>
-                <span style={{fontWeight:900,color:TEAM_COLORS[t],fontSize:20}}>{teamSum[t]}점</span>
+                <span style={{fontWeight:900,color:TEAM_COLORS[t],fontSize:20}}>{tourTeamSum[t]}점</span>
               </div>
             ))}
           </div>
