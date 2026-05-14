@@ -3030,7 +3030,9 @@ function VCheerScore({state}) {
 
   // ════ 3단계: 1~4위 지정 채점 ════
   const gradeRanks = ranks[grade] || {};
-  const gradeClasses = ALL_CLASSES.filter(c=>c.startsWith(grade+"-"));
+  const gradeClasses = ALL_CLASSES
+    .filter(c=>c.startsWith(grade+"-"))
+    .sort((a,b)=>parseInt(a.split("-")[1])-parseInt(b.split("-")[1]));
 
   // 항목별 지정된 순위 수
   const progressByCat = {};
@@ -3940,6 +3942,54 @@ function VCheerShow({ state }) {
   const cs = state.cheerShow || {};
   const order = cs.order || [];
   const curIdx = cs.currentIdx ?? -1;
+
+  // 채점 데이터 확인
+  const revealCheer = state?.cheerReveal === true;
+  const cheerResult = computeCheerTotals(state?.cheer, revealCheer);
+  const hasScores = cheerResult && cheerResult.participatingJudges > 0;
+
+  // 점수 표시 미니 컴포넌트
+  const ScorePreview = () => {
+    if(!hasScores) return null;
+    const { gradeRankings, participatingJudges, totalJudges } = cheerResult;
+    return (
+      <div className="card" style={{marginTop:14,background:"#f0fdf4",borderColor:"#bbf7d0"}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#15803d",marginBottom:10,
+          display:"flex",alignItems:"center",gap:6}}>
+          📊 실시간 채점 현황
+          <span style={{fontSize:11,fontWeight:500,color:"#16a34a",
+            background:"#dcfce7",padding:"2px 8px",borderRadius:10}}>
+            {participatingJudges}/{totalJudges}명 완료
+          </span>
+        </div>
+        {["1","2"].map(g=>(
+          <div key={g} style={{marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#6b7280",marginBottom:4}}>
+              {g}학년
+            </div>
+            {(gradeRankings[g]||[]).slice(0,5).map((cs,i)=>(
+              <div key={cs.cls} style={{display:"flex",alignItems:"center",gap:8,
+                padding:"5px 8px",borderRadius:6,marginBottom:2,
+                background:i===0?"#fef9c3":"#fff",
+                border:`1px solid ${i===0?"#fde68a":"#e5e7eb"}`}}>
+                <span style={{fontSize:13,minWidth:20,textAlign:"center"}}>
+                  {i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}`}
+                </span>
+                <TeamBadge team={cs.team} size={20}/>
+                <span style={{flex:1,fontSize:13,fontWeight:700,color:"#1f2937"}}>
+                  {cs.cls}반
+                </span>
+                <span style={{fontSize:13,fontWeight:800,color:TEAM_COLORS[cs.team]}}>
+                  {cs.avgTotal.toFixed(1)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   if(order.length===0) {
     // 응원전 일정 찾기
     const cheerScheds = (state.schedule||[]).filter(s => s.title?.includes("응원"));
@@ -3986,9 +4036,11 @@ function VCheerShow({ state }) {
           </div>
           <div style={{fontSize:12,color:"#1e3a8a",lineHeight:1.6}}>
             응원전 시작 후 상단 ⭐ <b>채점</b> 메뉴에서<br/>
-            심판 선생님들이 12명의 점수를 채점합니다.
+            심판 선생님들이 {CHEER_JUDGES.reduce((s,j)=>s+j.names.length,0)}명의 점수를 채점합니다.
           </div>
         </div>
+
+        <ScorePreview/>
       </>
     );
   }
@@ -4078,6 +4130,7 @@ function VCheerShow({ state }) {
           );
         })}
       </div>
+      <ScorePreview/>
     </>
   );
 }
@@ -6375,11 +6428,11 @@ function OCheer({state,update}) {
   },[grade]);
 
   const gradeClasses = ALL_CLASSES.filter(c=>c.startsWith(grade+"-"));
-  const cd = state.cheer?.[sel]||{};
+  const cd = state.opCheer?.[sel]||{};
   const total = CHEER_CATS.reduce((s,c)=>s+(cd[c.id]||0),0);
 
   const setScore=(cat,val)=>update(s=>({...s,
-    cheer:{...(s.cheer||{}),[sel]:{...(s.cheer?.[sel]||{}),[cat]:Math.max(0,Math.min(25,Number(val)))}}
+    opCheer:{...(s.opCheer||{}),[sel]:{...(s.opCheer?.[sel]||{}),[cat]:Math.max(0,Math.min(25,Number(val)))}}
   }));
 
   return(<>
