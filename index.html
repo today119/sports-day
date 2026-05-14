@@ -3281,258 +3281,241 @@ function parseCSV(text) {
 //  운영자: 입장식 진행
 // ════════════════════════════════════════════════════════
 function OEntry({ state, update }) {
-  const entry = state.entry || { sheetUrl:"", items:{}, current:null };
-  const [sheetUrl, setSheetUrl] = useState(entry.sheetUrl || "");
-  const [loading, setLoading] = useState(false);
+  const entry   = state.entry   || { items:{}, current:null };
+  const roster  = state.roster  || { classes:{} };
   const [editClass, setEditClass] = useState(null);
   const [editIntro, setEditIntro] = useState("");
   const [editAudio, setEditAudio] = useState("");
+  const [gradeTab, setGradeTab]   = useState("1");
   const audioRef = useRef(null);
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying]     = useState(false);
 
   const upd = patch => update(s => ({ ...s, entry: { ...(s.entry||{}), ...patch } }));
 
-  const loadFromSheet = async () => {
-    const csvUrl = sheetToCSV(sheetUrl);
-    if(!csvUrl) { alert("구글 시트 공유 URL이 올바르지 않습니다"); return; }
-    setLoading(true);
-    try {
-      const res = await fetch(csvUrl);
-      const text = await res.text();
-      const rows = parseCSV(text);
-      // 첫 행은 헤더 가정 — 학급/소개/음원
-      const items = {};
-      let added = 0;
-      for(let i=1; i<rows.length; i++) {
-        const [cls, intro, audio] = rows[i];
-        if(cls && cls.trim()) {
-          items[cls.trim()] = {
-            intro: (intro||"").trim(),
-            audio: driveToDirect((audio||"").trim())
-          };
-          added++;
-        }
-      }
-      upd({ sheetUrl, items });
-      alert(`✅ ${added}개 학급 정보 불러왔습니다`);
-    } catch(e) {
-      alert("불러오기 실패: " + e.message + "\n시트 공유 설정을 '링크가 있는 모든 사용자'로 해주세요");
+  // roster에서 소개 멘트 일괄 가져오기
+  const importFromRoster = () => {
+    const rClasses = roster.classes || {};
+    if(!Object.keys(rClasses).length) {
+      alert("먼저 참가 신청 명단을 불러오세요 (📋 참가 신청 명단 메뉴)");
+      return;
     }
-    setLoading(false);
+    const items = { ...(entry.items||{}) };
+    let cnt = 0;
+    for(const [cls, data] of Object.entries(rClasses)) {
+      if(data.intro) {
+        items[cls] = { ...(items[cls]||{}), intro: data.intro };
+        cnt++;
+      }
+    }
+    upd({ items });
+    alert(`✅ ${cnt}개 학급 소개 멘트를 명단에서 가져왔습니다`);
   };
 
+  // 음원 재생/정지
   const playClass = (cls) => {
-    const data = entry.items?.[cls];
-    if(!data) return;
+    const audio = entry.items?.[cls]?.audio;
     if(!audioRef.current) audioRef.current = new Audio();
     if(entry.current === cls && playing) {
-      audioRef.current.pause();
-      setPlaying(false);
+      audioRef.current.pause(); setPlaying(false);
     } else {
       upd({ current: cls });
-      if(data.audio) {
-        audioRef.current.src = data.audio;
-        audioRef.current.play().then(()=>setPlaying(true)).catch(e=>{
-          alert("재생 실패: " + e.message + "\n음원 URL을 확인해주세요");
-        });
+      if(audio) {
+        audioRef.current.src = audio;
+        audioRef.current.play().then(()=>setPlaying(true))
+          .catch(e=>alert("재생 실패: "+e.message));
       }
     }
   };
 
   const stopAll = () => {
     if(audioRef.current) audioRef.current.pause();
-    setPlaying(false);
-    upd({ current: null });
+    setPlaying(false); upd({ current: null });
   };
 
+  // 개별 편집
   const startEdit = (cls) => {
     const d = entry.items?.[cls] || {};
+    const rosterIntro = roster.classes?.[cls]?.intro || "";
     setEditClass(cls);
-    setEditIntro(d.intro || `${cls}반 입장!`);
+    setEditIntro(d.intro || rosterIntro || `${cls}반 입장!`);
     setEditAudio(d.audio || "");
   };
 
   const saveEdit = () => {
     const items = { ...(entry.items||{}) };
-    items[editClass] = {
-      intro: editIntro.trim(),
-      audio: driveToDirect(editAudio.trim())
-    };
-    upd({ items });
-    setEditClass(null);
+    items[editClass] = { intro: editIntro.trim(), audio: driveToDirect(editAudio.trim()) };
+    upd({ items }); setEditClass(null);
   };
 
-  return (
-    <>
-      <div className="page-title">🚶 입장식 진행</div>
-      <div className="page-desc">학급별 소개 멘트와 입장 음원을 재생합니다</div>
+  // 현재 탭 학급 목록 (roster + entry 합산)
+  const rosterClasses = Object.keys(roster.classes||{}).filter(c=>c.startsWith(gradeTab+"-"));
+  const entryClasses  = Object.keys(entry.items||{}).filter(c=>c.startsWith(gradeTab+"-"));
+  const allClasses    = [...new Set([...rosterClasses, ...entryClasses])]
+    .sort((a,b)=>parseInt(a.split("-")[1])-parseInt(b.split("-")[1]));
 
-      {/* 구글 시트 연동 */}
-      <div className="card" style={{marginBottom:14}}>
-        <div style={{fontWeight:700,marginBottom:6,color:"#37352f"}}>📊 구글 스프레드시트 연동</div>
-        <div style={{fontSize:12,color:"#787671",marginBottom:10,lineHeight:1.6}}>
-          시트 형식: <b>A열=학급(예: 1-1)</b> · <b>B열=소개 멘트</b> · <b>C열=음원 URL</b><br/>
-          시트 공유 설정: "링크가 있는 모든 사용자 → 뷰어"
-        </div>
-        <input value={sheetUrl} onChange={e=>setSheetUrl(e.target.value)}
-          placeholder="https://docs.google.com/spreadsheets/d/..."
-          className="oinput" style={{marginBottom:8,fontFamily:"monospace",fontSize:12}}/>
-        <button onClick={loadFromSheet} disabled={loading}
-          className="obtn primary" style={{width:"100%",padding:10,fontSize:14}}>
-          {loading ? "불러오는 중..." : "📥 시트에서 데이터 가져오기"}
+  return (<>
+    <div className="page-title">🚶 입장식 진행</div>
+    <div className="page-desc">학급별 소개 멘트 · 입장 음원 재생</div>
+
+    {/* 명단 연동 */}
+    <div className="card" style={{marginBottom:12,background:"#eff6ff",borderColor:"#bfdbfe"}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#1e40af",marginBottom:8}}>
+        📋 참가 신청 명단 연동
+      </div>
+      <div style={{fontSize:11,color:"#3b82f6",marginBottom:8,lineHeight:1.6}}>
+        참가 신청서의 팀 소개 멘트를 입장식 소개 멘트로 자동 채웁니다.<br/>
+        음원은 학급별로 직접 입력하세요.
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+        <button onClick={importFromRoster} className="obtn primary" style={{fontSize:12,padding:9}}>
+          📥 명단에서 소개 멘트 가져오기
+        </button>
+        <button onClick={stopAll} className="obtn" style={{fontSize:12,padding:9}}>
+          ⏹ 음원 정지
         </button>
       </div>
+    </div>
 
-      {/* 현재 재생 중 */}
-      {entry.current && (
-        <div className="card hl" style={{marginBottom:14,background:"#fff7ed",borderColor:"#f59e0b"}}>
-          <div style={{fontSize:11,color:"#92400e",fontWeight:700,marginBottom:4,letterSpacing:1}}>
-            🔊 NOW PLAYING
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <TeamBadge team={classToTeam(entry.current)} size={36}/>
-            <div style={{flex:1}}>
-              <div style={{fontSize:18,fontWeight:900,color:"#92400e"}}>{entry.current}반</div>
-              <div style={{fontSize:13,color:"#a16207",overflow:"hidden",
-                textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                {entry.items?.[entry.current]?.intro || ""}
-              </div>
-            </div>
-            <button onClick={stopAll} className="obtn danger" style={{fontSize:13}}>⏹ 정지</button>
-          </div>
-        </div>
-      )}
-
-      {/* 학급별 카드 */}
-      {["1","2"].map(grade => (
-        <div key={grade}>
-          <div className="sl">{grade}학년</div>
-          {ALL_CLASSES.filter(c=>c.startsWith(grade+"-")).map(cls => {
-            const data = entry.items?.[cls];
-            const team = classToTeam(cls);
-            const isCurrent = entry.current === cls;
-            const isEditing = editClass === cls;
-            const hasData = data && (data.intro || data.audio);
-
-            if(isEditing) {
-              return (
-                <div key={cls} className="card hl" style={{marginBottom:6}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                    <TeamBadge team={team} size={22}/>
-                    <span style={{fontWeight:800}}>{cls}반</span>
-                  </div>
-                  <input value={editIntro} onChange={e=>setEditIntro(e.target.value)}
-                    placeholder="소개 멘트 (예: 1학년 1반, 멋진 출발!)"
-                    className="oinput" style={{marginBottom:6}}/>
-                  <input value={editAudio} onChange={e=>setEditAudio(e.target.value)}
-                    placeholder="음원 URL (mp3 또는 구글 드라이브 공유링크)"
-                    className="oinput" style={{marginBottom:8,fontFamily:"monospace",fontSize:12}}/>
-                  <div style={{display:"flex",gap:6}}>
-                    <button onClick={saveEdit} className="obtn primary" style={{flex:1}}>💾 저장</button>
-                    <button onClick={()=>setEditClass(null)} className="obtn" style={{flex:1}}>취소</button>
-                  </div>
-                </div>
-              );
-            }
-
-            return (
-              <div key={cls} className="card" style={{
-                marginBottom:6,padding:"10px 14px",
-                borderColor: isCurrent ? "#f59e0b" : (hasData ? "#e7e7e5" : "#ebebea"),
-                background: isCurrent ? "#fff7ed" : "#fff"
-              }}>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <TeamBadge team={team} size={24}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,color:"#37352f"}}>{cls}반</div>
-                    <div style={{fontSize:12,color: hasData?"#787671":"#bcbbb6",
-                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                      {data?.intro || "데이터 없음"}
-                    </div>
-                  </div>
-                  <button onClick={()=>startEdit(cls)} className="obtn" style={{fontSize:12,padding:"5px 9px"}}>
-                    ✏️
-                  </button>
-                  <button onClick={()=>playClass(cls)} disabled={!hasData}
-                    style={{
-                      width:42,height:42,borderRadius:"50%",border:"none",
-                      cursor: hasData?"pointer":"not-allowed",
-                      opacity: hasData?1:.3,
-                      background: isCurrent && playing ? "#eb5757" : "#37352f",
-                      color:"#fff",fontSize:16,fontFamily:"inherit",flexShrink:0
-                    }}>
-                    {isCurrent && playing ? "⏸" : "▶"}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+    {/* 학년 탭 */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}}>
+      {["1","2"].map(g=>(
+        <button key={g} onClick={()=>setGradeTab(g)}
+          className={`obtn${gradeTab===g?" on":""}`} style={{padding:"9px",fontSize:13}}>
+          {g}학년
+        </button>
       ))}
-    </>
-  );
-}
+    </div>
 
-// ════════════════════════════════════════════════════════
-//  운영자: 응원전 진행
-// ════════════════════════════════════════════════════════
+    {/* 학급 카드 목록 */}
+    {allClasses.length === 0 && (
+      <div className="card" style={{textAlign:"center",padding:"32px 20px",color:"#9ca3af"}}>
+        <div style={{fontSize:28,marginBottom:8}}>📋</div>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>명단을 먼저 불러오세요</div>
+        <div style={{fontSize:11}}>참가 신청 명단 메뉴에서 학급 URL을 입력하세요</div>
+      </div>
+    )}
+
+    {allClasses.map(cls=>{
+      const team  = classToTeam(cls);
+      const isCur = entry.current === cls;
+      const d     = entry.items?.[cls] || {};
+      const rIntro= roster.classes?.[cls]?.intro || "";
+      const intro = d.intro || rIntro;
+      const hasAudio = !!d.audio;
+
+      if(editClass === cls) {
+        return(
+          <div key={cls} className="card hl" style={{marginBottom:8,borderColor:TEAM_COLORS[team]}}>
+            <div style={{fontWeight:800,color:TEAM_COLORS[team],marginBottom:8}}>{cls}반 편집</div>
+            <div style={{fontSize:11,color:"#787671",marginBottom:4}}>소개 멘트</div>
+            <textarea value={editIntro} onChange={e=>setEditIntro(e.target.value)}
+              rows={3} className="oinput"
+              style={{marginBottom:8,fontSize:12,resize:"vertical"}}/>
+            <div style={{fontSize:11,color:"#787671",marginBottom:4}}>🎵 음원 URL (구글드라이브 공유링크)</div>
+            <input value={editAudio} onChange={e=>setEditAudio(e.target.value)}
+              placeholder="https://drive.google.com/..." className="oinput"
+              style={{marginBottom:8,fontSize:12,fontFamily:"monospace"}}/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+              <button onClick={()=>setEditClass(null)} className="obtn" style={{fontSize:12}}>취소</button>
+              <button onClick={saveEdit} className="obtn primary" style={{fontSize:12}}>💾 저장</button>
+            </div>
+          </div>
+        );
+      }
+
+      return(
+        <div key={cls} className="card" style={{
+          marginBottom:8,padding:"10px 12px",
+          borderLeft:`4px solid ${TEAM_COLORS[team]}`,
+          background:isCur?"#fffbeb":"#fff"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <TeamBadge team={team} size={26}/>
+            <div style={{flex:1}}>
+              <span style={{fontWeight:800,color:TEAM_COLORS[team]}}>{cls}반</span>
+              {isCur && <span className="blink" style={{marginLeft:6,fontSize:10,
+                color:"#fff",background:"#eb5757",padding:"2px 7px",borderRadius:8,fontWeight:800}}>ON AIR</span>}
+            </div>
+            <button onClick={()=>startEdit(cls)} className="obtn" style={{fontSize:11,padding:"4px 10px"}}>✏️</button>
+            <button onClick={()=>playClass(cls)}
+              style={{padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",
+                fontWeight:700,fontSize:12,fontFamily:"inherit",
+                background:isCur&&playing?"#ef4444":hasAudio?"#16a34a":"#e5e7eb",
+                color:hasAudio||isCur?"#fff":"#9ca3af"}}>
+              {isCur&&playing?"⏸ 정지":hasAudio?"▶ 재생":"♪ 무음"}
+            </button>
+            <button onClick={()=>upd({current:cls})}
+              style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${isCur?"#f59e0b":"#e5e7eb"}`,
+                background:isCur?"#fef3c7":"#fff",cursor:"pointer",fontSize:11,fontFamily:"inherit",fontWeight:700}}>
+              {isCur?"✓ 진행중":"진행"}
+            </button>
+          </div>
+          {intro && (
+            <div style={{fontSize:11,color:"#37352f",background:"#fafaf9",
+              padding:"6px 10px",borderRadius:6,lineHeight:1.6,whiteSpace:"pre-wrap"}}>
+              {intro}
+            </div>
+          )}
+          {!intro && (
+            <div style={{fontSize:11,color:"#d1d5db",fontStyle:"italic"}}>
+              소개 멘트 없음 — ✏️ 버튼으로 입력
+            </div>
+          )}
+        </div>
+      );
+    })}
+  </>);
+}
 function OCheerShow({ state, update }) {
-  const cs = state.cheerShow || { sheetUrl:"", items:{}, order:[], currentIdx:-1 };
-  const [sheetUrl, setSheetUrl] = useState(cs.sheetUrl || "");
-  const [loading, setLoading] = useState(false);
+  const cs     = state.cheerShow || { items:{}, order:[], currentIdx:-1 };
+  const roster = state.roster    || { classes:{} };
   const [editClass, setEditClass] = useState(null);
   const [editIntro, setEditIntro] = useState("");
   const [editAudio, setEditAudio] = useState("");
+  const [gradeTab, setGradeTab]   = useState("1");
   const audioRef = useRef(null);
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying]     = useState(false);
 
   const upd = patch => update(s => ({ ...s, cheerShow: { ...(s.cheerShow||{}), ...patch } }));
 
-  const loadFromSheet = async () => {
-    const csvUrl = sheetToCSV(sheetUrl);
-    if(!csvUrl) { alert("구글 시트 공유 URL이 올바르지 않습니다"); return; }
-    setLoading(true);
-    try {
-      const res = await fetch(csvUrl);
-      const text = await res.text();
-      const rows = parseCSV(text);
-      const items = {};
-      const order = [];
-      for(let i=1; i<rows.length; i++) {
-        const [cls, intro, audio] = rows[i];
-        if(cls && cls.trim()) {
-          const c = cls.trim();
-          items[c] = {
-            intro: (intro||"").trim(),
-            audio: driveToDirect((audio||"").trim())
-          };
-          order.push(c);
-        }
-      }
-      upd({ sheetUrl, items, order, currentIdx: -1 });
-      alert(`✅ ${order.length}개 학급 응원전 정보 불러왔습니다`);
-    } catch(e) {
-      alert("불러오기 실패: " + e.message);
+  // roster에서 소개 멘트 + 순서 일괄 가져오기
+  const importFromRoster = () => {
+    const rClasses = roster.classes || {};
+    if(!Object.keys(rClasses).length) {
+      alert("먼저 참가 신청 명단을 불러오세요");
+      return;
     }
-    setLoading(false);
+    const items = { ...(cs.items||{}) };
+    let cnt = 0;
+    for(const [cls, data] of Object.entries(rClasses)) {
+      items[cls] = { ...(items[cls]||{}), intro: data.intro || "" };
+      cnt++;
+    }
+    // 순서: 기존 유지하되 없는 반 추가
+    const existing = new Set(cs.order||[]);
+    const newOrder = [...(cs.order||[])];
+    const grade1 = Object.keys(rClasses).filter(c=>c.startsWith("1-"))
+      .sort((a,b)=>parseInt(a.split("-")[1])-parseInt(b.split("-")[1]));
+    const grade2 = Object.keys(rClasses).filter(c=>c.startsWith("2-"))
+      .sort((a,b)=>parseInt(a.split("-")[1])-parseInt(b.split("-")[1]));
+    [...grade1,...grade2].forEach(c=>{ if(!existing.has(c)) newOrder.push(c); });
+    upd({ items, order: newOrder });
+    alert(`✅ ${cnt}개 학급 정보를 명단에서 가져왔습니다`);
   };
 
+  // 음원 재생
   const playIdx = (idx) => {
-    if(idx < 0 || idx >= cs.order.length) return;
-    const cls = cs.order[idx];
-    const data = cs.items?.[cls];
-    if(!data) return;
+    const cls = cs.order?.[idx];
+    if(!cls) return;
+    const audio = cs.items?.[cls]?.audio;
     if(!audioRef.current) audioRef.current = new Audio();
-    if(cs.currentIdx === idx && playing) {
-      audioRef.current.pause();
-      setPlaying(false);
+    if(cs.currentIdx===idx && playing) {
+      audioRef.current.pause(); setPlaying(false);
     } else {
       upd({ currentIdx: idx });
-      if(data.audio) {
-        audioRef.current.src = data.audio;
-        audioRef.current.play().then(()=>setPlaying(true)).catch(e=>{
-          alert("재생 실패: " + e.message);
-        });
+      if(audio) {
+        audioRef.current.src = audio;
+        audioRef.current.play().then(()=>setPlaying(true))
+          .catch(e=>alert("재생 실패: "+e.message));
       }
     }
   };
@@ -3541,322 +3524,179 @@ function OCheerShow({ state, update }) {
     if(audioRef.current) audioRef.current.pause();
     setPlaying(false);
   };
+  const nextClass = () => playIdx((cs.currentIdx||0)+1);
+  const prevClass = () => playIdx((cs.currentIdx||0)-1);
 
-  const nextClass = () => playIdx(cs.currentIdx + 1);
-  const prevClass = () => playIdx(cs.currentIdx - 1);
+  // 순서 이동
+  const moveOrder = (idx, dir) => {
+    const arr = [...(cs.order||[])];
+    const ni = idx+dir;
+    if(ni<0||ni>=arr.length) return;
+    [arr[idx],arr[ni]]=[arr[ni],arr[idx]];
+    upd({ order:arr });
+  };
 
   const startEdit = (cls) => {
     const d = cs.items?.[cls] || {};
+    const rIntro = roster.classes?.[cls]?.intro || "";
     setEditClass(cls);
-    setEditIntro(d.intro || `${cls}반 응원전을 시작하겠습니다`);
+    setEditIntro(d.intro || rIntro || `${cls}반 응원전!`);
     setEditAudio(d.audio || "");
   };
 
   const saveEdit = () => {
     const items = { ...(cs.items||{}) };
-    items[editClass] = {
-      intro: editIntro.trim(),
-      audio: driveToDirect(editAudio.trim())
-    };
-    // 순서에 없으면 추가
+    items[editClass] = { intro: editIntro.trim(), audio: driveToDirect(editAudio.trim()) };
     let order = [...(cs.order||[])];
     if(!order.includes(editClass)) order.push(editClass);
-    upd({ items, order });
-    setEditClass(null);
+    upd({ items, order }); setEditClass(null);
   };
 
-  const moveOrder = (idx, dir) => {
-    const arr = [...cs.order];
-    const ni = idx + dir;
-    if(ni<0 || ni>=arr.length) return;
-    [arr[idx], arr[ni]] = [arr[ni], arr[idx]];
-    let newCur = cs.currentIdx;
-    if(cs.currentIdx === idx) newCur = ni;
-    else if(cs.currentIdx === ni) newCur = idx;
-    upd({ order: arr, currentIdx: newCur });
-  };
+  // 현재 탭 순서 목록
+  const gradeOrder = (cs.order||[]).filter(c=>c.startsWith(gradeTab+"-"));
 
-  const removeFromOrder = (idx) => {
-    const arr = cs.order.filter((_,i) => i !== idx);
-    let newCur = cs.currentIdx;
-    if(idx < cs.currentIdx) newCur--;
-    else if(idx === cs.currentIdx) newCur = -1;
-    upd({ order: arr, currentIdx: newCur });
-  };
+  return (<>
+    <div className="page-title">📣 응원전 진행</div>
+    <div className="page-desc">학급별 응원전 순서 · 소개 멘트 · 음원 재생</div>
 
-  const currentCls = cs.currentIdx >= 0 ? cs.order[cs.currentIdx] : null;
-  const nextCls = cs.currentIdx + 1 < (cs.order?.length||0) ? cs.order[cs.currentIdx+1] : null;
-
-  // 응원전 채점 진행 현황 계산
-  const cheerResult = computeCheerTotals(state.cheer);
-  const judgeProgress = cheerResult?.judgeProgress || CHEER_JUDGES.flatMap(j=>j.names.map(n=>({dept:j.dept,name:n,classCount:0,submitted:false})));
-  const notStarted = judgeProgress.filter(j=>j.classCount===0);
-  const inProgress = judgeProgress.filter(j=>j.classCount>0 && j.classCount<ALL_CLASSES.length);
-  const completed  = judgeProgress.filter(j=>j.classCount>=ALL_CLASSES.length);
-
-  return (
-    <>
-      <div className="page-title">📣 응원전 진행</div>
-      <div className="page-desc">학급별 응원전 순서대로 진행 · 학생 화면에 현재/다음 표시</div>
-
-      {/* === 응원전 점수 공개 토글 (히든 30점) === */}
-      <div className="card" style={{
-        marginBottom:14, padding:14,
-        background: state.cheerReveal
-          ? "linear-gradient(135deg,#dcfce7,#f0fdf4)"
-          : "linear-gradient(135deg,#fef2f2,#fff1f2)",
-        borderColor: state.cheerReveal ? "#86efac" : "#fca5a5",
-        borderWidth:2
-      }}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:24}}>{state.cheerReveal?"🎭":"🔒"}</span>
-          <div style={{flex:1}}>
-            <div style={{fontWeight:800,fontSize:15,
-              color:state.cheerReveal?"#15803d":"#b91c1c"}}>
-              응원전(30점) 점수 {state.cheerReveal?"공개됨":"비공개"}
-            </div>
-            <div style={{fontSize:11,marginTop:3,
-              color:state.cheerReveal?"#166534":"#991b1b",lineHeight:1.5}}>
-              {state.cheerReveal
-                ? "학생 화면에 응원전 점수가 반영되어 최종 순위로 표시됩니다"
-                : "응원전 점수는 합계에 미반영 · 다른 카테고리만 임시 순위로 표시됩니다"}
-            </div>
+    {/* 응원전 점수 공개 토글 */}
+    <div className="card" style={{marginBottom:12,padding:12,
+      background:state.cheerReveal?"linear-gradient(135deg,#dcfce7,#f0fdf4)":"linear-gradient(135deg,#fef2f2,#fff1f2)",
+      borderColor:state.cheerReveal?"#86efac":"#fca5a5",borderWidth:2}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:22}}>{state.cheerReveal?"🎭":"🔒"}</span>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:800,fontSize:14,color:state.cheerReveal?"#15803d":"#b91c1c"}}>
+            응원전(30점) {state.cheerReveal?"공개됨":"비공개"}
           </div>
-          <button
-            onClick={()=>{
-              const next = !state.cheerReveal;
-              if(next && !confirm("응원전 점수를 공개하시겠습니까?\n공개 후 학생 화면에 즉시 반영됩니다.")) return;
-              if(!next && !confirm("응원전 점수를 다시 비공개로 전환할까요?")) return;
-              update(s=>({...s, cheerReveal: next}));
-            }}
-            className="obtn"
-            style={{
-              padding:"10px 16px",fontSize:13,fontWeight:800,
-              background:state.cheerReveal?"#dc2626":"#16a34a",color:"#fff",border:"none",
-              boxShadow:"0 2px 6px rgba(0,0,0,.12)"
-            }}>
-            {state.cheerReveal ? "🔒 비공개로" : "🎭 공개하기"}
-          </button>
-        </div>
-      </div>
-
-      {/* === 심판 채점 현황 (독촉용) === */}
-      <div className="card" style={{marginBottom:14, padding:14,
-        background:"linear-gradient(135deg,#fefce8,#fffbeb)",
-        borderColor:"#fde68a", borderWidth:2}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-          <span style={{fontSize:20}}>⭐</span>
-          <div style={{fontWeight:800,color:"#854f0b",fontSize:15,flex:1}}>
-            응원전 심판 채점 현황
-          </div>
-          <div style={{fontSize:12,color:"#92400e",fontWeight:700}}>
-            {completed.length}/{judgeProgress.length} 완료
+          <div style={{fontSize:11,color:state.cheerReveal?"#166534":"#991b1b",marginTop:2}}>
+            {state.cheerReveal?"학생 화면에 응원전 점수 반영":"채점 결과 숨김 · 임시 순위 표시"}
           </div>
         </div>
-
-        {/* 진행 바 */}
-        <div style={{height:8,background:"#fef3c7",borderRadius:4,overflow:"hidden",
-          marginBottom:12,display:"flex"}}>
-          <div style={{width:`${completed.length/judgeProgress.length*100}%`,background:"#10b981"}}/>
-          <div style={{width:`${inProgress.length/judgeProgress.length*100}%`,background:"#f59e0b"}}/>
-        </div>
-
-        {/* 심판 12명 그리드 */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))",gap:6}}>
-          {judgeProgress.map((j,i)=>{
-            const status = j.submitted ? "done" : j.classCount>0 ? "doing" : "todo";
-            const bg = status==="done"?"#dcfce7":status==="doing"?"#fef3c7":"#fee2e2";
-            const col = status==="done"?"#15803d":status==="doing"?"#a16207":"#b91c1c";
-            const icon = status==="done"?"🟢":status==="doing"?"🟡":"🔴";
-            return (
-              <div key={i} style={{
-                background:bg, padding:"7px 10px", borderRadius:6,
-                border:`1px solid ${col}33`, fontSize:12
-              }}>
-                <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:2}}>
-                  <span style={{fontSize:11}}>{icon}</span>
-                  <span style={{fontWeight:800,color:col,fontSize:13}}>{j.name}</span>
-                </div>
-                <div style={{fontSize:10,color:"#6b7280",fontWeight:600,marginLeft:18}}>
-                  {j.dept}
-                </div>
-                <div style={{fontSize:11,color:col,fontWeight:700,marginLeft:18,marginTop:2}}>
-                  {status==="done"?`완료 (${j.classCount}/${ALL_CLASSES.length})`:
-                   status==="doing"?`진행중 (${j.classCount}/${ALL_CLASSES.length})`:
-                   `미시작 (0/${ALL_CLASSES.length})`}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* 독촉 메시지 복사 */}
-        {(notStarted.length>0 || inProgress.length>0) && (
-          <div style={{marginTop:10,paddingTop:10,borderTop:"1px dashed #fcd34d"}}>
-            <div style={{fontSize:11,color:"#92400e",fontWeight:700,marginBottom:6}}>
-              📢 독촉 메시지 (복사해서 전송):
-            </div>
-            <div style={{background:"#fff",padding:8,borderRadius:6,
-              fontSize:12,color:"#1f2937",lineHeight:1.6,marginBottom:6,
-              border:"1px dashed #d1d5db",fontFamily:"inherit"}}>
-              [응원전 채점 안내]<br/>
-              {[...notStarted,...inProgress].map(j=>`${j.dept} ${j.name}`).join(", ")} 선생님,<br/>
-              아직 응원전 채점이 완료되지 않았습니다. 학생들이 결과를 기다리고 있어요!<br/>
-              👉 학교 응원전 채점 페이지 ⭐채점 메뉴에서 채점 부탁드립니다.
-            </div>
-            <button className="obtn" style={{width:"100%",fontSize:12,padding:8}}
-              onClick={()=>{
-                const msg = `[응원전 채점 안내]\n${[...notStarted,...inProgress].map(j=>`${j.dept} ${j.name}`).join(", ")} 선생님, 아직 응원전 채점이 완료되지 않았습니다. ⭐채점 메뉴에서 채점 부탁드립니다.`;
-                navigator.clipboard?.writeText(msg).then(
-                  ()=>alert("✅ 독촉 메시지를 복사했습니다"),
-                  ()=>alert("복사 실패 - 직접 선택해서 복사해주세요")
-                );
-              }}>
-              📋 독촉 메시지 복사
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="card" style={{marginBottom:14}}>
-        <div style={{fontWeight:700,marginBottom:6,color:"#37352f"}}>📊 구글 스프레드시트 연동</div>
-        <div style={{fontSize:12,color:"#787671",marginBottom:10,lineHeight:1.6}}>
-          시트 형식: A열=학급 · B열=소개 멘트 · C열=음원 URL
-        </div>
-        <input value={sheetUrl} onChange={e=>setSheetUrl(e.target.value)}
-          placeholder="https://docs.google.com/spreadsheets/d/..."
-          className="oinput" style={{marginBottom:8,fontFamily:"monospace",fontSize:12}}/>
-        <button onClick={loadFromSheet} disabled={loading}
-          className="obtn primary" style={{width:"100%",padding:10,fontSize:14}}>
-          {loading ? "불러오는 중..." : "📥 시트에서 데이터 가져오기"}
+        <button onClick={()=>{
+          const next=!state.cheerReveal;
+          if(next&&!confirm("응원전 점수를 공개하시겠습니까?")) return;
+          update(s=>({...s,cheerReveal:next}));
+        }} className="obtn" style={{padding:"8px 14px",fontSize:12,fontWeight:800,
+          background:state.cheerReveal?"#dc2626":"#16a34a",color:"#fff",border:"none"}}>
+          {state.cheerReveal?"🔒 비공개":"🎭 공개하기"}
         </button>
       </div>
-
-      {/* 컨트롤 패널 */}
-      {currentCls && (
-        <div className="card hl" style={{marginBottom:14,background:"#fff7ed",borderColor:"#f59e0b"}}>
-          <div style={{fontSize:11,color:"#92400e",fontWeight:700,marginBottom:6,letterSpacing:1}}>
-            🔊 진행 중
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-            <TeamBadge team={classToTeam(currentCls)} size={36}/>
-            <div style={{flex:1}}>
-              <div style={{fontSize:20,fontWeight:900,color:"#92400e"}}>{currentCls}반</div>
-              <div style={{fontSize:13,color:"#a16207"}}>
-                {cs.items?.[currentCls]?.intro || ""}
-              </div>
-            </div>
-          </div>
-          <div style={{display:"flex",gap:6}}>
-            <button onClick={prevClass} disabled={cs.currentIdx<=0}
-              className="obtn" style={{flex:1,padding:8,
-              opacity:cs.currentIdx<=0?.3:1}}>⏮ 이전</button>
-            <button onClick={()=>playIdx(cs.currentIdx)} className="obtn"
-              style={{flex:1,padding:8,background:playing?"#eb5757":"#37352f",color:"#fff",borderColor:"transparent"}}>
-              {playing?"⏸ 일시정지":"▶ 재생"}
-            </button>
-            <button onClick={nextClass} disabled={cs.currentIdx>=(cs.order?.length||0)-1}
-              className="obtn" style={{flex:1,padding:8,
-              opacity:cs.currentIdx>=(cs.order?.length||0)-1?.3:1}}>다음 ⏭</button>
-          </div>
+    </div>
+    <div className="card" style={{marginBottom:12,background:"#eff6ff",borderColor:"#bfdbfe"}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#1e40af",marginBottom:8}}>
+        📋 참가 신청 명단 연동
+      </div>
+      <div style={{fontSize:11,color:"#3b82f6",marginBottom:8,lineHeight:1.6}}>
+        명단의 팀 소개 멘트를 응원전 소개로 자동 채웁니다.<br/>
+        음원은 각 학급별로 직접 입력하세요.
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:6}}>
+        <button onClick={importFromRoster} className="obtn primary" style={{fontSize:12,padding:9}}>
+          📥 명단에서 소개 멘트 가져오기
+        </button>
+        <button onClick={stopAll} className="obtn" style={{fontSize:12,padding:9}}>
+          ⏹ 음원 정지
+        </button>
+      </div>
+      {/* 이전/다음 컨트롤 */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
+        <button onClick={prevClass} className="obtn" style={{fontSize:12,padding:8}}>⏮ 이전반</button>
+        <div style={{textAlign:"center",padding:"8px 0",fontSize:12,fontWeight:700,color:"#374151"}}>
+          {cs.currentIdx>=0 ? `${(cs.order||[])[cs.currentIdx]} 진행중` : "대기중"}
         </div>
-      )}
+        <button onClick={nextClass} className="obtn primary" style={{fontSize:12,padding:8}}>다음반 ⏭</button>
+      </div>
+    </div>
 
-      {nextCls && (
-        <div className="card" style={{marginBottom:14,background:"#f9fafb"}}>
-          <div style={{fontSize:11,color:"#9b9a97",fontWeight:600,marginBottom:4,letterSpacing:1}}>
-            ⏳ 다음 순서
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <TeamBadge team={classToTeam(nextCls)} size={28}/>
-            <span style={{fontSize:16,fontWeight:700,color:"#37352f"}}>{nextCls}반</span>
-          </div>
-        </div>
-      )}
+    {/* 학년 탭 */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}}>
+      {["1","2"].map(g=>(
+        <button key={g} onClick={()=>setGradeTab(g)}
+          className={`obtn${gradeTab===g?" on":""}`} style={{padding:"9px",fontSize:13}}>
+          {g}학년 ({(cs.order||[]).filter(c=>c.startsWith(g+"-")).length}반)
+        </button>
+      ))}
+    </div>
 
-      {/* 순서 목록 */}
-      <div className="sl">진행 순서 ({cs.order?.length||0}개)</div>
-      {(!cs.order || cs.order.length===0) ? (
-        <div className="card" style={{textAlign:"center",color:"#9b9a97",padding:40}}>
-          시트에서 데이터를 불러오거나 학급별로 추가해주세요
-        </div>
-      ) : cs.order.map((cls, idx) => {
-        const data = cs.items?.[cls];
-        const team = classToTeam(cls);
-        const isCurrent = cs.currentIdx === idx;
-        const isPast = cs.currentIdx > idx;
-        return (
-          <div key={cls+idx} className="card" style={{
-            marginBottom:6,padding:"10px 12px",
-            background: isCurrent ? "#fff7ed" : (isPast ? "#fafaf9" : "#fff"),
-            borderColor: isCurrent ? "#f59e0b" : "#e7e7e5",
-            opacity: isPast ? .6 : 1
-          }}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <span style={{minWidth:28,textAlign:"center",fontSize:13,fontWeight:700,
-                color:isCurrent?"#92400e":"#9b9a97"}}>
-                {isPast?"✓":idx+1}
-              </span>
-              <TeamBadge team={team} size={22}/>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontWeight:700,color:"#37352f"}}>{cls}반</div>
-                <div style={{fontSize:11,color:"#9b9a97",overflow:"hidden",
-                  textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                  {data?.intro || "데이터 없음"}
-                </div>
-              </div>
-              <div style={{display:"flex",flexDirection:"column",gap:2}}>
-                <button onClick={()=>moveOrder(idx,-1)} disabled={idx===0}
-                  style={{width:22,height:16,border:"1px solid #e7e7e5",background:"#fff",
-                    cursor:idx===0?"not-allowed":"pointer",opacity:idx===0?.3:1,
-                    borderRadius:3,fontSize:9,padding:0}}>▲</button>
-                <button onClick={()=>moveOrder(idx,1)} disabled={idx===cs.order.length-1}
-                  style={{width:22,height:16,border:"1px solid #e7e7e5",background:"#fff",
-                    cursor:idx===cs.order.length-1?"not-allowed":"pointer",
-                    opacity:idx===cs.order.length-1?.3:1,
-                    borderRadius:3,fontSize:9,padding:0}}>▼</button>
-              </div>
-              <button onClick={()=>startEdit(cls)} className="obtn" style={{fontSize:11,padding:"4px 8px"}}>✏️</button>
-              <button onClick={()=>playIdx(idx)}
-                style={{
-                  width:36,height:36,borderRadius:"50%",border:"none",
-                  cursor:"pointer",fontSize:13,fontFamily:"inherit",flexShrink:0,
-                  background: isCurrent && playing ? "#eb5757" : "#37352f",
-                  color:"#fff"
-                }}>{isCurrent && playing ? "⏸" : "▶"}</button>
-              <button onClick={()=>removeFromOrder(idx)}
-                style={{border:"1px solid #fecdd3",background:"#fff",color:"#eb5757",
-                  cursor:"pointer",fontSize:11,padding:"4px 7px",borderRadius:4}}>✕</button>
+    {gradeOrder.length===0 && (
+      <div className="card" style={{textAlign:"center",padding:"28px",color:"#9ca3af"}}>
+        <div style={{fontSize:24,marginBottom:8}}>📋</div>
+        <div style={{fontSize:13,fontWeight:700}}>명단에서 가져오기를 눌러주세요</div>
+      </div>
+    )}
+
+    {gradeOrder.map((cls, orderIdx)=>{
+      const realIdx = (cs.order||[]).indexOf(cls);
+      const team    = classToTeam(cls);
+      const isCur   = cs.currentIdx===realIdx;
+      const d       = cs.items?.[cls] || {};
+      const rIntro  = roster.classes?.[cls]?.intro || "";
+      const intro   = d.intro || rIntro;
+      const hasAudio= !!d.audio;
+
+      if(editClass===cls) {
+        return(
+          <div key={cls} className="card hl" style={{marginBottom:8,borderColor:TEAM_COLORS[team]}}>
+            <div style={{fontWeight:800,color:TEAM_COLORS[team],marginBottom:8}}>{cls}반 편집</div>
+            <div style={{fontSize:11,color:"#787671",marginBottom:4}}>소개 멘트</div>
+            <textarea value={editIntro} onChange={e=>setEditIntro(e.target.value)}
+              rows={3} className="oinput" style={{marginBottom:8,fontSize:12,resize:"vertical"}}/>
+            <div style={{fontSize:11,color:"#787671",marginBottom:4}}>🎵 음원 URL</div>
+            <input value={editAudio} onChange={e=>setEditAudio(e.target.value)}
+              placeholder="https://drive.google.com/..." className="oinput"
+              style={{marginBottom:8,fontSize:12,fontFamily:"monospace"}}/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+              <button onClick={()=>setEditClass(null)} className="obtn" style={{fontSize:12}}>취소</button>
+              <button onClick={saveEdit} className="obtn primary" style={{fontSize:12}}>💾 저장</button>
             </div>
           </div>
         );
-      })}
+      }
 
-      {/* 편집 모달 */}
-      {editClass && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:200,
-          display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
-          onClick={()=>setEditClass(null)}>
-          <div onClick={e=>e.stopPropagation()} className="card" style={{maxWidth:420,width:"100%"}}>
-            <div style={{fontWeight:800,fontSize:16,marginBottom:10}}>{editClass}반 응원전 편집</div>
-            <input value={editIntro} onChange={e=>setEditIntro(e.target.value)}
-              placeholder="소개 멘트" className="oinput" style={{marginBottom:6}}/>
-            <input value={editAudio} onChange={e=>setEditAudio(e.target.value)}
-              placeholder="음원 URL" className="oinput" style={{marginBottom:10,fontFamily:"monospace",fontSize:12}}/>
-            <div style={{display:"flex",gap:6}}>
-              <button onClick={saveEdit} className="obtn primary" style={{flex:1}}>💾 저장</button>
-              <button onClick={()=>setEditClass(null)} className="obtn" style={{flex:1}}>취소</button>
+      return(
+        <div key={cls} className="card" style={{
+          marginBottom:8,padding:"10px 12px",
+          borderLeft:`4px solid ${TEAM_COLORS[team]}`,
+          background:isCur?"#fffbeb":"#fff"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:intro?6:0}}>
+            <span style={{fontSize:11,color:"#9ca3af",fontWeight:700,minWidth:22,textAlign:"center"}}>
+              {orderIdx+1}
+            </span>
+            <TeamBadge team={team} size={24}/>
+            <span style={{flex:1,fontWeight:800,color:TEAM_COLORS[team]}}>{cls}반</span>
+            {isCur && <span className="blink" style={{fontSize:10,color:"#fff",
+              background:"#eb5757",padding:"2px 7px",borderRadius:8,fontWeight:800}}>ON AIR</span>}
+            {/* 순서 이동 */}
+            <div style={{display:"flex",flexDirection:"column",gap:1}}>
+              <button onClick={()=>moveOrder(realIdx,-1)}
+                style={{width:20,height:16,fontSize:8,border:"1px solid #e5e7eb",
+                  background:"#fff",cursor:"pointer",borderRadius:2,lineHeight:1}}>▲</button>
+              <button onClick={()=>moveOrder(realIdx,1)}
+                style={{width:20,height:16,fontSize:8,border:"1px solid #e5e7eb",
+                  background:"#fff",cursor:"pointer",borderRadius:2,lineHeight:1}}>▼</button>
             </div>
+            <button onClick={()=>startEdit(cls)} className="obtn" style={{fontSize:11,padding:"4px 8px"}}>✏️</button>
+            <button onClick={()=>playIdx(realIdx)}
+              style={{padding:"5px 10px",borderRadius:6,border:"none",cursor:"pointer",
+                fontWeight:700,fontSize:12,fontFamily:"inherit",
+                background:isCur&&playing?"#ef4444":hasAudio?"#16a34a":"#e5e7eb",
+                color:hasAudio||isCur?"#fff":"#9ca3af"}}>
+              {isCur&&playing?"⏸":"▶"}
+            </button>
           </div>
+          {intro && (
+            <div style={{fontSize:11,color:"#37352f",background:"#fafaf9",
+              padding:"6px 10px",borderRadius:6,lineHeight:1.6,
+              marginLeft:28,whiteSpace:"pre-wrap"}}>
+              {intro}
+            </div>
+          )}
         </div>
-      )}
-    </>
-  );
+      );
+    })}
+  </>);
 }
-
-// ════════════════════════════════════════════════════════
-//  학생: 입장식 보기
-// ════════════════════════════════════════════════════════
 function VEntry({ state }) {
   const entry = state.entry || {};
   const current = entry.current;
@@ -6987,12 +6827,20 @@ function OMusic({state,update,playTrack,playingId}) {
     update(s=>({...s,tracks:[...s.tracks,{id:Date.now()+"",title:title.trim(),url:url.trim(),cat}]}));
     setTitle(""); setUrl(""); };
 
-  // 8자마라톤 음원 등록
+  // 8자마라톤 음원 등록 - 파일 or URL
   const [eightUrl1, setEightUrl1] = useState(state.eightAudio?.["1학년 8자마라톤"]||"");
   const [eightUrl2, setEightUrl2] = useState(state.eightAudio?.["2학년 8자마라톤"]||"");
   const saveEight = (grade, url) => {
     update(s=>({...s, eightAudio:{...(s.eightAudio||{}), [grade]: url.trim()}}));
     alert(`✅ ${grade} 음원 저장 완료`);
+  };
+  const handleEightFile = (grade, file) => {
+    if(!file) return;
+    const blobUrl = URL.createObjectURL(file);
+    if(grade==="1") setEightUrl1(blobUrl);
+    else setEightUrl2(blobUrl);
+    update(s=>({...s, eightAudio:{...(s.eightAudio||{}), [`${grade}학년 8자마라톤`]: blobUrl}}));
+    alert(`✅ ${grade}학년 8자마라톤 파일 등록 완료 (이 기기 세션 동안 유효)`);
   };
 
   return(<>
@@ -7003,30 +6851,37 @@ function OMusic({state,update,playTrack,playingId}) {
         display:"flex",alignItems:"center",gap:6}}>
         ⏱ <span>8자마라톤 음원 등록</span>
       </div>
-      <div style={{fontSize:13,color:"#78350f",marginBottom:14,lineHeight:1.5}}>
-        학년별 8자마라톤 진행 시 재생할 BGM URL을 등록하세요.<br/>
-        학생/운영자 모두 종목별 화면에서 재생 버튼이 노출됩니다.
+      <div style={{fontSize:12,color:"#78350f",marginBottom:10,lineHeight:1.5,
+        background:"rgba(255,255,255,.5)",borderRadius:6,padding:"8px 10px"}}>
+        📁 파일: 이 기기 세션 동안만 유효 · 🔗 URL: 모든 기기에서 재생 가능
       </div>
-      <div style={{marginBottom:12}}>
-        <div style={{fontSize:13,fontWeight:700,marginBottom:6,color:"#92400e"}}>🎵 1학년 8자마라톤 음원 URL</div>
-        <div style={{display:"flex",gap:6}}>
-          <input value={eightUrl1} onChange={e=>setEightUrl1(e.target.value)}
-            placeholder="https://... (.mp3, .m4a 등 직접 링크)"
-            className="oinput" style={{flex:1,fontSize:13}}/>
-          <button onClick={()=>saveEight("1학년 8자마라톤", eightUrl1)}
-            className="obtn primary" style={{padding:"8px 14px",fontSize:13,whiteSpace:"nowrap"}}>저장</button>
+      {[["1","eightUrl1",eightUrl1,setEightUrl1],["2","eightUrl2",eightUrl2,setEightUrl2]].map(([g,_,urlVal,setUrl])=>(
+        <div key={g} style={{marginBottom:g==="1"?12:0}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:6,color:"#92400e"}}>
+            🎵 {g}학년 8자마라톤 음원
+            {state.eightAudio?.[`${g}학년 8자마라톤`] &&
+              <span style={{marginLeft:8,fontSize:11,color:"#15803d",fontWeight:800}}>✓ 등록됨</span>}
+          </div>
+          <div style={{display:"flex",gap:6,marginBottom:6}}>
+            {/* 파일 선택 */}
+            <label style={{padding:"8px 12px",borderRadius:6,fontSize:12,fontWeight:700,
+              background:"#fff",border:"1.5px solid #f59e0b",cursor:"pointer",
+              color:"#92400e",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+              📁 파일
+              <input type="file" accept="audio/*" style={{display:"none"}}
+                onChange={e=>{ const f=e.target.files?.[0]; if(f) handleEightFile(g,f); }}/>
+            </label>
+            <input value={urlVal.startsWith("blob:")?"":urlVal}
+              onChange={e=>setUrl(e.target.value)}
+              placeholder="또는 직접 URL 입력 (.mp3 등)"
+              className="oinput" style={{flex:1,fontSize:12}}/>
+            <button onClick={()=>saveEight(`${g}학년 8자마라톤`, urlVal)}
+              className="obtn primary" style={{padding:"8px 12px",fontSize:12,whiteSpace:"nowrap"}}>
+              저장
+            </button>
+          </div>
         </div>
-      </div>
-      <div>
-        <div style={{fontSize:13,fontWeight:700,marginBottom:6,color:"#92400e"}}>🎵 2학년 8자마라톤 음원 URL</div>
-        <div style={{display:"flex",gap:6}}>
-          <input value={eightUrl2} onChange={e=>setEightUrl2(e.target.value)}
-            placeholder="https://... (.mp3, .m4a 등 직접 링크)"
-            className="oinput" style={{flex:1,fontSize:13}}/>
-          <button onClick={()=>saveEight("2학년 8자마라톤", eightUrl2)}
-            className="obtn primary" style={{padding:"8px 14px",fontSize:13,whiteSpace:"nowrap"}}>저장</button>
-        </div>
-      </div>
+      ))}
     </div>
 
     <div className="card">
@@ -7456,6 +7311,7 @@ function ORoster({state, update}) {
 
   const classes = roster.classes||{};
   const classKeys = Object.keys(classes).sort();
+  const [audioTab, setAudioTab] = useState("1");  // 음원 탭 학년
 
   const TEMPLATE_URL = "https://docs.google.com/spreadsheets/d/1XXX/copy"; // 안내용
 
@@ -7562,6 +7418,117 @@ function ORoster({state, update}) {
         </button>
       </div>
     </div>
+
+    {/* 입장식·응원전 음원 업로드 */}
+    {classKeys.length > 0 && (
+      <div className="card" style={{marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,color:"#37352f",marginBottom:8}}>
+          🎵 입장식·응원전 음원 등록
+        </div>
+        <div style={{fontSize:11,color:"#6b7280",marginBottom:8,lineHeight:1.6,
+          background:"#f9fafb",borderRadius:6,padding:"8px 10px"}}>
+          파일 선택 시 이 기기에서만 재생됩니다 (운영자 전용).<br/>
+          다른 기기에서도 재생하려면 구글드라이브 공유링크를 사용하세요.
+        </div>
+        {/* 학년 탭 */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:10}}>
+          {["1","2"].map(g=>(
+            <button key={g} onClick={()=>setAudioTab(g)}
+              className={`obtn${audioTab===g?" on":""}`} style={{padding:"8px",fontSize:12}}>
+              {g}학년
+            </button>
+          ))}
+        </div>
+        {/* 반별 음원 카드 */}
+        {classKeys
+          .filter(cls=>cls.startsWith(audioTab+"-"))
+          .sort((a,b)=>parseInt(a.split("-")[1])-parseInt(b.split("-")[1]))
+          .map(cls=>{
+            const team = classToTeam(cls);
+            const entryAudio  = (state.entry?.items?.[cls]?.audio)  || "";
+            const cheerAudio  = (state.cheerShow?.items?.[cls]?.audio) || "";
+            const hasEntry = !!entryAudio;
+            const hasCheer = !!cheerAudio;
+
+            const setAudio = (kind, blobUrl, filename) => {
+              if(kind==="entry") {
+                update(s=>({...s, entry:{...(s.entry||{}),
+                  items:{...(s.entry?.items||{}),
+                    [cls]:{...(s.entry?.items?.[cls]||{}), audio:blobUrl}}}}));
+              } else {
+                update(s=>({...s, cheerShow:{...(s.cheerShow||{}),
+                  items:{...(s.cheerShow?.items||{}),
+                    [cls]:{...(s.cheerShow?.items?.[cls]||{}), audio:blobUrl}}}}));
+              }
+            };
+
+            return(
+              <div key={cls} style={{marginBottom:8,padding:"10px 12px",borderRadius:8,
+                border:`1px solid ${TEAM_COLORS[team]}33`,
+                background:"#fff"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+                  <TeamBadge team={team} size={22}/>
+                  <span style={{fontWeight:800,color:TEAM_COLORS[team]}}>{cls}반</span>
+                </div>
+                {/* 입장식 음원 */}
+                <div style={{marginBottom:6}}>
+                  <div style={{fontSize:10,fontWeight:700,color:"#6b7280",marginBottom:4}}>
+                    🚶 입장식 음원
+                    {hasEntry && <span style={{marginLeft:6,color:"#16a34a",fontWeight:800}}>✓ 등록됨</span>}
+                  </div>
+                  <div style={{display:"flex",gap:4}}>
+                    <label style={{flex:1,padding:"5px 10px",borderRadius:6,fontSize:11,
+                      background:"#eff6ff",border:"1px solid #bfdbfe",
+                      cursor:"pointer",textAlign:"center",fontWeight:600,color:"#1d4ed8",
+                      fontFamily:"inherit",display:"block"}}>
+                      📁 파일 선택
+                      <input type="file" accept="audio/*"
+                        style={{display:"none"}}
+                        onChange={e=>{
+                          const f=e.target.files?.[0];
+                          if(f) setAudio("entry", URL.createObjectURL(f), f.name);
+                        }}/>
+                    </label>
+                    <input
+                      value={entryAudio.startsWith("blob:")?"":(entryAudio||"")}
+                      onChange={e=>setAudio("entry", e.target.value, "")}
+                      placeholder="또는 URL 입력"
+                      style={{flex:2,padding:"5px 8px",borderRadius:6,border:"1px solid #e5e7eb",
+                        fontSize:10,fontFamily:"monospace"}}/>
+                  </div>
+                </div>
+                {/* 응원전 음원 */}
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:"#6b7280",marginBottom:4}}>
+                    📣 응원전 음원
+                    {hasCheer && <span style={{marginLeft:6,color:"#16a34a",fontWeight:800}}>✓ 등록됨</span>}
+                  </div>
+                  <div style={{display:"flex",gap:4}}>
+                    <label style={{flex:1,padding:"5px 10px",borderRadius:6,fontSize:11,
+                      background:"#fdf4ff",border:"1px solid #e9d5ff",
+                      cursor:"pointer",textAlign:"center",fontWeight:600,color:"#7c3aed",
+                      fontFamily:"inherit",display:"block"}}>
+                      📁 파일 선택
+                      <input type="file" accept="audio/*"
+                        style={{display:"none"}}
+                        onChange={e=>{
+                          const f=e.target.files?.[0];
+                          if(f) setAudio("cheer", URL.createObjectURL(f), f.name);
+                        }}/>
+                    </label>
+                    <input
+                      value={cheerAudio.startsWith("blob:")?"":(cheerAudio||"")}
+                      onChange={e=>setAudio("cheer", e.target.value, "")}
+                      placeholder="또는 URL 입력"
+                      style={{flex:2,padding:"5px 8px",borderRadius:6,border:"1px solid #e5e7eb",
+                        fontSize:10,fontFamily:"monospace"}}/>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+      </div>
+    )}
 
     {/* 학급 목록 + 통계 */}
     {classKeys.length>0 ? (<>
