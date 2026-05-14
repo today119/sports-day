@@ -200,8 +200,9 @@ function INIT() {
   groupScores:  {},     // { "장애물달리기": {g1:{"1-1":1,...}, ...} }
   relayFinals:  {},     // { grade1:{"1-1":1,...}, grade2:{...} }
   golddanya: {
-    half1: { teacher:{formation:"4-3-3",players:[]}, student:{grade:"1",formation:"4-4-2",players:[]}, score:{teacher:0,student:0}, goals:[], status:"upcoming" },
-    half2: { teacher:{formation:"4-3-3",players:[]}, student:{grade:"2",formation:"4-4-2",players:[]}, score:{teacher:0,student:0}, goals:[], status:"upcoming" }
+    teacher: { formation:"4-3-3", players:[], staff:[{name:"",photo:"",role:"감독"},{name:"",photo:"",role:"코치"}] },
+    half1: { student:{grade:"1",formation:"4-4-2",players:[]}, score:{teacher:0,student:0}, goals:[], status:"upcoming" },
+    half2: { student:{grade:"2",formation:"4-4-2",players:[]}, score:{teacher:0,student:0}, goals:[], status:"upcoming" }
   },
   p100: {               // 피지컬100
     roster: {},         // 사전 명단
@@ -5042,14 +5043,63 @@ function FootballPitch({ half }) {
     );
   };
 
+  // ── 감독/코치 카드 (선수의 2배) ──
+  const StaffCard = ({person}) => {
+    const photo = person?.photo?.trim();
+    const name  = person?.name  || "";
+    const role  = person?.role  || "감독";
+    const W = 132, H = 156;
+    const roleColor = role==="감독" ? GOLD : "#93c5fd";
+    return (
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",margin:"4px 8px"}}>
+        <div style={{width:W,height:H,borderRadius:14,overflow:"hidden",position:"relative",
+          border:`2px solid ${roleColor}`,
+          boxShadow:`0 6px 28px rgba(0,0,0,.8), 0 0 0 1px ${roleColor}44`,
+          background:photo?"#0a0a0a":"linear-gradient(150deg,#1e293b,#0f172a)"}}>
+          {photo ? (
+            <img src={photo} alt={name}
+              style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"top center"}}
+              onError={e=>{
+                e.target.style.display="none";
+                e.target.parentElement.style.background="linear-gradient(150deg,#1e293b,#0f172a)";
+              }}/>
+          ) : (
+            <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",
+              alignItems:"center",justifyContent:"center",gap:6}}>
+              <div style={{fontSize:40,opacity:.25}}>👤</div>
+              <div style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,.4)"}}>{role}</div>
+            </div>
+          )}
+          {/* 역할 배지 */}
+          <div style={{position:"absolute",top:8,left:8,
+            background:roleColor,color:"#000",fontSize:10,fontWeight:900,
+            padding:"2px 8px",borderRadius:10,letterSpacing:.5}}>
+            {role}
+          </div>
+          {/* 이름 그라데이션 */}
+          <div style={{position:"absolute",bottom:0,left:0,right:0,
+            background:"linear-gradient(transparent,rgba(0,0,0,.92))",
+            padding:"20px 6px 8px",textAlign:"center",
+            fontSize:13,fontWeight:900,color:"#fff",letterSpacing:.5,
+            textShadow:"0 1px 6px #000"}}>
+            {name||role}
+          </div>
+          <div style={{position:"absolute",top:0,left:0,right:0,height:3,
+            background:`linear-gradient(90deg,${roleColor},transparent)`}}/>
+        </div>
+      </div>
+    );
+  };
+
   // ── 단일팀 피치 (큰 카드) ──
   const TeamPitch = ({teamKey}) => {
     const isTeacher = teamKey==="teacher";
     const teamData  = isTeacher ? teacher : student;
     const color     = isTeacher ? T_BG : S_BG;
     const rows = parseRows(teamData.formation||"4-4-2", teamData.players||[]);
-    const dr   = isTeacher ? rows : [...rows].reverse(); // 학생은 FW위→GK아래
+    const dr   = isTeacher ? rows : [...rows].reverse();
     const teamGoals = goalsByTeam(teamKey);
+    const hasStaff  = isTeacher && staff.some(s=>s.name||s.photo);
 
     return (
       <div style={{borderRadius:14,overflow:"hidden",
@@ -5070,7 +5120,6 @@ function FootballPitch({ half }) {
               {teamData.formation}
             </span>
           </div>
-          {/* 스코어 미니 */}
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <span style={{fontSize:28,fontWeight:900,color:"#fff",lineHeight:1,
               textShadow:`0 0 20px ${isTeacher?"rgba(59,130,246,.6)":"rgba(239,68,68,.6)"}`}}>
@@ -5088,24 +5137,39 @@ function FootballPitch({ half }) {
           </div>
         </div>
 
-        {/* 피치 */}
-        <div style={{background:"linear-gradient(180deg,#0a2410 0%,#0c3318 30%,#0e4020 50%,#0c3318 70%,#0a2410 100%)",
-          position:"relative",padding:"10px 4px"}}>
+        {/* 피치 — 교사팀은 상단에 감독/코치 영역 추가 */}
+        <div style={{
+          background:"linear-gradient(180deg,#0a2410 0%,#0c3318 30%,#0e4020 50%,#0c3318 75%,#0a1c08 100%)",
+          position:"relative",
+          paddingTop: hasStaff ? 14 : 10,
+          paddingBottom:14, paddingLeft:4, paddingRight:4}}>
           {/* 필드 장식 */}
           <div style={{position:"absolute",inset:0,pointerEvents:"none"}}>
             <div style={{position:"absolute",left:"10%",right:"10%",top:"50%",height:1,
-              background:"rgba(255,255,255,.12)",transform:"translateY(-50%)"}}/>
+              background:"rgba(255,255,255,.1)",transform:"translateY(-50%)"}}/>
             <div style={{position:"absolute",left:"50%",top:"50%",width:36,height:36,
-              borderRadius:"50%",border:"1px solid rgba(255,255,255,.12)",
+              borderRadius:"50%",border:"1px solid rgba(255,255,255,.1)",
               transform:"translate(-50%,-50%)"}}/>
-            <div style={{position:"absolute",left:"20%",right:"20%",top:"4%",height:28,
-              border:"1px solid rgba(255,255,255,.08)",borderTop:"none"}}/>
-            <div style={{position:"absolute",left:"20%",right:"20%",bottom:"4%",height:28,
-              border:"1px solid rgba(255,255,255,.08)",borderBottom:"none"}}/>
+            <div style={{position:"absolute",left:"20%",right:"20%",top:"3%",height:28,
+              border:"1px solid rgba(255,255,255,.07)",borderTop:"none"}}/>
+            <div style={{position:"absolute",left:"20%",right:"20%",bottom:"3%",height:28,
+              border:"1px solid rgba(255,255,255,.07)",borderBottom:"none"}}/>
           </div>
+
+          {/* 감독/코치 카드 — GK 위 */}
+          {hasStaff && (
+            <div style={{display:"flex",justifyContent:"center",
+              gap:8,marginBottom:10,position:"relative",zIndex:1}}>
+              {staff.map((s,i)=>(
+                (s.name||s.photo) && <StaffCard key={i} person={s}/>
+              ))}
+            </div>
+          )}
+
+          {/* 선수 배치 */}
           {dr.map((row,ri)=>(
             <div key={ri} style={{display:"flex",justifyContent:"center",
-              alignItems:"flex-end",flexWrap:"wrap",marginBottom:8}}>
+              alignItems:"flex-end",flexWrap:"wrap",marginBottom:8,position:"relative",zIndex:1}}>
               {row.map((p,pi)=><PCard key={pi} player={p} color={color} large={true}/>)}
             </div>
           ))}
@@ -5214,9 +5278,17 @@ function FootballPitch({ half }) {
 // ════════════════════════════════════════════════════════
 function VGolddanya({ state }) {
   const [halfTab, setHalfTab] = useState("half1");
-  const gd   = state.golddanya || {};
-  const half = gd[halfTab] || {};
-  const isEmpty = !(half.teacher?.players?.length) && !(half.student?.players?.length);
+  const gd      = state.golddanya || {};
+  const half    = gd[halfTab] || {};
+  const teacher = gd.teacher || { formation:"4-3-3", players:[] }; // 공유 교사팀
+  const isEmpty = !(teacher?.players?.length) && !(half.student?.players?.length);
+
+  // FootballPitch에 넘길 합성 half
+  const halfForPitch = {
+    ...half,
+    teacher,
+    student: half.student || {grade: halfTab==="half1"?"1":"2", formation:"4-4-2", players:[]}
+  };
 
   return (<>
     <div className="card" style={{background:"linear-gradient(135deg,#fef3c7,#fff7ed)",
@@ -5258,7 +5330,7 @@ function VGolddanya({ state }) {
         <div style={{fontSize:12,color:"#9ca3af"}}>운영자가 라인업을 등록하면 표시됩니다</div>
       </div>
     ) : (
-      <FootballPitch half={half}/>
+      <FootballPitch half={halfForPitch}/>
     )}
   </>);
 }
@@ -5273,6 +5345,7 @@ function OGolddanya({ state, update }) {
   const [goalTime,  setGoalTime] = useState("");
   const gd   = state.golddanya || {};
   const half = gd[halfTab] || {};
+  const teacher = gd.teacher || { formation:"4-3-3", players:[] }; // 공유 교사팀
   const grade = halfTab==="half1" ? "1" : "2";
 
   const FORMATIONS = ["4-3-3","4-4-2","4-2-3-1","3-5-2","3-4-3","4-1-4-1","5-3-2"];
@@ -5282,35 +5355,60 @@ function OGolddanya({ state, update }) {
     {id:"done",    label:"✅ 종료",   color:"#16a34a"},
   ];
 
+  // 전/후반 데이터 업데이트
   const upd = (patch) => update(s=>({
     ...s, golddanya:{...(s.golddanya||{}),
       [halfTab]:{...(s.golddanya?.[halfTab]||{}),...patch}}
   }));
-  const updTeam = (team,patch) => upd({[team]:{...(half[team]||{}),...patch}});
+  // 교사팀 공유 데이터 업데이트
+  const updTeacher = (patch) => update(s=>({
+    ...s, golddanya:{...(s.golddanya||{}),
+      teacher:{...(s.golddanya?.teacher||{}),...patch}}
+  }));
+  const updStudent = (patch) => upd({student:{...(half.student||{}),...patch}});
   const updScore = (team,delta) => {
     const c = half.score||{teacher:0,student:0};
     upd({score:{...c,[team]:Math.max(0,(c[team]||0)+delta)}});
   };
-  const setPlayerField = (team,idx,field,val) => {
-    const raw = half[team]?.players;
-    // Firebase가 배열을 객체로 저장할 수 있음 → 안전하게 변환
+
+  // 교사팀 선수 필드 업데이트 (공유)
+  const setTeacherField = (idx,field,val) => {
+    const raw = teacher.players;
     const ps = Array.isArray(raw) ? [...raw]
-      : raw && typeof raw==="object" ? Object.values(raw)
-      : [];
+      : raw && typeof raw==="object" ? Object.values(raw) : [];
     while(ps.length<=idx) ps.push({name:"",number:""});
     if(!ps[idx]||typeof ps[idx]!=="object") ps[idx]={};
     ps[idx]={...ps[idx],[field]:val};
-    updTeam(team,{players:ps});
+    updTeacher({players:ps});
   };
-  const getPlayers = (team) => {
-    const raw = half[team]?.players;
+  // 학생팀 선수 필드 업데이트 (전/후반별)
+  const setStudentField = (idx,field,val) => {
+    const raw = half.student?.players;
     const ps = Array.isArray(raw) ? [...raw]
-      : raw && typeof raw==="object" ? Object.values(raw)
-      : [];
-    const result = ps.map(p=>(p&&typeof p==="object"?p:{name:"",number:"",photo:""}));
-    while(result.length<11) result.push({name:"",number:"",photo:""});
-    return result.slice(0,11);
+      : raw && typeof raw==="object" ? Object.values(raw) : [];
+    while(ps.length<=idx) ps.push({name:"",number:""});
+    if(!ps[idx]||typeof ps[idx]!=="object") ps[idx]={};
+    ps[idx]={...ps[idx],[field]:val};
+    updStudent({players:ps});
   };
+
+  const getTeacherPlayers = () => {
+    const raw = teacher.players;
+    const ps = Array.isArray(raw) ? [...raw]
+      : raw && typeof raw==="object" ? Object.values(raw) : [];
+    const r = ps.map(p=>(p&&typeof p==="object"?p:{name:"",number:"",photo:""}));
+    while(r.length<11) r.push({name:"",number:"",photo:""});
+    return r.slice(0,11);
+  };
+  const getStudentPlayers = () => {
+    const raw = half.student?.players;
+    const ps = Array.isArray(raw) ? [...raw]
+      : raw && typeof raw==="object" ? Object.values(raw) : [];
+    const r = ps.map(p=>(p&&typeof p==="object"?p:{name:"",number:"",photo:""}));
+    while(r.length<11) r.push({name:"",number:"",photo:""});
+    return r.slice(0,11);
+  };
+
   const submitGoal = () => {
     if(!goalName.trim()) return;
     upd({goals:[...(half.goals||[]),{team:goalTeam,name:goalName.trim(),time:goalTime.trim(),id:Date.now()}]});
@@ -5318,9 +5416,27 @@ function OGolddanya({ state, update }) {
   };
   const removeGoal = (id) => upd({goals:(half.goals||[]).filter(g=>g.id!==id)});
 
+  // FootballPitch에 넘길 half 조합 (teacher 공유 + 전/후반 student)
+  const halfForPitch = {
+    ...half,
+    teacher,
+    student: half.student || {grade, formation:"4-4-2", players:[]}
+  };
+
   return(<>
     <div className="page-title">⚽ 골때녀 관리</div>
     <div className="page-desc">전/후반 라인업 등록 · 득점 입력 · 학생 화면 실시간 반영</div>
+
+    {/* 교사팀 라인업 공유 안내 */}
+    <div className="card" style={{marginBottom:12,background:"#eff6ff",borderColor:"#bfdbfe",padding:"10px 14px"}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#1e40af",marginBottom:4}}>
+        👨‍🏫 교사팀 라인업 — 전/후반 공유
+      </div>
+      <div style={{fontSize:11,color:"#3b82f6",lineHeight:1.6}}>
+        교사팀 명단은 <b>한 번만 입력</b>하면 전반·후반에 동일하게 적용됩니다.<br/>
+        교체가 필요하면 아래 선수 입력칸에서 직접 수정하세요.
+      </div>
+    </div>
 
     {/* 전/후반 탭 */}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:14}}>
@@ -5351,36 +5467,85 @@ function OGolddanya({ state, update }) {
     {/* 라인업 미리보기 */}
     <div className="sl">📺 라인업 미리보기</div>
     <div style={{borderRadius:12,overflow:"hidden",marginBottom:14}}>
-      <FootballPitch half={half}/>
+      <FootballPitch half={halfForPitch}/>
     </div>
 
     {/* 포메이션 선택 */}
     <div className="card" style={{marginBottom:12}}>
       <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:10}}>포메이션 설정</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        {["teacher","student"].map(team=>(
-          <div key={team}>
-            <div style={{fontSize:11,color:"#9b9a97",fontWeight:600,marginBottom:4}}>
-              {team==="teacher"?"👨‍🏫 교사팀":`🎓 ${grade}학년`}
-            </div>
-            <select value={half[team]?.formation||"4-4-2"}
-              onChange={e=>updTeam(team,{formation:e.target.value})}
-              className="oinput" style={{fontSize:13}}>
-              {FORMATIONS.map(f=><option key={f} value={f}>{f}</option>)}
-            </select>
+        <div>
+          <div style={{fontSize:11,color:"#9b9a97",fontWeight:600,marginBottom:4}}>
+            👨‍🏫 교사팀 (공유)
           </div>
-        ))}
+          <select value={teacher.formation||"4-4-2"}
+            onChange={e=>updTeacher({formation:e.target.value})}
+            className="oinput" style={{fontSize:13}}>
+            {FORMATIONS.map(f=><option key={f} value={f}>{f}</option>)}
+          </select>
+        </div>
+        <div>
+          <div style={{fontSize:11,color:"#9b9a97",fontWeight:600,marginBottom:4}}>
+            🎓 {grade}학년
+          </div>
+          <select value={half.student?.formation||"4-4-2"}
+            onChange={e=>updStudent({formation:e.target.value})}
+            className="oinput" style={{fontSize:13}}>
+            {FORMATIONS.map(f=><option key={f} value={f}>{f}</option>)}
+          </select>
+        </div>
       </div>
+    </div>
+
+    {/* 감독/코치 입력 (교사팀 공유) */}
+    <div className="card" style={{marginBottom:12,background:"#fafaf5",borderColor:"#e8e4d4"}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:10,
+        display:"flex",alignItems:"center",gap:6}}>
+        🎖️ 감독·코치 (교사팀 공유) — 선수 카드 상단에 2배 크기로 표시
+      </div>
+      {[0,1].map(i=>{
+        const s = (teacher.staff||[])[i] || {name:"",photo:"",role:i===0?"감독":"코치"};
+        const GOLD="#d4af37";
+        const roleColor = i===0 ? GOLD : "#93c5fd";
+        return(
+          <div key={i} style={{marginBottom:i===0?10:0,padding:"10px 12px",borderRadius:8,
+            background:"#fff",border:`1.5px solid ${roleColor}44`}}>
+            <div style={{fontSize:11,fontWeight:800,color:i===0?"#92400e":"#1e40af",
+              marginBottom:6,letterSpacing:.5}}>
+              {i===0?"🏅 감독":"🎽 코치"}
+            </div>
+            <div style={{display:"flex",gap:6,marginBottom:4}}>
+              <input value={s.name||""} placeholder="이름"
+                onChange={e=>{
+                  const arr=[...(teacher.staff||[{name:"",photo:"",role:"감독"},{name:"",photo:"",role:"코치"}])];
+                  arr[i]={...arr[i],name:e.target.value};
+                  updTeacher({staff:arr});
+                }}
+                className="oinput" style={{flex:1,fontSize:12,padding:"5px 8px"}}/>
+            </div>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <span style={{fontSize:10,color:"#9ca3af",flexShrink:0}}>📷</span>
+              <input value={s.photo||""} placeholder="사진 URL"
+                onChange={e=>{
+                  const arr=[...(teacher.staff||[{name:"",photo:"",role:"감독"},{name:"",photo:"",role:"코치"}])];
+                  arr[i]={...arr[i],photo:e.target.value};
+                  updTeacher({staff:arr});
+                }}
+                className="oinput" style={{flex:1,fontSize:10,padding:"4px 8px",color:"#6b7280",background:"#f9fafb"}}/>
+            </div>
+          </div>
+        );
+      })}
     </div>
 
     {/* 선수 명단 입력 */}
     <div className="card" style={{marginBottom:12}}>
       <div style={{fontSize:12,fontWeight:700,color:"#787671",marginBottom:12}}>선수 명단 (각 11명)</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-        <PlayerInputGrid team="teacher" label="교사팀" color="#1e3a8a"
-          players={getPlayers("teacher")} onFieldChange={setPlayerField}/>
-        <PlayerInputGrid team="student" label={`${grade}학년`} color="#9f1239"
-          players={getPlayers("student")} onFieldChange={setPlayerField}/>
+        <PlayerInputGrid team="teacher" label="👨‍🏫 교사팀 (공유)" color="#1e3a8a"
+          players={getTeacherPlayers()} onFieldChange={(_,idx,field,val)=>setTeacherField(idx,field,val)}/>
+        <PlayerInputGrid team="student" label={`🎓 ${grade}학년`} color="#9f1239"
+          players={getStudentPlayers()} onFieldChange={(_,idx,field,val)=>setStudentField(idx,field,val)}/>
       </div>
     </div>
 
@@ -7139,8 +7304,10 @@ function ORelay({ state, update }) {
 function ORoster({state, update}) {
   const roster = state.roster || {sheetUrl:"", classes:{}};
   const [sheetUrl, setSheetUrl] = useState(roster.sheetUrl||"");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);  // false or 학급코드
   const [selClass, setSelClass] = useState(null);
+  const [urlGrade, setUrlGrade] = useState("1");   // 현재 탭 학년
+  const [classUrls, setClassUrls] = useState({});  // {cls: url}
 
   const SPORT_COLS = ["줄다리기","장애물달리기","계주","태풍의눈","8자마라톤","피지컬100","미션달리기","골때녀"];
 
@@ -7175,72 +7342,56 @@ function ORoster({state, update}) {
   const isChecked = (v) => v && v.trim() && v.trim() !== '0' &&
     v.toLowerCase() !== 'false' && v.toLowerCase() !== 'x';
 
-  const loadFromSheet = async () => {
-    // 참가신청서 탭을 CSV로 가져오기
-    const csvUrl = sheetToCSV(sheetUrl, '참가신청서');
-    if(!csvUrl) { alert("구글 시트 공유 URL이 올바르지 않습니다"); return; }
-    setLoading(true);
+  const loadClassSheet = async (cls) => {
+    const url = classUrls[cls]||"";
+    const csvUrl = sheetToCSV(url, '참가신청서');
+    if(!csvUrl) { alert(`${cls}반 URL이 올바르지 않습니다`); return; }
+    setLoading(cls);
     try {
       const res = await fetch(csvUrl);
       const text = await res.text();
       const rows = parseCSV(text);
       if(rows.length < 6) throw new Error("데이터가 너무 적습니다. 시트 형식을 확인해주세요.");
 
-      // 행2: 학년(index1), 반(index3)
       const row2 = rows[1] || [];
       const gradeNum = (row2[1]||"").trim();
       const clsNum   = (row2[3]||"").trim();
-
       if(!gradeNum || !clsNum) throw new Error("학년/반 정보를 읽을 수 없습니다.\nB2(학년), D2(반) 셀을 확인해주세요.");
 
       const clsKey = `${gradeNum}-${clsNum}`;
-
-      // 행3: 팀 소개 멘트 (첫 번째 비어있지 않은 셀)
       const row3 = rows[2] || [];
       const intro = row3.find(v => v && v.trim() && !v.includes('팀 소개 멘트') && !v.includes('📣')) || "";
 
-      // 행6(index5)~: 학생 데이터
       const students = [];
       for(let i = 5; i < rows.length; i++) {
         const r = rows[i];
         const name   = (r[1]||"").trim();
         const gender = (r[2]||"").trim();
-
-        // 이름 없거나 유효하지 않은 성별(전출/자퇴 등) 건너뜀
         if(!name) continue;
         if(gender !== '남' && gender !== '여') continue;
-
-        const stuId = (r[0]||"").trim();  // 번호
-        const role  = (r[3]||"").trim();  // 역할
-
-        // 종목 참가 여부
+        const stuId = (r[0]||"").trim();
+        const role  = (r[3]||"").trim();
         const sports = [];
         for(const [sp, idxArr] of Object.entries(SPORT_IDX)) {
-          if(idxArr.some(idx => isChecked(r[idx]||""))) {
-            sports.push(sp);
-          }
+          if(idxArr.some(idx => isChecked(r[idx]||""))) sports.push(sp);
         }
-
         students.push({id: stuId, name, gender, role, sports});
       }
+      if(!students.length) throw new Error("학생 데이터를 찾을 수 없습니다.");
 
-      if(!students.length) throw new Error("학생 데이터를 찾을 수 없습니다.\n시트 공유 설정을 '뷰어'로 해주세요.");
-
-      // 역할별 분류
       const teacher   = students.find(s=>s.role==='담임')?.name   || "";
       const leader    = students.find(s=>s.role==='반장')?.name   || "";
       const vleader   = students.find(s=>s.role==='부반장')?.name || "";
       const sportLead = students.find(s=>s.role==='체육부장')?.name || "";
 
       const classes = {
-        ...(roster.classes||{}),   // 기존 데이터 유지 (다른 반)
+        ...(roster.classes||{}),
         [clsKey]: { teacher, leader, vleader, sportLead, intro, students }
       };
-
       update(s => ({...s, roster:{ sheetUrl, classes }}));
-      alert(`✅ ${clsKey}반 명단 불러왔습니다\n👥 ${students.length}명 / 종목 신청자: ${students.filter(s=>s.sports.length>0).length}명`);
+      alert(`✅ ${clsKey}반 완료! 👥 ${students.length}명`);
     } catch(e) {
-      alert("불러오기 실패: "+e.message+"\n\n시트 공유 설정: '링크가 있는 모든 사용자 → 뷰어'");
+      alert(`${cls}반 불러오기 실패:\n${e.message}`);
     }
     setLoading(false);
   };
@@ -7290,33 +7441,84 @@ function ORoster({state, update}) {
       </div>
     </div>
 
-    {/* 시트 URL 입력 */}
+    {/* 학년 탭 + 반별 URL 입력 */}
     <div className="card" style={{marginBottom:12}}>
       <div style={{fontSize:13,fontWeight:700,color:"#37352f",marginBottom:8}}>
         🔗 반별 참가신청서 URL 입력
       </div>
       <div style={{fontSize:11,color:"#1e40af",background:"#eff6ff",
-        borderRadius:6,padding:"8px 10px",marginBottom:8,lineHeight:1.6}}>
-        💡 <b>새 참가신청서 형식</b> 지원<br/>
-        • 반별로 작성된 사본 URL을 하나씩 입력해 불러오기<br/>
-        • 기존에 불러온 반 데이터는 유지됩니다<br/>
-        • 읽는 시트 탭: <b>참가신청서</b>
+        borderRadius:6,padding:"8px 10px",marginBottom:10,lineHeight:1.6}}>
+        각 반 URL 입력 후 📥 버튼 클릭 → 해당 반 명단 자동 집계<br/>
+        읽는 탭: <b>참가신청서</b> · 공유: "링크가 있는 모든 사용자 → 뷰어"
       </div>
-      <input value={sheetUrl} onChange={e=>setSheetUrl(e.target.value)}
-        placeholder="https://docs.google.com/spreadsheets/d/..."
-        className="oinput" style={{marginBottom:8,fontFamily:"monospace",fontSize:12}}/>
-      <div style={{fontSize:11,color:"#9b9a97",marginBottom:8}}>
-        ⚠️ 시트 공유 설정: "링크가 있는 모든 사용자 → 뷰어"
+
+      {/* 학년 탭 */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:10}}>
+        {["1","2"].map(g=>(
+          <button key={g} onClick={()=>setUrlGrade(g)}
+            className={`obtn${urlGrade===g?" on":""}`}
+            style={{padding:"9px",fontSize:13,fontWeight:700}}>
+            {g}학년
+          </button>
+        ))}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-        <button onClick={loadFromSheet} disabled={loading}
-          className="obtn primary" style={{padding:10,fontSize:13}}>
-          {loading?"불러오는 중...":"📥 이 반 명단 추가"}
+
+      {/* 10개 반 URL 입력칸 */}
+      {[1,2,3,4,5,6,7,8,9,10].map(n=>{
+        const cls = `${urlGrade}-${n}`;
+        const team = classToTeam(cls);
+        const hasData = !!roster.classes?.[cls];
+        const url = classUrls[cls]||"";
+        return(
+          <div key={cls} style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+            <div style={{
+              minWidth:52, padding:"4px 6px", borderRadius:6, textAlign:"center",
+              background: hasData ? TEAM_BG[team] : "#f3f4f6",
+              border:`1px solid ${hasData ? TEAM_COLORS[team] : "#e5e7eb"}`,
+              fontSize:11, fontWeight:800,
+              color: hasData ? TEAM_COLORS[team] : "#9ca3af",
+              flexShrink:0
+            }}>
+              {cls}반{hasData&&" ✓"}
+            </div>
+            <input
+              value={url}
+              onChange={e=>setClassUrls(prev=>({...prev,[cls]:e.target.value}))}
+              placeholder="시트 URL 붙여넣기..."
+              style={{flex:1,fontSize:11,padding:"5px 8px",border:"1px solid #e5e7eb",
+                borderRadius:6,fontFamily:"monospace",
+                background: hasData?"#f0fdf4":"#fff"}}
+            />
+            <button
+              onClick={()=>loadClassSheet(cls)}
+              disabled={!url.trim()||loading===cls}
+              style={{
+                padding:"5px 10px",borderRadius:6,fontSize:11,fontWeight:700,
+                background: url.trim()?"#3b82f6":"#e5e7eb",
+                color: url.trim()?"#fff":"#9ca3af",
+                border:"none",cursor:url.trim()?"pointer":"not-allowed",
+                flexShrink:0,fontFamily:"inherit"
+              }}>
+              {loading===cls?"⏳":"📥"}
+            </button>
+          </div>
+        );
+      })}
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginTop:10}}>
+        <button onClick={()=>{
+          // 현재 학년 전체 불러오기
+          [1,2,3,4,5,6,7,8,9,10].forEach(n=>{
+            const cls=`${urlGrade}-${n}`;
+            if(classUrls[cls]?.trim()) setTimeout(()=>loadClassSheet(cls), n*300);
+          });
+        }} className="obtn primary" style={{padding:9,fontSize:12}}>
+          📥 {urlGrade}학년 전체 불러오기
         </button>
         <button onClick={()=>{
           if(confirm("모든 학급 명단을 초기화하시겠습니까?"))
             update(s=>({...s,roster:{sheetUrl:"",classes:{}}}));
-        }} className="obtn danger" style={{padding:10,fontSize:13}}>
+        }} className="obtn danger" style={{padding:9,fontSize:12}}>
           🗑 전체 초기화
         </button>
       </div>
