@@ -4670,10 +4670,15 @@ function OTimeTrial({state,update}) {
   const counts = state.timeTrial?.[sel]||{};
   const judgeCodes = state.judgeCodes?.[sel]||{};
 
-  const set = (cls, v) => update(s => ({
-    ...s, timeTrial:{ ...(s.timeTrial||{}),
-      [sel]:{ ...(s.timeTrial?.[sel]||{}), [cls]: v===""?undefined:v }}
-  }));
+  const set = (cls, v) => update(s => {
+    const cur = {...(s.timeTrial?.[sel]||{})};
+    if(v === "" || v === undefined || v === null) {
+      delete cur[cls]; // Firebase에 undefined 전달 방지 - 키 자체를 삭제
+    } else {
+      cur[cls] = v;
+    }
+    return {...s, timeTrial:{...(s.timeTrial||{}), [sel]:cur}};
+  });
 
   const setCode = (cls, v) => update(s => ({
     ...s, judgeCodes:{ ...(s.judgeCodes||{}),
