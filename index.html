@@ -7294,11 +7294,15 @@ function ORoster({state, update}) {
   const getClassStats = (cls) => {
     const c = roster.classes?.[cls];
     if(!c) return null;
-    const stats = {total:c.students.length, m:0, f:0, bySport:{}};
-    for(const st of c.students) {
+    const students = Array.isArray(c.students) ? c.students
+      : c.students && typeof c.students==="object" ? Object.values(c.students) : [];
+    const stats = {total:students.length, m:0, f:0, bySport:{}};
+    for(const st of students) {
+      if(!st || typeof st !== "object") continue;
       if(st.gender==="남") stats.m++;
       else if(st.gender==="여") stats.f++;
-      for(const sp of st.sports) {
+      const sports = Array.isArray(st.sports) ? st.sports : [];
+      for(const sp of sports) {
         if(!stats.bySport[sp]) stats.bySport[sp]={total:0,m:0,f:0,names:[]};
         stats.bySport[sp].total++;
         stats.bySport[sp].names.push(st.name);
