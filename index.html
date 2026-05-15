@@ -1184,7 +1184,7 @@ function EightMusicPlayer({ sport, state }) {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  const audioUrl = state.eightAudio?.[sport] || "";
+  const audioUrl = driveToDirect(state.eightAudio?.[sport] || "");
 
   const toggle = () => {
     const a = audioRef.current;
@@ -1324,7 +1324,9 @@ function VSportDetail({sel, state, update}) {
     const sorted = Object.entries(counts).filter(([,c])=>parseCount(c)>0)
                     .sort((a,b)=>parseCount(b[1])-parseCount(a[1]));
     const grade = sel.startsWith("1")?"1":"2";
-    const gradeClasses = ALL_CLASSES.filter(c=>c.startsWith(grade+"-"));
+    const gradeClasses = ALL_CLASSES
+      .filter(c=>c.startsWith(grade+"-"))
+      .sort((a,b)=>parseInt(a.split("-")[1])-parseInt(b.split("-")[1]));
 
 
     // ── 학생심판 패널 (독립 컴포넌트 사용)
@@ -1347,16 +1349,25 @@ function VSportDetail({sel, state, update}) {
             </div>
             {gradeClasses.map(c=>{
               const team=classToTeam(c);
+              const cnt = counts[c];
+              const hasCnt = cnt !== undefined && cnt !== "";
               return(
-                <div key={c} className="rrow">
+                <div key={c} className="rrow" style={{
+                  background: hasCnt ? TEAM_BG[team] : "#fff",
+                  borderRadius:6, marginBottom:2}}>
                   <TeamBadge team={team} size={28}/>
                   <span className="rrow-main">{c}반</span>
-                  <span className="rrow-meta">횟수 입력 전</span>
+                  {hasCnt ? (
+                    <span style={{fontFamily:"monospace",fontWeight:800,
+                      color:TEAM_COLORS[team],fontSize:14}}>{cnt}개</span>
+                  ) : (
+                    <span className="rrow-meta" style={{color:"#d1d5db"}}>미입력</span>
+                  )}
                 </div>
               );
             })}
           </div>
-          <JudgePanel/>
+          <StudentJudgePanel sel={sel} state={state} update={update}/>
         </>
       }/>;
     }
@@ -3313,7 +3324,7 @@ function OEntry({ state, update }) {
 
   // 음원 재생/정지
   const playClass = (cls) => {
-    const audio = entry.items?.[cls]?.audio;
+    const audio = driveToDirect(entry.items?.[cls]?.audio || "");
     if(!audioRef.current) audioRef.current = new Audio();
     if(entry.current === cls && playing) {
       audioRef.current.pause(); setPlaying(false);
@@ -4592,6 +4603,45 @@ function OTimeTrial({state,update}) {
           {sp}
         </button>
       ))}
+    </div>
+
+    {/* 음원 등록 + 재생 */}
+    <div className="card" style={{marginBottom:10,
+      background:"linear-gradient(135deg,#fef3c7,#fde68a)",
+      borderColor:"#f59e0b",borderWidth:2,padding:"10px 14px"}}>
+      <div style={{fontSize:12,fontWeight:800,color:"#92400e",marginBottom:8,
+        display:"flex",alignItems:"center",gap:6}}>
+        🎵 {sel} 음원
+        {state.eightAudio?.[sel] &&
+          <span style={{fontSize:10,color:"#15803d",fontWeight:700}}>✓ 등록됨</span>}
+      </div>
+      {/* 파일 or URL 등록 */}
+      <div style={{display:"flex",gap:6,marginBottom:8}}>
+        <label style={{padding:"6px 10px",borderRadius:6,fontSize:11,fontWeight:700,
+          background:"#fff",border:"1.5px solid #f59e0b",cursor:"pointer",
+          color:"#92400e",fontFamily:"inherit",flexShrink:0}}>
+          📁 파일
+          <input type="file" accept="audio/*" style={{display:"none"}}
+            onChange={e=>{
+              const f=e.target.files?.[0];
+              if(!f) return;
+              const blob = URL.createObjectURL(f);
+              update(s=>({...s,eightAudio:{...(s.eightAudio||{}),[sel]:blob}}));
+            }}/>
+        </label>
+        <input
+          defaultValue={state.eightAudio?.[sel]?.startsWith("blob:")?"":state.eightAudio?.[sel]||""}
+          key={sel}
+          onBlur={e=>{
+            const v=e.target.value.trim();
+            if(v) update(s=>({...s,eightAudio:{...(s.eightAudio||{}),[sel]:driveToDirect(v)}}));
+          }}
+          placeholder="또는 URL 직접 입력 (.mp3 등)"
+          style={{flex:1,fontSize:11,padding:"6px 8px",border:"1px solid #fcd34d",
+            borderRadius:6,fontFamily:"monospace"}}/>
+      </div>
+      {/* 재생 컨트롤 */}
+      <EightMusicPlayer sport={sel} state={state}/>
     </div>
 
     <div className="card" style={{marginBottom:10,background:"#eff6ff",borderColor:"#bfdbfe",padding:"10px 14px"}}>
@@ -7362,44 +7412,81 @@ function ORoster({state, update}) {
         ))}
       </div>
 
-      {/* 10개 반 URL 입력칸 */}
+      {/* 10개 반 — 명단 URL + 음원 통합 */}
       {[1,2,3,4,5,6,7,8,9,10].map(n=>{
         const cls = `${urlGrade}-${n}`;
         const team = classToTeam(cls);
         const hasData = !!roster.classes?.[cls];
         const url = classUrls[cls]||"";
+        const entryAudio = state.entry?.items?.[cls]?.audio || "";
+        const cheerAudio = state.cheerShow?.items?.[cls]?.audio || "";
+        const hasEA = !!entryAudio;
+        const hasCA = !!cheerAudio;
+        const setAudio = (kind, val) => {
+          const converted = val.startsWith("blob:") ? val : driveToDirect(val);
+          if(kind==="entry")
+            update(s=>({...s, entry:{...(s.entry||{}),
+              items:{...(s.entry?.items||{}), [cls]:{...(s.entry?.items?.[cls]||{}), audio:converted}}}}));
+          else
+            update(s=>({...s, cheerShow:{...(s.cheerShow||{}),
+              items:{...(s.cheerShow?.items||{}), [cls]:{...(s.cheerShow?.items?.[cls]||{}), audio:converted}}}}));
+        };
         return(
-          <div key={cls} style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
-            <div style={{
-              minWidth:52, padding:"4px 6px", borderRadius:6, textAlign:"center",
-              background: hasData ? TEAM_BG[team] : "#f3f4f6",
-              border:`1px solid ${hasData ? TEAM_COLORS[team] : "#e5e7eb"}`,
-              fontSize:11, fontWeight:800,
-              color: hasData ? TEAM_COLORS[team] : "#9ca3af",
-              flexShrink:0
-            }}>
-              {cls}반{hasData&&" ✓"}
+          <div key={cls} style={{marginBottom:8,padding:"8px 10px",borderRadius:8,
+            border:`1px solid ${hasData?TEAM_COLORS[team]+"55":"#e5e7eb"}`,
+            background:hasData?"#f0fdf4":"#fff"}}>
+            {/* 행1: 반 배지 + URL + 불러오기 */}
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+              <div style={{minWidth:52,padding:"4px 6px",borderRadius:6,textAlign:"center",
+                background:hasData?TEAM_BG[team]:"#f3f4f6",
+                border:`1px solid ${hasData?TEAM_COLORS[team]:"#e5e7eb"}`,
+                fontSize:11,fontWeight:800,
+                color:hasData?TEAM_COLORS[team]:"#9ca3af",flexShrink:0}}>
+                {cls}반{hasData&&" ✓"}
+              </div>
+              <input value={url}
+                onChange={e=>setClassUrls(prev=>({...prev,[cls]:e.target.value}))}
+                placeholder="시트 URL 붙여넣기..."
+                style={{flex:1,fontSize:11,padding:"5px 8px",border:"1px solid #e5e7eb",
+                  borderRadius:6,fontFamily:"monospace",background:hasData?"#f0fdf4":"#fff"}}/>
+              <button onClick={()=>loadClassSheet(cls)} disabled={!url.trim()||loading===cls}
+                style={{padding:"5px 10px",borderRadius:6,fontSize:11,fontWeight:700,
+                  background:url.trim()?"#3b82f6":"#e5e7eb",
+                  color:url.trim()?"#fff":"#9ca3af",
+                  border:"none",cursor:url.trim()?"pointer":"not-allowed",
+                  flexShrink:0,fontFamily:"inherit"}}>
+                {loading===cls?"⏳":"📥"}
+              </button>
             </div>
-            <input
-              value={url}
-              onChange={e=>setClassUrls(prev=>({...prev,[cls]:e.target.value}))}
-              placeholder="시트 URL 붙여넣기..."
-              style={{flex:1,fontSize:11,padding:"5px 8px",border:"1px solid #e5e7eb",
-                borderRadius:6,fontFamily:"monospace",
-                background: hasData?"#f0fdf4":"#fff"}}
-            />
-            <button
-              onClick={()=>loadClassSheet(cls)}
-              disabled={!url.trim()||loading===cls}
-              style={{
-                padding:"5px 10px",borderRadius:6,fontSize:11,fontWeight:700,
-                background: url.trim()?"#3b82f6":"#e5e7eb",
-                color: url.trim()?"#fff":"#9ca3af",
-                border:"none",cursor:url.trim()?"pointer":"not-allowed",
-                flexShrink:0,fontFamily:"inherit"
-              }}>
-              {loading===cls?"⏳":"📥"}
-            </button>
+            {/* 행2: 입장식 / 응원전 음원 */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
+              {[["entry","🚶","#eff6ff","#bfdbfe","#1d4ed8","입장식"],
+                ["cheer","📣","#fdf4ff","#e9d5ff","#7c3aed","응원전"]].map(([kind,icon,bg,border,clr,label])=>{
+                const hasAu = kind==="entry"?hasEA:hasCA;
+                const auVal = kind==="entry"?entryAudio:cheerAudio;
+                return(
+                  <div key={kind} style={{display:"flex",alignItems:"center",gap:4,
+                    padding:"4px 7px",borderRadius:6,background:bg,border:`1px solid ${border}`}}>
+                    <span style={{fontSize:10,color:clr,flexShrink:0,fontWeight:700,lineHeight:1}}>
+                      {icon}{hasAu&&<span style={{color:"#16a34a"}}> ✓</span>}
+                    </span>
+                    <label title={`${label} 음원 파일 선택`}
+                      style={{fontSize:10,cursor:"pointer",flexShrink:0,
+                        padding:"2px 6px",background:"#fff",borderRadius:4,
+                        border:`1px solid ${border}`,color:clr,fontFamily:"inherit",fontWeight:600}}>
+                      📁
+                      <input type="file" accept="audio/*" style={{display:"none"}}
+                        onChange={e=>{const f=e.target.files?.[0];if(f)setAudio(kind,URL.createObjectURL(f));}}/>
+                    </label>
+                    <input value={auVal.startsWith("blob:")?"":auVal}
+                      onChange={e=>setAudio(kind,e.target.value)}
+                      placeholder={`${label} URL`}
+                      style={{flex:1,fontSize:10,padding:"2px 5px",border:`1px solid ${border}`,
+                        borderRadius:4,minWidth:0,fontFamily:"monospace"}}/>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         );
       })}
@@ -7423,116 +7510,6 @@ function ORoster({state, update}) {
       </div>
     </div>
 
-    {/* 입장식·응원전 음원 업로드 */}
-    {classKeys.length > 0 && (
-      <div className="card" style={{marginBottom:12}}>
-        <div style={{fontSize:13,fontWeight:700,color:"#37352f",marginBottom:8}}>
-          🎵 입장식·응원전 음원 등록
-        </div>
-        <div style={{fontSize:11,color:"#6b7280",marginBottom:8,lineHeight:1.6,
-          background:"#f9fafb",borderRadius:6,padding:"8px 10px"}}>
-          파일 선택 시 이 기기에서만 재생됩니다 (운영자 전용).<br/>
-          다른 기기에서도 재생하려면 구글드라이브 공유링크를 사용하세요.
-        </div>
-        {/* 학년 탭 */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:10}}>
-          {["1","2"].map(g=>(
-            <button key={g} onClick={()=>setAudioTab(g)}
-              className={`obtn${audioTab===g?" on":""}`} style={{padding:"8px",fontSize:12}}>
-              {g}학년
-            </button>
-          ))}
-        </div>
-        {/* 반별 음원 카드 */}
-        {classKeys
-          .filter(cls=>cls.startsWith(audioTab+"-"))
-          .sort((a,b)=>parseInt(a.split("-")[1])-parseInt(b.split("-")[1]))
-          .map(cls=>{
-            const team = classToTeam(cls);
-            const entryAudio  = (state.entry?.items?.[cls]?.audio)  || "";
-            const cheerAudio  = (state.cheerShow?.items?.[cls]?.audio) || "";
-            const hasEntry = !!entryAudio;
-            const hasCheer = !!cheerAudio;
-
-            const setAudio = (kind, blobUrl, filename) => {
-              if(kind==="entry") {
-                update(s=>({...s, entry:{...(s.entry||{}),
-                  items:{...(s.entry?.items||{}),
-                    [cls]:{...(s.entry?.items?.[cls]||{}), audio:blobUrl}}}}));
-              } else {
-                update(s=>({...s, cheerShow:{...(s.cheerShow||{}),
-                  items:{...(s.cheerShow?.items||{}),
-                    [cls]:{...(s.cheerShow?.items?.[cls]||{}), audio:blobUrl}}}}));
-              }
-            };
-
-            return(
-              <div key={cls} style={{marginBottom:8,padding:"10px 12px",borderRadius:8,
-                border:`1px solid ${TEAM_COLORS[team]}33`,
-                background:"#fff"}}>
-                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
-                  <TeamBadge team={team} size={22}/>
-                  <span style={{fontWeight:800,color:TEAM_COLORS[team]}}>{cls}반</span>
-                </div>
-                {/* 입장식 음원 */}
-                <div style={{marginBottom:6}}>
-                  <div style={{fontSize:10,fontWeight:700,color:"#6b7280",marginBottom:4}}>
-                    🚶 입장식 음원
-                    {hasEntry && <span style={{marginLeft:6,color:"#16a34a",fontWeight:800}}>✓ 등록됨</span>}
-                  </div>
-                  <div style={{display:"flex",gap:4}}>
-                    <label style={{flex:1,padding:"5px 10px",borderRadius:6,fontSize:11,
-                      background:"#eff6ff",border:"1px solid #bfdbfe",
-                      cursor:"pointer",textAlign:"center",fontWeight:600,color:"#1d4ed8",
-                      fontFamily:"inherit",display:"block"}}>
-                      📁 파일 선택
-                      <input type="file" accept="audio/*"
-                        style={{display:"none"}}
-                        onChange={e=>{
-                          const f=e.target.files?.[0];
-                          if(f) setAudio("entry", URL.createObjectURL(f), f.name);
-                        }}/>
-                    </label>
-                    <input
-                      value={entryAudio.startsWith("blob:")?"":(entryAudio||"")}
-                      onChange={e=>setAudio("entry", e.target.value, "")}
-                      placeholder="또는 URL 입력"
-                      style={{flex:2,padding:"5px 8px",borderRadius:6,border:"1px solid #e5e7eb",
-                        fontSize:10,fontFamily:"monospace"}}/>
-                  </div>
-                </div>
-                {/* 응원전 음원 */}
-                <div>
-                  <div style={{fontSize:10,fontWeight:700,color:"#6b7280",marginBottom:4}}>
-                    📣 응원전 음원
-                    {hasCheer && <span style={{marginLeft:6,color:"#16a34a",fontWeight:800}}>✓ 등록됨</span>}
-                  </div>
-                  <div style={{display:"flex",gap:4}}>
-                    <label style={{flex:1,padding:"5px 10px",borderRadius:6,fontSize:11,
-                      background:"#fdf4ff",border:"1px solid #e9d5ff",
-                      cursor:"pointer",textAlign:"center",fontWeight:600,color:"#7c3aed",
-                      fontFamily:"inherit",display:"block"}}>
-                      📁 파일 선택
-                      <input type="file" accept="audio/*"
-                        style={{display:"none"}}
-                        onChange={e=>{
-                          const f=e.target.files?.[0];
-                          if(f) setAudio("cheer", URL.createObjectURL(f), f.name);
-                        }}/>
-                    </label>
-                    <input
-                      value={cheerAudio.startsWith("blob:")?"":(cheerAudio||"")}
-                      onChange={e=>setAudio("cheer", e.target.value, "")}
-                      placeholder="또는 URL 입력"
-                      style={{flex:2,padding:"5px 8px",borderRadius:6,border:"1px solid #e5e7eb",
-                        fontSize:10,fontFamily:"monospace"}}/>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-      </div>
-    )}
 
     {/* 학급 목록 + 통계 */}
     {classKeys.length>0 ? (<>
