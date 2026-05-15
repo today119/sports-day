@@ -1184,13 +1184,29 @@ function EightMusicPlayer({ sport, state }) {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  const audioUrl = driveToDirect(state.eightAudio?.[sport] || "");
+  const rawUrl  = state.eightAudio?.[sport] || "";
+  const audioUrl = rawUrl.startsWith("blob:") ? rawUrl : driveToDirect(rawUrl);
+
+  // src 바뀔 때 reload
+  useEffect(() => {
+    const a = audioRef.current;
+    if(!a) return;
+    a.pause();
+    setPlaying(false);
+    setProgress(0);
+    setDuration(0);
+    if(audioUrl) { a.load(); }
+  }, [audioUrl]);
 
   const toggle = () => {
     const a = audioRef.current;
-    if(!a) return;
+    if(!a || !audioUrl) return;
     if(playing) { a.pause(); setPlaying(false); }
-    else { a.play().then(()=>setPlaying(true)).catch(e=>alert("재생 실패: "+e.message)); }
+    else {
+      a.play()
+        .then(()=>setPlaying(true))
+        .catch(e=>alert("재생 실패: "+e.message+"\n\n파일 선택 또는 직접 접근 가능한 URL을 사용해주세요."));
+    }
   };
 
   const restart = () => {
@@ -3332,8 +3348,9 @@ function OEntry({ state, update }) {
       upd({ current: cls });
       if(audio) {
         audioRef.current.src = audio;
+        audioRef.current.load();
         audioRef.current.play().then(()=>setPlaying(true))
-          .catch(e=>alert("재생 실패: "+e.message));
+          .catch(e=>alert("재생 실패: "+e.message+"\n\n파일을 직접 선택하거나 공개 URL을 사용해주세요."));
       }
     }
   };
@@ -3525,8 +3542,9 @@ function OCheerShow({ state, update }) {
       upd({ currentIdx: idx });
       if(audio) {
         audioRef.current.src = audio;
+        audioRef.current.load();
         audioRef.current.play().then(()=>setPlaying(true))
-          .catch(e=>alert("재생 실패: "+e.message));
+          .catch(e=>alert("재생 실패: "+e.message+"\n\n파일을 직접 선택하거나 공개 URL을 사용해주세요."));
       }
     }
   };
@@ -7399,6 +7417,78 @@ function ORoster({state, update}) {
         borderRadius:6,padding:"8px 10px",marginBottom:10,lineHeight:1.6}}>
         각 반 URL 입력 후 📥 버튼 클릭 → 해당 반 명단 자동 집계<br/>
         읽는 탭: <b>참가신청서</b> · 공유: "링크가 있는 모든 사용자 → 뷰어"
+      </div>
+
+      {/* GitHub 음원 자동완성 */}
+      <div style={{background:"#f0fdf4",border:"1px solid #86efac",borderRadius:8,
+        padding:"10px 12px",marginBottom:10}}>
+        <div style={{fontSize:12,fontWeight:800,color:"#15803d",marginBottom:8,
+          display:"flex",alignItems:"center",gap:6}}>
+          🐙 GitHub 음원 자동완성
+        </div>
+        <div style={{fontSize:11,color:"#166534",marginBottom:8,lineHeight:1.6}}>
+          GitHub 리포에 음원 파일 업로드 후 베이스 URL 입력하면<br/>
+          모든 반의 입장식·응원전·8자마라톤 음원 URL이 자동 완성됩니다.<br/>
+          <span style={{fontFamily:"monospace",fontSize:10,color:"#15803d"}}>
+            audio/entry/1-1.mp3 · audio/cheer/1-1.mp3 · audio/eight/grade1.mp3
+          </span>
+        </div>
+        <div style={{display:"flex",gap:6,marginBottom:6}}>
+          <input id="gh-base-url"
+            defaultValue="https://today119.github.io/sports-day"
+            placeholder="https://today119.github.io/sports-day"
+            style={{flex:1,fontSize:11,padding:"6px 8px",border:"1px solid #86efac",
+              borderRadius:6,fontFamily:"monospace"}}/>
+          <select id="gh-ext" defaultValue="mp3"
+            style={{padding:"6px 8px",borderRadius:6,border:"1px solid #86efac",
+              fontSize:11,fontFamily:"inherit",background:"#fff",color:"#15803d",fontWeight:700}}>
+            <option value="mp3">.mp3</option>
+            <option value="mp4">.mp4</option>
+            <option value="mov">.mov</option>
+            <option value="m4a">.m4a</option>
+          </select>
+          <button onClick={()=>{
+            const base = document.getElementById("gh-base-url").value.trim().replace(/\/$/, "");
+            const ext  = document.getElementById("gh-ext").value;
+            if(!base) return;
+            ["1","2"].forEach(g=>{
+              [1,2,3,4,5,6,7,8,9,10].forEach(n=>{
+                const cls=`${g}-${n}`;
+                const entryUrl = `${base}/audio/entry/${cls}.${ext}`;
+                const cheerUrl = `${base}/audio/cheer/${cls}.${ext}`;
+                update(s=>({...s,
+                  entry:{...(s.entry||{}),
+                    items:{...(s.entry?.items||{}),
+                      [cls]:{...(s.entry?.items?.[cls]||{}), audio:entryUrl}}},
+                  cheerShow:{...(s.cheerShow||{}),
+                    items:{...(s.cheerShow?.items||{}),
+                      [cls]:{...(s.cheerShow?.items?.[cls]||{}), audio:cheerUrl}}}
+                }));
+              });
+            });
+            update(s=>({...s, eightAudio:{
+              ...(s.eightAudio||{}),
+              "1학년 8자마라톤": `${base}/audio/eight/grade1.${ext}`,
+              "2학년 8자마라톤": `${base}/audio/eight/grade2.${ext}`,
+            }}));
+            alert(`✅ 자동완성 완료! (확장자: .${ext})\n\n입장식: audio/entry/1-1.${ext} ~ 2-10.${ext}\n응원전: audio/cheer/1-1.${ext} ~ 2-10.${ext}\n8자마라톤: audio/eight/grade1.${ext}, grade2.${ext}`);
+          }} style={{padding:"6px 12px",borderRadius:6,border:"none",
+            background:"#16a34a",color:"#fff",fontSize:12,fontWeight:700,
+            cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>
+            ⚡ 전체 자동완성
+          </button>
+        </div>
+        <div style={{fontSize:10,color:"#6b7280",lineHeight:1.8}}>
+          📁 GitHub 업로드 경로 (파일명 규칙):<br/>
+          <span style={{fontFamily:"monospace"}}>
+            audio/entry/1-1.mp3 · audio/cheer/1-1.mp3<br/>
+            audio/eight/grade1.mp3 · audio/eight/grade2.mp3
+          </span><br/>
+          <span style={{color:"#f59e0b",fontWeight:600}}>
+            ⚠️ mov 파일은 Safari(iPhone/Mac)에서만 안정적으로 재생됩니다.<br/>
+            mp4 또는 mp3로 변환 권장 (무료: cloudconvert.com)
+          </span>
+        </div>
       </div>
 
       {/* 학년 탭 */}
