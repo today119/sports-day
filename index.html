@@ -4133,7 +4133,13 @@ function P100Roster({ p, gk, setGk }) {
       <div style={{fontSize:12,color:"#9ca3af",marginBottom:10}}>
         각 반 5명 이름 — 빈칸은 참가신청 명단의 자동값 사용
       </div>
-      {ALL_CLASSES.map(cls=>{
+      {[...ALL_CLASSES]
+        .sort((a,b)=>{
+          const [ag,an]=a.split("-").map(Number);
+          const [bg,bn]=b.split("-").map(Number);
+          return ag!==bg ? ag-bg : an-bn;
+        })
+        .map(cls=>{
         const team=classToTeam(cls);
         const autoNames = p.autoRoster?.[cls]?.[gk] || [];
         return(
