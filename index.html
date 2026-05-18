@@ -1431,47 +1431,132 @@ function VResultSummary({ state, pickSbTab }) {
                 </div>
               );
             })}
+            {/* 계주 결승 결과 (예선 데이터 유무와 무관하게 결승 입력되면 표시) */}
+            {sp.id==="계주" && (()=>{
+              const rf = state.relayFinals||{};
+              const gradeBlocks = [
+                {gk:"grade1", label:"1학년 결승"},
+                {gk:"grade2", label:"2학년 결승"},
+              ];
+              const hasAny = gradeBlocks.some(g=>Object.keys(rf[g.gk]||{}).length>0);
+              if(!hasAny) return null;
+              return (
+                <div style={{marginTop:8,paddingTop:8,borderTop:"1px dashed #e5e7eb"}}>
+                  {gradeBlocks.map(({gk,label})=>{
+                    const ranks = rf[gk]||{};
+                    const sorted = Object.entries(ranks).sort((a,b)=>a[1]-b[1]);
+                    if(!sorted.length) return null;
+                    return (
+                      <div key={gk} style={{marginBottom:6}}>
+                        <div style={{fontSize:10,color:"#dc2626",fontWeight:800,marginBottom:3}}>
+                          🏆 {label}
+                        </div>
+                        <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+                          {sorted.map(([cls,rank])=>{
+                            const team=classToTeam(cls);
+                            return(
+                              <div key={cls} style={{textAlign:"center",padding:"4px 6px",
+                                borderRadius:6,background:TEAM_BG[team],minWidth:50,
+                                border:`1px solid ${TEAM_COLORS[team]}44`}}>
+                                <div style={{fontSize:9,color:"#6b7280"}}>{rank}위</div>
+                                <div style={{fontSize:11,fontWeight:800,color:TEAM_COLORS[team]}}>{cls}반</div>
+                                <div style={{fontSize:9,color:TEAM_COLORS[team],fontWeight:700}}>
+                                  {RELAY_FINAL_PTS[rank-1]||0}점
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div style={{fontSize:9,color:"#9ca3af",marginTop:4}}>
+                    ※ 결승 미진출 반은 일괄 +{RELAY_ELIM_PTS}점 (예선 탈락점)
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         );
       })}
 
       <div style={{borderTop:"1px solid #f3f4f6",margin:"8px 0"}}/>
 
-      {/* 피지컬100 */}
+      {/* 피지컬100 — 단계별 진출자 (시상·점수 검산용) */}
       {(()=>{
         const p=state.p100||{};
         const hasFinal=p.r3?.m?.final||p.r3?.f?.final;
-        const winners=[];
-        for(const gk of ["m","f"]) {
-          const fk=p.r3?.[gk]?.final;
-          if(fk&&p.r1?.[gk]?.[fk]?.cls)
-            winners.push({gender:gk==="m"?"남":"여",cls:p.r1[gk][fk].cls,name:p.r1[gk][fk].name||""});
-        }
+        // 성별별 1차 통과자 → 각자의 진출 단계와 누적점수 산출
+        const tiers = (gk)=>{
+          const r1   = p.r1?.[gk]||{};
+          const elim = p.r2elim?.[gk]||[];
+          const fin  = p.r3?.[gk]?.final;
+          return Object.entries(r1).filter(([,w])=>w?.cls).map(([hk,w])=>{
+            const isWinner = hk===fin;
+            const isElim   = elim.includes(hk);
+            const total = isWinner ? P100_PTS.r2+P100_PTS.r3+P100_PTS.win  // +50
+                       : isElim   ? P100_PTS.r2                            // +10
+                       :            P100_PTS.r2+P100_PTS.r3;               // +20
+            return { hk, ...w, isWinner, isElim, total };
+          });
+        };
+        const mList = tiers("m"), fList = tiers("f");
+        const empty = mList.length===0 && fList.length===0;
         return(
           <div>
-            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
               <span>🏋️</span>
               <span style={{fontWeight:800,fontSize:12,color:"#1f2937"}}>피지컬100</span>
+              <span style={{fontSize:10,color:"#9ca3af",marginLeft:4}}>1R통과+10 · 3R진출+20 · 우승+50</span>
               <span style={{fontSize:10,marginLeft:"auto",fontWeight:700,
                 color:hasFinal?"#16a34a":"#f59e0b"}}>{hasFinal?"✅ 완료":"미완료"}</span>
             </div>
-            {winners.length>0 ? (
-              <div style={{display:"flex",gap:6}}>
-                {winners.map(w=>{
-                  const team=classToTeam(w.cls);
-                  return(
-                    <div key={w.gender} style={{padding:"6px 10px",borderRadius:6,
-                      background:TEAM_BG[team],border:`1px solid ${TEAM_COLORS[team]}44`,
-                      textAlign:"center"}}>
-                      <div style={{fontSize:10,color:"#6b7280"}}>{w.gender}자 우승</div>
-                      <div style={{fontSize:12,fontWeight:800,color:TEAM_COLORS[team]}}>{w.cls}반</div>
-                      {w.name&&<div style={{fontSize:10,color:"#374151"}}>{w.name}</div>}
-                      <div style={{fontSize:10,color:TEAM_COLORS[team],fontWeight:700}}>+{P100_PTS.win}점</div>
+            {empty ? (
+              <div style={{fontSize:11,color:"#d1d5db"}}>경기 시작 전</div>
+            ) : (
+              [{k:"m",l:"🏃‍♂️ 남자",list:mList},{k:"f",l:"🏃‍♀️ 여자",list:fList}].map(({k,l,list})=>(
+                list.length>0 && (
+                  <div key={k} style={{marginBottom:6}}>
+                    <div style={{fontSize:10,color:"#6b7280",fontWeight:700,marginBottom:3}}>
+                      {l} <span style={{color:"#9ca3af",fontWeight:500}}>({list.length}명 1R 통과)</span>
                     </div>
-                  );
-                })}
-              </div>
-            ) : <div style={{fontSize:11,color:"#d1d5db"}}>결승 미진행</div>}
+                    <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+                      {list.map(it=>{
+                        const team=classToTeam(it.cls);
+                        const label = it.isWinner ? "🏆 우승" : it.isElim ? "2R 탈락" : "🟢 3R 진출";
+                        return(
+                          <div key={it.hk} style={{padding:"4px 6px",borderRadius:6,
+                            background: it.isWinner ? "linear-gradient(135deg,#fbbf24,#f59e0b)" : TEAM_BG[team],
+                            minWidth:64,
+                            border:`1px solid ${it.isWinner?"#f59e0b":TEAM_COLORS[team]+"44"}`,
+                            textAlign:"center",opacity:it.isElim?0.65:1}}>
+                            <div style={{fontSize:8,color:it.isWinner?"#78350f":"#6b7280",fontWeight:700}}>
+                              {label}
+                            </div>
+                            <div style={{fontSize:10,fontWeight:800,
+                              color:it.isWinner?"#78350f":TEAM_COLORS[team]}}>
+                              {it.cls}반
+                            </div>
+                            {it.name && (
+                              <div style={{fontSize:9,
+                                color:it.isWinner?"#78350f":"#374151",
+                                fontWeight:it.isWinner?700:500,
+                                maxWidth:80,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                {it.name}
+                              </div>
+                            )}
+                            <div style={{fontSize:9,
+                              color:it.isWinner?"#78350f":TEAM_COLORS[team],fontWeight:700}}>
+                              +{it.total}점
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )
+              ))
+            )}
           </div>
         );
       })()}
