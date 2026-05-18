@@ -125,7 +125,7 @@ const P100_GROUPS = {
   g4:{ name:"4조", cls:["2-6","2-7","2-8","2-9","2-10"]  }
 };
 const P100_GKEYS   = ["g1","g2","g3","g4"];
-const P100_RUNNERS = [1,2,3,4,5];
+const P100_RUNNERS = [1,2,3,4];
 const ALL_HEATS_LIST = [];
 for(const r of P100_RUNNERS) for(const g of P100_GKEYS) ALL_HEATS_LIST.push(`r${r}-${g}`);
 
@@ -4388,7 +4388,7 @@ function useP100(state, update) {
   };
 
   const setRoster = (cls, gk, idx, val) => {
-    const cur = [...(roster[cls]?.[gk] || ["","","","",""])];
+    const cur = [...(roster[cls]?.[gk] || ["","","",""])];
     cur[idx] = val;
     upd({ roster: { ...roster, [cls]:{ ...(roster[cls]||{}), [gk]:cur } } });
   };
@@ -4473,7 +4473,7 @@ function P100Roster({ p, gk, setGk }) {
       </div>
 
       <div style={{fontSize:12,color:"#9ca3af",marginBottom:10}}>
-        각 반 5명 이름 — 빈칸은 참가신청 명단의 자동값 사용
+        각 반 4명 이름 — 빈칸은 참가신청 명단의 자동값 사용
       </div>
       {[...ALL_CLASSES]
         .sort((a,b)=>{
@@ -4496,7 +4496,7 @@ function P100Roster({ p, gk, setGk }) {
               )}
             </div>
             <div style={{display:"flex",gap:5}}>
-              {[0,1,2,3,4].map(idx=>{
+              {[0,1,2,3].map(idx=>{
                 const auto = autoNames[idx] || "";
                 return (
                   <input key={idx} value={p.roster[cls]?.[gk]?.[idx]||""}
