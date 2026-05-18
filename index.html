@@ -156,8 +156,8 @@ const SCHED_DEFAULT = [
   { id:"s15", time:"14:40", title:"피지컬100 3부 (생존달리기&슛)", emoji:"🏋️", status:"upcoming" },
   { id:"s16", time:"14:50", title:"줄다리기 결승",              emoji:"🪢", status:"upcoming" },
   { id:"s17", time:"15:00", title:"계주 결승",                  emoji:"🏆", status:"upcoming" },
-  { id:"s18", time:"15:10", title:"폐회·시상",                  emoji:"🎊", status:"upcoming" },
-  { id:"s19", time:"15:20", title:"청소·정리",                  emoji:"🧹", status:"upcoming" },
+  { id:"s18", time:"15:20", title:"청소·정리",                  emoji:"🧹", status:"upcoming" },
+  { id:"s19", time:"15:30", title:"폐회·시상",                  emoji:"🎊", status:"upcoming" },
 ];
 
 // ─── 대진표 로직 ───
@@ -2008,8 +2008,7 @@ function VSportDetail({sel, state, update}) {
 
       {/* 팀별 합산 */}
       {hasData && (
-        <>
-          <div className="sl">🏆 팀별 합산</div>
+        <><div className="sl">🏆 팀별 합산</div>
           <div className="card">
             {TEAM_NAMES.filter(t=>tourTeamSum[t]).sort((a,b)=>tourTeamSum[b]-tourTeamSum[a]).map(t=>(
               <div key={t} className="rrow"><TeamBadge team={t} size={28}/>
@@ -2018,32 +2017,41 @@ function VSportDetail({sel, state, update}) {
               </div>
             ))}
           </div>
-
-          {/* 결승 결과 */}
-          {[{key:"grade1",label:"1학년 결승"},{key:"grade2",label:"2학년 결승"}].map(({key,label})=>(
-            Object.keys(rf[key]||{}).length>0 && (
-              <div key={key}>
-                <div className="sl">🏆 {label}</div>
-                <div className="card">
-                  {Object.entries(rf[key]).sort((a,b)=>a[1]-b[1]).map(([cls,rank])=>{
-                    const team=classToTeam(cls);
-                    return(
-                      <div key={cls} className="rrow">
-                        <span className="rrow-rank">
-                          {rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":`${rank}위`}
-                        </span>
-                        <TeamBadge team={team} size={28}/>
-                        <span className="rrow-main">{cls}반 ({team}팀)</span>
-                        <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>{RELAY_FINAL_PTS[rank-1]}점</Chip>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )
-          ))}
         </>
       )}
+
+      {/* 결승 결과 - hasData와 무관하게 결승 데이터 있으면 표시 */}
+      {[{key:"grade1",label:"1학년 결승"},{key:"grade2",label:"2학년 결승"}].map(({key,label})=>{
+        const finalData = Object.entries(rf[key]||{}).sort((a,b)=>a[1]-b[1]);
+        if(!finalData.length) return null;
+        return(
+          <div key={key}>
+            <div className="sl">🏆 {label}</div>
+            <div className="card">
+              {finalData.map(([cls,rank])=>{
+                const team=classToTeam(cls);
+                const medal=rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":`${rank}위`;
+                return(
+                  <div key={cls} className="rrow" style={{
+                    background:rank===1?TEAM_BG[team]:"#fff",
+                    borderRadius:8,marginBottom:2}}>
+                    <span className="rrow-rank" style={{fontSize:20}}>{medal}</span>
+                    <TeamBadge team={team} size={28}/>
+                    <span className="rrow-main" style={{
+                      fontWeight:rank===1?900:700,
+                      color:rank===1?TEAM_COLORS[team]:"#37352f"}}>
+                      {cls}반 ({team}팀)
+                    </span>
+                    <Chip color={TEAM_COLORS[team]} bg={TEAM_BG[team]}>
+                      {RELAY_FINAL_PTS[rank-1]}점
+                    </Chip>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </>);
   }
 
@@ -2208,18 +2216,23 @@ function VSportDetail({sel, state, update}) {
           {/* 1라운드 결과 */}
           <div className="card" style={{marginBottom:8}}>
             <div style={{fontSize:12,fontWeight:800,color:"#374151",marginBottom:8}}>
-              🏃 1라운드 50m 달리기 결과
+              🏃 1라운드 50m 달리기 진출자
               <span style={{fontSize:10,color:"#9ca3af",marginLeft:6}}>
-                ({quals.length}명 진출)
+                ({quals.length}명 · 조별 1위)
               </span>
             </div>
             {quals.map(([hk,w])=>{
               const team = classToTeam(w.cls);
               const sv   = isSurv(hk);
-              return(<div key={hk} className="rrow" style={{opacity:sv?1:.5}}>
+              return(<div key={hk} className="rrow" style={{
+                opacity:sv?1:.45,
+                background:sv?TEAM_BG[team]:"#fafafa",
+                borderRadius:6,marginBottom:2}}>
                 <TeamBadge team={team} size={22}/>
-                <span style={{flex:1,fontSize:12,color:"#37352f"}}>
-                  {w.name} <span style={{fontSize:10,color:"#9ca3af"}}>({w.cls}반)</span>
+                <span style={{flex:1,fontSize:12,fontWeight:sv?700:500,
+                  color:sv?TEAM_COLORS[team]:"#9ca3af"}}>
+                  {w.name}
+                  <span style={{fontSize:10,color:"#9ca3af",marginLeft:4}}>({w.cls}반)</span>
                 </span>
                 <span style={{fontSize:10,fontWeight:700,
                   color:sv?"#16a34a":"#ef4444"}}>
@@ -2232,17 +2245,19 @@ function VSportDetail({sel, state, update}) {
           {/* 2라운드 결과 */}
           {survs.length>0&&(<div className="card" style={{marginBottom:8}}>
             <div style={{fontSize:12,fontWeight:800,color:"#374151",marginBottom:8}}>
-              💪 2라운드 버피+허들 결과
+              💪 2라운드 버피점프 생존자
               <span style={{fontSize:10,color:"#9ca3af",marginLeft:6}}>
-                ({survs.length}명 생존)
+                ({survs.length}명 · 3라운드 진출)
               </span>
             </div>
             {survs.map(([hk,w])=>{
               const team=classToTeam(w.cls);
-              return(<div key={hk} className="rrow">
+              return(<div key={hk} className="rrow" style={{
+                background:TEAM_BG[team],borderRadius:6,marginBottom:2}}>
                 <TeamBadge team={team} size={22}/>
-                <span style={{flex:1,fontSize:12,color:"#37352f"}}>
-                  {w.name} <span style={{fontSize:10,color:"#9ca3af"}}>({w.cls}반)</span>
+                <span style={{flex:1,fontSize:12,fontWeight:700,color:TEAM_COLORS[team]}}>
+                  {w.name}
+                  <span style={{fontSize:10,color:"#9ca3af",marginLeft:4}}>({w.cls}반)</span>
                 </span>
                 <span style={{fontSize:10,fontWeight:700,color:"#16a34a"}}>3R 진출 ✓</span>
               </div>);
