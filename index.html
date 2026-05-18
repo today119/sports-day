@@ -1294,44 +1294,184 @@ function VResultSummary({ state, pickSbTab }) {
       ))}
     </div>
 
-    {/* 종목별 입력 현황 + 배점 검증 */}
+    {/* 종목별 입력 현황 + 결과 테이블 */}
     <div className="card" style={{marginBottom:12}}>
       <div style={{fontSize:13,fontWeight:800,color:"#37352f",marginBottom:10}}>
         📋 종목별 입력 현황
       </div>
-      {SPORT_ITEMS.map(sp=>{
-        const {filled,total,done} = checkSport(sp.id);
-        const errs = validateSport(sp.id);
-        const hasErr = errs.length>0;
+
+      {/* 8자마라톤 */}
+      {["1학년 8자마라톤","2학년 8자마라톤"].map(spId=>{
+        const ranks = getTimeTrialRanks(state.timeTrial?.[spId]||{});
+        const sorted = Object.entries(ranks).sort((a,b)=>a[1]-b[1]);
+        const {done} = checkSport(spId);
         return(
-          <div key={sp.id}
-            onClick={()=>pickSbTab(sp.id)}
-            style={{display:"flex",alignItems:"center",gap:10,
-              padding:"10px 10px",borderRadius:8,marginBottom:6,cursor:"pointer",
-              border:`1px solid ${hasErr?"#fca5a5":done?"#86efac":"#e5e7eb"}`,
-              background:hasErr?"#fff1f2":done?"#f0fdf4":"#fafafa"}}>
-            <span style={{fontSize:18,flexShrink:0}}>{sp.icon}</span>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontWeight:700,fontSize:13,color:"#1f2937"}}>{sp.label}</div>
-              <div style={{fontSize:10,color:"#6b7280",marginTop:1}}>{sp.pts}</div>
-              {hasErr && errs.map((e,i)=>(
-                <div key={i} style={{fontSize:10,color:"#ef4444",marginTop:2,fontWeight:600}}>
-                  ⚠️ {e}
-                </div>
-              ))}
+          <div key={spId} style={{marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+              <span style={{fontSize:12}}>⏱</span>
+              <span style={{fontWeight:800,fontSize:12,color:"#1f2937"}}>{spId}</span>
+              <span style={{fontSize:10,marginLeft:"auto",fontWeight:700,
+                color:done?"#16a34a":"#f59e0b"}}>
+                {done?"✅ 완료":`${sorted.length}/10`}
+              </span>
             </div>
-            <div style={{textAlign:"right",flexShrink:0}}>
-              {total>0 && (
-                <div style={{fontSize:11,fontWeight:700,
-                  color:done?"#16a34a":hasErr?"#ef4444":"#f59e0b"}}>
-                  {done?"✅ 완료":hasErr?"⚠️ 오류":`${filled}/${total}`}
-                </div>
-              )}
-              <div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>→ 상세</div>
-            </div>
+            {sorted.length>0 ? (
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:3}}>
+                {sorted.map(([cls,rank])=>{
+                  const team=classToTeam(cls);
+                  const cnt=state.timeTrial?.[spId]?.[cls];
+                  return(
+                    <div key={cls} style={{textAlign:"center",padding:"5px 2px",
+                      borderRadius:6,background:TEAM_BG[team],
+                      border:`1px solid ${TEAM_COLORS[team]}44`}}>
+                      <div style={{fontSize:9,color:"#6b7280"}}>{rank}위</div>
+                      <div style={{fontSize:11,fontWeight:800,color:TEAM_COLORS[team]}}>{cls}반</div>
+                      <div style={{fontSize:10,color:"#374151",fontFamily:"monospace"}}>{cnt}개</div>
+                      <div style={{fontSize:9,color:TEAM_COLORS[team],fontWeight:700}}>{TT_PTS[rank-1]}점</div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{fontSize:11,color:"#d1d5db",padding:"6px 0"}}>아직 입력 없음</div>
+            )}
           </div>
         );
       })}
+
+      <div style={{borderTop:"1px solid #f3f4f6",margin:"8px 0"}}/>
+
+      {/* 줄다리기 */}
+      {(()=>{
+        const {done} = checkSport("줄다리기");
+        const br = state.brackets?.["줄다리기"]||{};
+        const ranks = br.drawn ? getBracketRanks(br) : {};
+        const pts = SPORT_PTS["줄다리기"]||[];
+        return(
+          <div style={{marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+              <span>🪢</span>
+              <span style={{fontWeight:800,fontSize:12,color:"#1f2937"}}>줄다리기</span>
+              <span style={{fontSize:10,color:"#6b7280",marginLeft:4}}>팀별 토너먼트</span>
+              <span style={{fontSize:10,marginLeft:"auto",fontWeight:700,
+                color:done?"#16a34a":"#f59e0b"}}>{done?"✅ 완료":"미완료"}</span>
+            </div>
+            {Object.keys(ranks).length>0 ? (
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:3}}>
+                {Object.entries(ranks).sort((a,b)=>a[1]-b[1]).map(([team,rank])=>(
+                  <div key={team} style={{textAlign:"center",padding:"5px 2px",
+                    borderRadius:6,background:TEAM_BG[team],
+                    border:`1px solid ${TEAM_COLORS[team]}44`}}>
+                    <div style={{fontSize:9,color:"#6b7280"}}>{rank}위</div>
+                    <div style={{fontSize:12,fontWeight:800,color:TEAM_COLORS[team]}}>{team}팀</div>
+                    <div style={{fontSize:9,color:TEAM_COLORS[team],fontWeight:700}}>{pts[rank-1]||0}점</div>
+                  </div>
+                ))}
+              </div>
+            ) : <div style={{fontSize:11,color:"#d1d5db"}}>대진표 미완성</div>}
+          </div>
+        );
+      })()}
+
+      <div style={{borderTop:"1px solid #f3f4f6",margin:"8px 0"}}/>
+
+      {/* 조별 종목: 장애물달리기 / 태풍의눈 / 계주 */}
+      {[
+        {id:"장애물달리기", icon:"🚧", keys:GRP_KEYS, pts:GRP_PTS,
+          groupName:gk=>GRP_DEF[gk]?.name||gk},
+        {id:"태풍의눈",     icon:"🌀", keys:TYP_KEYS, pts:TYP_PTS,
+          groupName:(_,i)=>`${i+1}조`},
+        {id:"계주",         icon:"🏃", keys:GRP_KEYS, pts:GRP_PTS,
+          groupName:gk=>GRP_DEF[gk]?.name||gk},
+      ].map(sp=>{
+        const {filled,total,done}=checkSport(sp.id);
+        const gs = state.groupScores?.[sp.id]||{};
+        return(
+          <div key={sp.id} style={{marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+              <span>{sp.icon}</span>
+              <span style={{fontWeight:800,fontSize:12,color:"#1f2937"}}>{sp.id}</span>
+              <span style={{fontSize:10,marginLeft:"auto",fontWeight:700,
+                color:done?"#16a34a":"#f59e0b"}}>
+                {done?"✅ 완료":`${filled}/${total}`}
+              </span>
+            </div>
+            {sp.keys.map((gk,gi)=>{
+              const gRes=gs[gk]||{};
+              const sorted=Object.entries(gRes).sort((a,b)=>a[1]-b[1]);
+              if(!sorted.length) return(
+                <div key={gk} style={{fontSize:10,color:"#d1d5db",marginBottom:4}}>
+                  {sp.groupName(gk,gi)}: 미입력
+                </div>
+              );
+              return(
+                <div key={gk} style={{marginBottom:5}}>
+                  <div style={{fontSize:10,color:"#6b7280",fontWeight:700,marginBottom:2}}>
+                    {sp.groupName(gk,gi)}
+                  </div>
+                  <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+                    {sorted.map(([cls,rank])=>{
+                      const team=classToTeam(cls);
+                      return(
+                        <div key={cls} style={{textAlign:"center",padding:"4px 6px",
+                          borderRadius:6,background:TEAM_BG[team],minWidth:46,
+                          border:`1px solid ${TEAM_COLORS[team]}44`}}>
+                          <div style={{fontSize:9,color:"#6b7280"}}>{rank}위</div>
+                          <div style={{fontSize:11,fontWeight:800,color:TEAM_COLORS[team]}}>{cls}반</div>
+                          <div style={{fontSize:9,color:TEAM_COLORS[team],fontWeight:700}}>
+                            {sp.pts[rank-1]||0}점
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+
+      <div style={{borderTop:"1px solid #f3f4f6",margin:"8px 0"}}/>
+
+      {/* 피지컬100 */}
+      {(()=>{
+        const p=state.p100||{};
+        const hasFinal=p.r3?.m?.final||p.r3?.f?.final;
+        const winners=[];
+        for(const gk of ["m","f"]) {
+          const fk=p.r3?.[gk]?.final;
+          if(fk&&p.r1?.[gk]?.[fk]?.cls)
+            winners.push({gender:gk==="m"?"남":"여",cls:p.r1[gk][fk].cls,name:p.r1[gk][fk].name||""});
+        }
+        return(
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+              <span>🏋️</span>
+              <span style={{fontWeight:800,fontSize:12,color:"#1f2937"}}>피지컬100</span>
+              <span style={{fontSize:10,marginLeft:"auto",fontWeight:700,
+                color:hasFinal?"#16a34a":"#f59e0b"}}>{hasFinal?"✅ 완료":"미완료"}</span>
+            </div>
+            {winners.length>0 ? (
+              <div style={{display:"flex",gap:6}}>
+                {winners.map(w=>{
+                  const team=classToTeam(w.cls);
+                  return(
+                    <div key={w.gender} style={{padding:"6px 10px",borderRadius:6,
+                      background:TEAM_BG[team],border:`1px solid ${TEAM_COLORS[team]}44`,
+                      textAlign:"center"}}>
+                      <div style={{fontSize:10,color:"#6b7280"}}>{w.gender}자 우승</div>
+                      <div style={{fontSize:12,fontWeight:800,color:TEAM_COLORS[team]}}>{w.cls}반</div>
+                      {w.name&&<div style={{fontSize:10,color:"#374151"}}>{w.name}</div>}
+                      <div style={{fontSize:10,color:TEAM_COLORS[team],fontWeight:700}}>+{P100_PTS.win}점</div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : <div style={{fontSize:11,color:"#d1d5db"}}>결승 미진행</div>}
+          </div>
+        );
+      })()}
     </div>
 
     {/* 학급별 상세 점수 */}
