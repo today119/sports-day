@@ -1411,18 +1411,31 @@ function VResultSummary({ state, pickSbTab }) {
                 <div key={gk} style={{marginBottom:5}}>
                   <div style={{fontSize:10,color:"#6b7280",fontWeight:700,marginBottom:2}}>
                     {sp.groupName(gk,gi)}
+                    {sp.id==="계주" && <span style={{color:"#9ca3af",fontWeight:500,marginLeft:4}}>예선</span>}
                   </div>
                   <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
                     {sorted.map(([cls,rank])=>{
                       const team=classToTeam(cls);
+                      // 계주는 GRP_PTS가 아니라 실제 점수 체계 표시
+                      // (결승 진출 → 결승에서 점수, 미진출 → 일괄 50점)
+                      let ptsLabel, ptsColor;
+                      if(sp.id==="계주") {
+                        const rf = state.relayFinals||{};
+                        const advanced = !!((rf.grade1||{})[cls] || (rf.grade2||{})[cls]);
+                        ptsLabel = advanced ? "결승 진출" : `+${RELAY_ELIM_PTS}점`;
+                        ptsColor = advanced ? "#dc2626" : "#6b7280";
+                      } else {
+                        ptsLabel = `${sp.pts[rank-1]||0}점`;
+                        ptsColor = TEAM_COLORS[team];
+                      }
                       return(
                         <div key={cls} style={{textAlign:"center",padding:"4px 6px",
                           borderRadius:6,background:TEAM_BG[team],minWidth:46,
                           border:`1px solid ${TEAM_COLORS[team]}44`}}>
                           <div style={{fontSize:9,color:"#6b7280"}}>{rank}위</div>
                           <div style={{fontSize:11,fontWeight:800,color:TEAM_COLORS[team]}}>{cls}반</div>
-                          <div style={{fontSize:9,color:TEAM_COLORS[team],fontWeight:700}}>
-                            {sp.pts[rank-1]||0}점
+                          <div style={{fontSize:9,color:ptsColor,fontWeight:700}}>
+                            {ptsLabel}
                           </div>
                         </div>
                       );
@@ -1497,7 +1510,16 @@ function VResultSummary({ state, pickSbTab }) {
             const total = isWinner ? P100_PTS.r2+P100_PTS.r3+P100_PTS.win  // +50
                        : isElim   ? P100_PTS.r2                            // +10
                        :            P100_PTS.r2+P100_PTS.r3;               // +20
-            return { hk, ...w, isWinner, isElim, total };
+            // 정렬키: 우승(0) → 3R 진출(1) → 2R 탈락(2)
+            const tierKey = isWinner ? 0 : isElim ? 2 : 1;
+            return { hk, ...w, isWinner, isElim, total, tierKey };
+          }).sort((a,b)=>{
+            // 1차: 단계 우선
+            if(a.tierKey!==b.tierKey) return a.tierKey-b.tierKey;
+            // 2차: 학급순 (1-1, 1-2, ..., 1-10, 2-1, ..., 2-10)
+            const [ag,an] = String(a.cls).split("-").map(Number);
+            const [bg,bn] = String(b.cls).split("-").map(Number);
+            return ag!==bg ? ag-bg : an-bn;
           });
         };
         const mList = tiers("m"), fList = tiers("f");
