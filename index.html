@@ -88,11 +88,11 @@ const TIME_TRIAL_SPORTS = ["1학년 8자마라톤","2학년 8자마라톤"];
 const TIME_TRIAL_SPORT = TIME_TRIAL_SPORTS[0]; // 호환용
 
 const SPORT_PTS = {
-  "줄다리기": [100,90,80,80,50],  // 팀 토너먼트 5팀
+  "줄다리기": [100,90,80,80,60],  // 팀 토너먼트 5팀
 };
 const TEAM_TOURN_SPORTS = ["줄다리기"];
 const GRP_SPORTS = ["장애물달리기","태풍의눈"];  // 조별 순위(조내 1~5위)
-const EVENT_SPORTS = ["골때녀","미션달리기"];  // 점수 미반영 (학생회 주관)
+const EVENT_SPORTS = ["골때녀","청춘아달려라"];  // 점수 미반영 (학생회 주관)
 const SPORTS = [...TEAM_TOURN_SPORTS, ...GRP_SPORTS, "계주"];
 const ALL_SPORTS = [...TIME_TRIAL_SPORTS, ...SPORTS, ...EVENT_SPORTS];
 
@@ -101,8 +101,8 @@ const GRP_PTS = [100, 90, 80, 70, 60];
 const TYP_PTS = [100, 90, 80, 70];          // 태풍의눈: 4학급 → 4단계
 const TYP_KEYS = ["g1","g2","g3","g4","g5"]; // 태풍의눈: 5조
 // 계주 결승/예선탈락 배점
-const RELAY_FINAL_PTS = [100, 80, 60, 40];
-const RELAY_ELIM_PTS  = 30;
+const RELAY_FINAL_PTS = [100, 90, 80, 70];
+const RELAY_ELIM_PTS  = 50;
 // 피지컬100 점수 (학생 1인당)
 const P100_PTS = { r2:10, r3:10, win:30 };
 // 8자마라톤 배점 (학년별 1~10위)
@@ -146,7 +146,7 @@ const SCHED_DEFAULT = [
   { id:"s05", time:"10:10", title:"장애물달리기",            emoji:"🚧", status:"upcoming" },
   { id:"s06", time:"10:30", title:"줄다리기 예선",           emoji:"🪢", status:"upcoming" },
   { id:"s07", time:"10:50", title:"계주 예선",              emoji:"🏃", status:"upcoming" },
-  { id:"s08", time:"11:10", title:"미션달리기 (학생회)",       emoji:"👯", status:"upcoming" },
+  { id:"s08", time:"11:10", title:"청춘아달려라 (학생회)",       emoji:"👯", status:"upcoming" },
   { id:"s09", time:"11:30", title:"응원전 1학년",            emoji:"📣", status:"upcoming" },
   { id:"s10", time:"12:00", title:"점심시간",               emoji:"🍱", status:"upcoming" },
   { id:"s11", time:"13:00", title:"응원전 2학년",            emoji:"📣", status:"upcoming" },
@@ -885,7 +885,7 @@ function ViewerPage({state, update, onOpClick, onRefresh, refreshing}) {
       {id:"장애물달리기",    icon:"🚧", l:"장애물달리기"},
       {id:"태풍의눈",        icon:"🌀", l:"태풍의 눈"},
       {id:"계주",            icon:"🏃", l:"계주"},
-      {id:"미션달리기",      icon:"🎯", l:"미션달리기 (이벤트)"},
+      {id:"청춘아달려라",      icon:"🎯", l:"청춘아달려라 (학생회)"},
       {id:"피지컬100",       icon:"🏋️", l:"피지컬100"},
       {id:"골때녀",          icon:"⚽", l:"골때녀 (이벤트)"},
     ]},
@@ -986,7 +986,7 @@ function ViewerPage({state, update, onOpClick, onRefresh, refreshing}) {
               {id:"계주",            icon:"🏃", l:"계주"},
               {id:"피지컬100",       icon:"🏋️", l:"피지컬100"},
               {id:"골때녀",          icon:"⚽", l:"골때녀 (이벤트)"},
-              {id:"미션달리기",      icon:"🎯", l:"미션달리기 (이벤트)"},
+              {id:"청춘아달려라",      icon:"🎯", l:"청춘아달려라 (학생회)"},
             ].map((sp,i,arr)=>(
               <div key={sp.id}
                 onClick={()=>{pickSbTab(sp.id);setSportSheetOpen(false);}}
@@ -1627,7 +1627,7 @@ function VSportDetail({sel, state, update}) {
     "태풍의눈":        {icon:"🌀",desc:"학년별 2개조 추첨 · 조 내 1~5위 배점 · 학급 → 팀 합산"},
     "계주":            {icon:"🏃",desc:"학년별 2조 예선 → 각 조 1·2위 결승 · 결승 1~4위 차등 · 예선탈락 동일점수"},
     "줄다리기":        {icon:"🪢",desc:"팀 토너먼트 · 학급당 10명 · 팀당 40명 출전"},
-    "미션달리기":      {icon:"🎯",desc:"학생회 주관 이벤트 · 종합점수 미반영"},
+    "청춘아달려라":      {icon:"🎯",desc:"학생회 주관 이벤트 · 종합점수 미반영"},
     "골때녀":          {icon:"⚽",desc:"이벤트 경기 · 종합점수 미반영"},
     "피지컬100":       {icon:"🏋️",desc:"개인전 3단계 · 2차진출 +10 · 3차진출 +10 · 우승 +30"},
   };
@@ -2295,7 +2295,7 @@ function LiveBriefing({cur, next, state, pickSbTab, getTab}) {
 
     // ── 미션달리기 ──
     if(t.includes("미션")) {
-      return [{icon:"🎯", txt:"미션달리기 이벤트", sub:"학생회 진행 · 참가 학생 운동장 집결해주세요"}];
+      return [{icon:"🎯", txt:"청춘아달려라", sub:"학생회 진행 · 참가 학생 운동장 집결해주세요"}];
     }
 
     return null;
@@ -2389,7 +2389,7 @@ function VDash({cur, next, ranked, state, pickSbTab}) {
     "장애물달리기":     "장애물달리기",
     "태풍의 눈":        "태풍의 논",
     "계주":             "계주",
-    "미션달리기":       "미선달리기 (이벤트)",
+    "청춘아달려라":       "청춘아달려라 (학생회)",
     "피지컬100":        "피지컬100",
     "골때녀":           "골때녀",
     "입장식":           "entry",
@@ -6755,7 +6755,7 @@ function GroupDraw({state, update}) {
 // 계주 결승 인라인
 function RelayFinalsInline({state, update}) {
   const finals = state.relayFinals || {};
-  const RELAY_FINAL_PTS = [100, 80, 60, 40];
+  const RELAY_FINAL_PTS = [100, 90, 80, 70];
 
   const setFinalRank = (grade, cls, rank) => {
     update(s=>{
@@ -7619,7 +7619,7 @@ function ORoster({state, update}) {
   const [urlGrade, setUrlGrade] = useState("1");   // 현재 탭 학년
   const [classUrls, setClassUrls] = useState({});  // {cls: url}
 
-  const SPORT_COLS = ["줄다리기","장애물달리기","계주","태풍의눈","8자마라톤","피지컬100","미션달리기","골때녀"];
+  const SPORT_COLS = ["줄다리기","장애물달리기","계주","태풍의눈","8자마라톤","피지컬100","청춘아달려라","골때녀"];
 
   // ── 새 참가신청서 형식 파싱 ──────────────────────────
   // 행1: 제목 (병합)
@@ -7645,7 +7645,7 @@ function ORoster({state, update}) {
     '태풍의눈':     [10],
     '8자마라톤':    [11],
     '피지컬100':    [12, 13],
-    '미션달리기':   [14],
+    '청춘아달려라':   [14],
     '골때녀':       [15],
   };
 
@@ -7752,7 +7752,7 @@ function ORoster({state, update}) {
         <br/>
         <b>종목 컬럼 순서:</b><br/>
         J=줄다리기 · K=장애물달리기 · L=계주 · M=태풍의눈<br/>
-        N=8자마라톤 · O=피지컬100 · P=미션달리기 · Q=골때녀
+        N=8자마라톤 · O=피지컬100 · P=청춘아달려라 · Q=골때녀
       </div>
     </div>
 
@@ -8055,7 +8055,7 @@ function VRoster({state}) {
   const classes = roster.classes||{};
   const classKeys = Object.keys(classes).sort();
 
-  const SPORT_COLS = ["줄다리기","장애물달리기","계주","태풍의눈","8자마라톤","피지컬100","미션달리기","골때녀"];
+  const SPORT_COLS = ["줄다리기","장애물달리기","계주","태풍의눈","8자마라톤","피지컬100","청춘아달려라","골때녀"];
 
   // 종목별 참가자 집계
   const sportRoster = {};
