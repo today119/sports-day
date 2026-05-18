@@ -2129,49 +2129,144 @@ function VSportDetail({sel, state, update}) {
 
   // ── 피지컬100 ──
   if(sel==="피지컬100") {
-    const p=state.p100||{};
-    const stats=gk=>{
-      const r1=p.r1?.[gk]||{};
-      const elim=p.r2elim?.[gk]||[];
-      const r3=p.r3?.[gk]||{};
-      const qualifiers=Object.entries(r1).filter(([,w])=>w?.cls);
-      const survivors=qualifiers.filter(([hk])=>!elim.includes(hk));
-      const champion=r3.final&&r1[r3.final]?.cls?r1[r3.final]:null;
-      return{qualifiers,survivors,champion};
-    };
-    const sM=stats("m"),sF=stats("f");
-    if(!sM.qualifiers.length&&!sF.qualifiers.length) return <NotYet/>;
+    const p = state.p100||{};
+    const allEmpty = !Object.keys(p.r1?.m||{}).length && !Object.keys(p.r1?.f||{}).length;
+    if(allEmpty) return <NotYet/>;
+
+    const genders = [{k:"m",l:"🏃‍♂️ 남자"},{k:"f",l:"🏃‍♀️ 여자"}];
     return(<>
-      {[{k:"m",l:"🏃‍♂️ 남자",s:sM},{k:"f",l:"🏃‍♀️ 여자",s:sF}].map(({k,l,s})=>(
-        s.qualifiers.length>0&&(<div key={k} style={{marginBottom:14}}>
+      {genders.map(({k,l})=>{
+        const r1    = p.r1?.[k]||{};
+        const elim  = p.r2elim?.[k]||[];
+        const r3g   = p.r3?.[k]||{};
+        const quals = Object.entries(r1).filter(([,w])=>w?.cls);
+        if(!quals.length) return null;
+        const isSurv= (hk) => !elim.includes(hk);
+        const survs = quals.filter(([hk])=>isSurv(hk));
+
+        // 3라운드 결과 파싱
+        const findSv = (hk) => hk ? quals.find(([h])=>h===hk) : null;
+        const is8    = survs.length>=5;
+        const qf1w=findSv(r3g.qf1), qf2w=findSv(r3g.qf2);
+        const qf3w=findSv(r3g.qf3), qf4w=findSv(r3g.qf4);
+        const sf1w=findSv(r3g.sf1), sf2w=findSv(r3g.sf2);
+        const finW=findSv(r3g.final);
+
+        const RCard = ({title, aEntry, bEntry, winHk}) => {
+          const toInfo = (e) => e ? {name:e[1].name, cls:e[1].cls, hk:e[0]} : null;
+          const a = toInfo(aEntry), b = toInfo(bEntry);
+          if(!a&&!b) return null;
+          const Slot = ({info}) => {
+            if(!info) return <div style={{flex:1,textAlign:"center",color:"#d1d5db",fontSize:12}}>TBD</div>;
+            const team = classToTeam(info.cls);
+            const isW  = info.hk===winHk;
+            return(
+              <div style={{flex:1,textAlign:"center",padding:"8px 4px",borderRadius:8,
+                background:isW?TEAM_BG[team]:"#fafafa",
+                border:`1px solid ${isW?TEAM_COLORS[team]:"#e5e7eb"}`}}>
+                <TeamBadge team={team} size={22}/>
+                <div style={{fontSize:12,fontWeight:isW?800:500,color:isW?TEAM_COLORS[team]:"#374151",marginTop:3}}>
+                  {info.name}
+                </div>
+                <div style={{fontSize:10,color:"#9ca3af"}}>{info.cls}반</div>
+                {isW&&<div style={{fontSize:14}}>🏆</div>}
+              </div>
+            );
+          };
+          return(
+            <div style={{marginBottom:6,padding:"8px 10px",borderRadius:8,
+              background:"#fff",border:"1px solid #f3f4f6"}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#6b7280",marginBottom:6}}>{title}</div>
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                <Slot info={a}/>
+                <span style={{color:"#d1d5db",fontWeight:900,flexShrink:0}}>VS</span>
+                <Slot info={b}/>
+              </div>
+            </div>
+          );
+        };
+
+        return(<div key={k} style={{marginBottom:16}}>
           <div className="sl">{l}</div>
-          {s.champion&&(<div className="card" style={{background:"linear-gradient(135deg,#fbbf24,#f59e0b)",
+
+          {/* 우승자 */}
+          {finW&&(<div className="card" style={{background:"linear-gradient(135deg,#fbbf24,#f59e0b)",
             border:"none",marginBottom:8}}>
             <div style={{display:"flex",alignItems:"center",gap:12}}>
               <span style={{fontSize:30}}>🏆</span>
-              <div><div style={{fontSize:11,fontWeight:700,color:"#78350f"}}>우승 +{P100_PTS.win}점</div>
-                <div style={{fontSize:18,fontWeight:900,color:"#1c1917"}}>{s.champion.name}</div>
-                <div style={{fontSize:12,color:"#78350f"}}>{s.champion.cls}반 ({classToTeam(s.champion.cls)}팀)</div>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:"#78350f"}}>우승 +{P100_PTS.win}점</div>
+                <div style={{fontSize:18,fontWeight:900,color:"#1c1917"}}>{finW[1].name}</div>
+                <div style={{fontSize:12,color:"#78350f"}}>{finW[1].cls}반 ({classToTeam(finW[1].cls)}팀)</div>
               </div>
             </div>
           </div>)}
-          <div className="card">
-            {s.qualifiers.map(([hk,w])=>{
-              const team=classToTeam(w.cls);
-              const isElim=!s.survivors.find(([h])=>h===hk);
-              return(<div key={hk} className="rrow" style={{opacity:isElim?.55:1}}>
-                <TeamBadge team={team} size={26}/>
-                <span style={{flex:1,fontSize:13,color:"#37352f"}}>{w.name}
-                  <span style={{fontSize:11,color:"#9b9a97",marginLeft:4}}>({w.cls}반)</span>
+
+          {/* 1라운드 결과 */}
+          <div className="card" style={{marginBottom:8}}>
+            <div style={{fontSize:12,fontWeight:800,color:"#374151",marginBottom:8}}>
+              🏃 1라운드 50m 달리기 결과
+              <span style={{fontSize:10,color:"#9ca3af",marginLeft:6}}>
+                ({quals.length}명 진출)
+              </span>
+            </div>
+            {quals.map(([hk,w])=>{
+              const team = classToTeam(w.cls);
+              const sv   = isSurv(hk);
+              return(<div key={hk} className="rrow" style={{opacity:sv?1:.5}}>
+                <TeamBadge team={team} size={22}/>
+                <span style={{flex:1,fontSize:12,color:"#37352f"}}>
+                  {w.name} <span style={{fontSize:10,color:"#9ca3af"}}>({w.cls}반)</span>
                 </span>
-                <span style={{fontSize:11,color:isElim?"#9b9a97":"#16a34a",fontWeight:600}}>
-                  {isElim?"2차탈락":"3차진출"}
+                <span style={{fontSize:10,fontWeight:700,
+                  color:sv?"#16a34a":"#ef4444"}}>
+                  {sv?"2R 진출 ✓":"2R 탈락"}
                 </span>
               </div>);
             })}
           </div>
-        </div>)
-      ))}
+
+          {/* 2라운드 결과 */}
+          {survs.length>0&&(<div className="card" style={{marginBottom:8}}>
+            <div style={{fontSize:12,fontWeight:800,color:"#374151",marginBottom:8}}>
+              💪 2라운드 버피+허들 결과
+              <span style={{fontSize:10,color:"#9ca3af",marginLeft:6}}>
+                ({survs.length}명 생존)
+              </span>
+            </div>
+            {survs.map(([hk,w])=>{
+              const team=classToTeam(w.cls);
+              return(<div key={hk} className="rrow">
+                <TeamBadge team={team} size={22}/>
+                <span style={{flex:1,fontSize:12,color:"#37352f"}}>
+                  {w.name} <span style={{fontSize:10,color:"#9ca3af"}}>({w.cls}반)</span>
+                </span>
+                <span style={{fontSize:10,fontWeight:700,color:"#16a34a"}}>3R 진출 ✓</span>
+              </div>);
+            })}
+          </div>)}
+
+          {/* 3라운드 토너먼트 결과 */}
+          {(r3g.qf1||r3g.sf1||r3g.final)&&(<div className="card">
+            <div style={{fontSize:12,fontWeight:800,color:"#374151",marginBottom:8}}>
+              ⚽ 3라운드 토너먼트
+            </div>
+            {is8&&r3g.qf1&&<><div style={{fontSize:11,color:"#6b7280",fontWeight:700,marginBottom:4}}>8강</div>
+              <RCard title="8강 1경기" aEntry={quals.find(([h])=>h===r3g.qf1)} bEntry={null} winHk={r3g.qf1}/>
+              <RCard title="8강 2경기" aEntry={quals.find(([h])=>h===r3g.qf2)} bEntry={null} winHk={r3g.qf2}/>
+              {r3g.qf3&&<RCard title="8강 3경기" aEntry={quals.find(([h])=>h===r3g.qf3)} bEntry={null} winHk={r3g.qf3}/>}
+              {r3g.qf4&&<RCard title="8강 4경기" aEntry={quals.find(([h])=>h===r3g.qf4)} bEntry={null} winHk={r3g.qf4}/>}
+            </>}
+            {r3g.sf1&&<><div style={{fontSize:11,color:"#6b7280",fontWeight:700,marginBottom:4,marginTop:8}}>준결승</div>
+              <RCard title="준결승 1" aEntry={sf1w} bEntry={null} winHk={r3g.sf1}/>
+              {r3g.sf2&&<RCard title="준결승 2" aEntry={sf2w} bEntry={null} winHk={r3g.sf2}/>}
+            </>}
+            {r3g.final&&<><div style={{fontSize:11,color:"#6b7280",fontWeight:700,marginBottom:4,marginTop:8}}>결승</div>
+              <RCard title="결승" aEntry={finW} bEntry={null} winHk={r3g.final}/>
+            </>}
+          </div>)}
+        </div>);
+      })}
     </>);
   }
 
@@ -4855,70 +4950,98 @@ function P100Round3({ p, gk }) {
     </div>
   );
 
-  const r3g = p.r3[gk]||{};
-  const [a,b,c,d] = [sv[0],sv[1]||null,sv[2]||null,sv[3]||null];
-  const sf1w = r3g.sf1?sv.find(s=>s.hk===r3g.sf1):null;
-  const sf2w = r3g.sf2?sv.find(s=>s.hk===r3g.sf2):null;
-  const finW = r3g.final?sv.find(s=>s.hk===r3g.final):null;
+  const r3g   = p.r3[gk]||{};
+  const findSv = (hk) => hk ? sv.find(s=>s.hk===hk)||null : null;
 
-  function VsCard({title,desc,pa,pb,winHk,onPick}){
-    if(!pa) return null;
-    const ta = classToTeam(pa.cls);
-    const tb = pb?classToTeam(pb.cls):null;
+  // 8강 4경기 결과
+  const qf1w = findSv(r3g.qf1), qf2w = findSv(r3g.qf2);
+  const qf3w = findSv(r3g.qf3), qf4w = findSv(r3g.qf4);
+  // 준결승 2경기
+  const sf1w = findSv(r3g.sf1), sf2w = findSv(r3g.sf2);
+  // 결승
+  const finW = findSv(r3g.final);
 
-    const Slot = ({pl,tc})=>{
+  const VsCard = ({title, pa, pb, winHk, onPick, disabled}) => {
+    if(!pa && !pb) return null;
+    const Slot = ({pl}) => {
       if(!pl) return(
-        <div style={{flex:1,padding:"14px 8px",borderRadius:10,border:"2px dashed #e5e7eb",
-          textAlign:"center",color:"#d1d5db",fontSize:13}}>TBD</div>
+        <div style={{flex:1,padding:"14px 8px",borderRadius:10,
+          border:"2px dashed #e5e7eb",textAlign:"center",color:"#d1d5db",fontSize:12}}>
+          TBD
+        </div>
       );
-      const isW = pl.hk===winHk;
+      const tc   = classToTeam(pl.cls);
+      const isW  = pl.hk===winHk;
       return(
-        <button onClick={()=>onPick(isW?null:pl.hk)}
-          style={{flex:1,padding:"12px 8px",borderRadius:10,
+        <button onClick={()=>!disabled&&onPick(isW?null:pl.hk)}
+          style={{flex:1,padding:"10px 6px",borderRadius:10,
             border:`2px solid ${isW?TEAM_COLORS[tc]:"#e5e7eb"}`,
-            background:isW?TEAM_BG[tc]:"#fff",cursor:"pointer",fontFamily:"inherit",
-            textAlign:"center",transition:"all .2s"}}>
-          <TeamBadge team={tc} size={30}/>
-          <div style={{fontWeight:800,fontSize:14,color:isW?TEAM_COLORS[tc]:"#374151",marginTop:6,
-            overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pl.name}</div>
-          <div style={{fontSize:11,color:"#9ca3af",marginTop:2}}>{pl.cls}반</div>
-          {isW&&<div style={{fontSize:20,marginTop:6}}>🏆</div>}
+            background:isW?TEAM_BG[tc]:"#fff",
+            cursor:disabled?"default":"pointer",fontFamily:"inherit",textAlign:"center"}}>
+          <TeamBadge team={tc} size={26}/>
+          <div style={{fontWeight:800,fontSize:12,color:isW?TEAM_COLORS[tc]:"#374151",
+            marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+            {pl.name}
+          </div>
+          <div style={{fontSize:10,color:"#9ca3af"}}>{pl.cls}반</div>
+          {isW&&<div style={{fontSize:16,marginTop:4}}>🏆</div>}
         </button>
       );
     };
     return(
-      <div className="card" style={{marginBottom:10}}>
-        <div style={{fontWeight:800,fontSize:15,color:"#111827",marginBottom:2}}>{title}</div>
-        <div style={{fontSize:12,color:"#9ca3af",marginBottom:12}}>{desc}</div>
-        <div style={{display:"flex",gap:10,alignItems:"center"}}>
-          <Slot pl={pa} tc={ta}/>
-          <span style={{fontSize:18,fontWeight:900,color:"#9ca3af",flexShrink:0}}>VS</span>
-          <Slot pl={pb} tc={tb}/>
+      <div className="card" style={{marginBottom:8,padding:"10px 12px"}}>
+        <div style={{fontWeight:800,fontSize:13,color:"#111827",marginBottom:8}}>{title}</div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <Slot pl={pa}/>
+          <span style={{fontSize:16,fontWeight:900,color:"#d1d5db",flexShrink:0}}>VS</span>
+          <Slot pl={pb}/>
         </div>
       </div>
     );
-  }
+  };
+
+  const is8 = sv.length >= 5; // 5명 이상이면 8강 진행
 
   return(
     <div>
       <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:10,
-        padding:"10px 14px",marginBottom:12,fontSize:13,color:"#15803d"}}>
-        ⚽ {gLabel} 3라운드 축구 토너먼트<br/>
-        <span style={{fontSize:11}}>
-          공 2개 · 선수 2명 동시 출발 · 먼저 골 = 승리 · 우승자 +30점 추가
-        </span>
+        padding:"10px 14px",marginBottom:12,fontSize:12,color:"#15803d"}}>
+        ⚽ {gLabel} 3라운드 · {sv.length}명 토너먼트<br/>
+        공 2개 · 선수 2명 동시 출발 · 먼저 골 = 승리 · 우승자 +30점
       </div>
-      <VsCard title="⚔️ 준결승 1" desc="⚽ 동시 출발 · 먼저 골 넣으면 승리"
-        pa={a} pb={b} winHk={r3g.sf1} onPick={hk=>p.setR3(gk,"sf1",hk)}/>
-      {sv.length>=3&&(
-        <VsCard title="⚔️ 준결승 2" desc="⚽ 동시 출발 · 먼저 골 넣으면 승리"
-          pa={c} pb={d} winHk={r3g.sf2} onPick={hk=>p.setR3(gk,"sf2",hk)}/>
-      )}
-      {sf1w&&(sv.length<3||sf2w)&&(
-        <VsCard title="🏆 결승" desc="⚽ 최후의 1인 결정전" pa={sf1w}
-          pb={sv.length>=3?sf2w:null} winHk={r3g.final}
-          onPick={hk=>p.setR3(gk,"final",hk)}/>
-      )}
+
+      {/* 8강 (5명 이상일 때) */}
+      {is8 && (<>
+        <div className="sl">⚔️ 8강</div>
+        <VsCard title="8강 1경기" pa={sv[0]} pb={sv[1]}
+          winHk={r3g.qf1} onPick={hk=>p.setR3(gk,"qf1",hk)}/>
+        <VsCard title="8강 2경기" pa={sv[2]} pb={sv[3]}
+          winHk={r3g.qf2} onPick={hk=>p.setR3(gk,"qf2",hk)}/>
+        {sv[4]&&<VsCard title="8강 3경기" pa={sv[4]} pb={sv[5]||null}
+          winHk={r3g.qf3} onPick={hk=>p.setR3(gk,"qf3",hk)}/>}
+        {sv[6]&&<VsCard title="8강 4경기" pa={sv[6]} pb={sv[7]||null}
+          winHk={r3g.qf4} onPick={hk=>p.setR3(gk,"qf4",hk)}/>}
+      </>)}
+
+      {/* 준결승 */}
+      {(!is8||(qf1w&&qf2w)) && (<>
+        <div className="sl" style={{marginTop:8}}>⚔️ 준결승</div>
+        <VsCard title="준결승 1" pa={is8?qf1w:sv[0]} pb={is8?qf2w:sv[1]}
+          winHk={r3g.sf1} onPick={hk=>p.setR3(gk,"sf1",hk)}
+          disabled={is8&&(!qf1w||!qf2w)}/>
+        <VsCard title="준결승 2" pa={is8?(qf3w||null):sv[2]} pb={is8?(qf4w||null):sv[3]}
+          winHk={r3g.sf2} onPick={hk=>p.setR3(gk,"sf2",hk)}
+          disabled={is8&&(!qf3w||!qf4w)}/>
+      </>)}
+
+      {/* 결승 */}
+      {(sf1w||((!is8)&&sv.length>=2)) && sf2w && (<>
+        <div className="sl" style={{marginTop:8}}>🏆 결승</div>
+        <VsCard title="결승" pa={sf1w} pb={sf2w}
+          winHk={r3g.final} onPick={hk=>p.setR3(gk,"final",hk)}/>
+      </>)}
+
+      {/* 우승자 */}
       {finW&&(
         <div style={{background:"linear-gradient(135deg,#fbbf24,#f59e0b)",borderRadius:16,
           padding:"24px 16px",textAlign:"center",marginTop:8,
@@ -4929,13 +5052,14 @@ function P100Round3({ p, gk }) {
           </div>
           <div style={{fontSize:24,fontWeight:900,color:"#1c1917"}}>{finW.name}</div>
           <div style={{fontSize:13,color:"#78350f",marginTop:4}}>
-            {finW.cls}반 ({classToTeam(finW.cls)}팀)
+            {finW.cls}반 ({classToTeam(finW.cls)}팀) · +{P100_PTS.win}점
           </div>
         </div>
       )}
     </div>
   );
 }
+
 
 // ─── 8자마라톤 (운영자) ───
 function OTimeTrial({state,update}) {
@@ -8048,12 +8172,25 @@ function ORoster({state, update}) {
 // ════════════════════════════════════════════════════════
 function VRoster({state}) {
   const roster = state.roster || {classes:{}};
-  const [view, setView] = useState("class"); // class | sport
+  const [view, setView] = useState("class");
   const [selClass, setSelClass] = useState(null);
   const [selSport, setSelSport] = useState(null);
 
   const classes = roster.classes||{};
-  const classKeys = Object.keys(classes).sort();
+  const classKeys = Object.keys(classes)
+    .sort((a,b)=>{
+      const [ag,an]=a.split("-").map(Number);
+      const [bg,bn]=b.split("-").map(Number);
+      return ag!==bg?ag-bg:an-bn;
+    });
+
+  // students 안전 파싱 헬퍼
+  const getStudents = (c) => {
+    const raw = c?.students;
+    if(Array.isArray(raw)) return raw;
+    if(raw && typeof raw==="object") return Object.values(raw);
+    return [];
+  };
 
   const SPORT_COLS = ["줄다리기","장애물달리기","계주","태풍의눈","8자마라톤","피지컬100","청춘아달려라","골때녀"];
 
@@ -8061,8 +8198,9 @@ function VRoster({state}) {
   const sportRoster = {};
   for(const sp of SPORT_COLS) sportRoster[sp] = {};
   for(const [cls, c] of Object.entries(classes)) {
-    for(const st of c.students||[]) {
-      for(const sp of st.sports||[]) {
+    for(const st of getStudents(c)) {
+      if(!st || typeof st !== "object") continue;
+      for(const sp of (st.sports||[])) {
         if(!sportRoster[sp][cls]) sportRoster[sp][cls] = [];
         sportRoster[sp][cls].push({...st});
       }
@@ -8108,7 +8246,7 @@ function VRoster({state}) {
                 }}>
                 <div style={{fontWeight:800,fontSize:14,color:TEAM_COLORS[team]}}>{cls}반</div>
                 <div style={{fontSize:11,color:"#9b9a97",marginTop:2}}>
-                  {team}팀 · {c.students?.length||0}명
+                  {team}팀 · {getStudents(c).length}명
                 </div>
               </button>
             );
@@ -8141,8 +8279,8 @@ function VRoster({state}) {
                 {c.sportLead&& <div>🏅 체육부장 {c.sportLead}</div>}
               </div>
 
-              <div className="sl">참가 선수 ({c.students?.length||0}명)</div>
-              {(c.students||[]).map((st,i)=>(
+              <div className="sl">참가 선수 ({getStudents(c).length}명)</div>
+              {getStudents(c).map((st,i)=>(
                 <div key={i} className="rrow" style={{padding:"6px 10px"}}>
                   <span style={{fontWeight:600,color:"#37352f",fontSize:13}}>
                     {st.gender==="남"?"👦":"👧"} {st.name}
