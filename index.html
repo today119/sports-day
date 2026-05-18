@@ -139,23 +139,25 @@ const CHEER_CATS = [
 ];
 
 const SCHED_DEFAULT = [
-  { id:"s01", time:"08:40", title:"입장식·개회식",          emoji:"🎉", status:"upcoming" },
-  { id:"s02", time:"09:20", title:"피지컬100 1부 (50m)",    emoji:"🏃", status:"upcoming" },
-  { id:"s03", time:"09:50", title:"1학년 8자마라톤",          emoji:"🏃‍♀️", status:"upcoming" },
-  { id:"s04", time:"10:00", title:"2학년 8자마라톤",          emoji:"🏃‍♂️", status:"upcoming" },
-  { id:"s05", time:"10:10", title:"장애물달리기",            emoji:"🚧", status:"upcoming" },
-  { id:"s06", time:"10:30", title:"줄다리기 예선",           emoji:"🪢", status:"upcoming" },
-  { id:"s07", time:"10:50", title:"계주 예선",              emoji:"🏃", status:"upcoming" },
-  { id:"s08", time:"11:10", title:"청춘아달려라 (학생회)",       emoji:"👯", status:"upcoming" },
-  { id:"s09", time:"11:30", title:"응원전 1학년",            emoji:"📣", status:"upcoming" },
-  { id:"s10", time:"12:00", title:"점심시간",               emoji:"🍱", status:"upcoming" },
-  { id:"s11", time:"13:00", title:"응원전 2학년",            emoji:"📣", status:"upcoming" },
-  { id:"s12", time:"13:50", title:"골때녀 (이벤트)",          emoji:"⚽", status:"upcoming" },
-  { id:"s13", time:"14:30", title:"피지컬100 2부 (버피+허들)",emoji:"💪", status:"upcoming" },
-  { id:"s14", time:"14:50", title:"태풍의 눈",              emoji:"🌀", status:"upcoming" },
-  { id:"s15", time:"15:20", title:"줄다리기 결승",           emoji:"🪢", status:"upcoming" },
-  { id:"s16", time:"15:30", title:"계주 결승",              emoji:"🏆", status:"upcoming" },
-  { id:"s17", time:"15:50", title:"폐회·시상·댄스부 공연",     emoji:"🎊", status:"upcoming" },
+  { id:"s01", time:"08:40", title:"입장식·개회식",              emoji:"🎉", status:"upcoming" },
+  { id:"s02", time:"09:20", title:"피지컬100 1부 (50m)",        emoji:"🏃", status:"upcoming" },
+  { id:"s03", time:"09:50", title:"1학년 8자마라톤",            emoji:"⏱",  status:"upcoming" },
+  { id:"s04", time:"10:00", title:"2학년 8자마라톤",            emoji:"⏱",  status:"upcoming" },
+  { id:"s05", time:"10:10", title:"장애물달리기",               emoji:"🚧", status:"upcoming" },
+  { id:"s06", time:"10:30", title:"줄다리기 예선",              emoji:"🪢", status:"upcoming" },
+  { id:"s07", time:"10:50", title:"계주 예선",                  emoji:"🏃", status:"upcoming" },
+  { id:"s08", time:"11:10", title:"달려라, 청춘아! (학생회)",    emoji:"🏃", status:"upcoming" },
+  { id:"s09", time:"11:30", title:"응원전 1학년",               emoji:"📣", status:"upcoming" },
+  { id:"s10", time:"12:00", title:"점심시간",                   emoji:"🍱", status:"upcoming" },
+  { id:"s11", time:"13:00", title:"응원전 2학년",               emoji:"📣", status:"upcoming" },
+  { id:"s12", time:"13:30", title:"골때녀 (이벤트)",            emoji:"⚽", status:"upcoming" },
+  { id:"s13", time:"14:10", title:"피지컬100 2부 (버피점프)",   emoji:"💪", status:"upcoming" },
+  { id:"s14", time:"14:20", title:"태풍의 눈",                  emoji:"🌀", status:"upcoming" },
+  { id:"s15", time:"14:40", title:"피지컬100 3부 (생존달리기&슛)", emoji:"🏋️", status:"upcoming" },
+  { id:"s16", time:"14:50", title:"줄다리기 결승",              emoji:"🪢", status:"upcoming" },
+  { id:"s17", time:"15:00", title:"계주 결승",                  emoji:"🏆", status:"upcoming" },
+  { id:"s18", time:"15:10", title:"폐회·시상",                  emoji:"🎊", status:"upcoming" },
+  { id:"s19", time:"15:20", title:"청소·정리",                  emoji:"🧹", status:"upcoming" },
 ];
 
 // ─── 대진표 로직 ───
@@ -879,15 +881,15 @@ function ViewerPage({state, update, onOpClick, onRefresh, refreshing}) {
     ]},
     {section:"종목별 결과", items:[
       {id:"summary",           icon:"📊", l:"종합 결과 요약"},
-      {id:"1학년 8자마라톤", icon:"⏱", l:"1학년 8자마라톤"},
-      {id:"2학년 8자마라톤", icon:"⏱", l:"2학년 8자마라톤"},
-      {id:"줄다리기",        icon:"🪢", l:"줄다리기"},
-      {id:"장애물달리기",    icon:"🚧", l:"장애물달리기"},
-      {id:"태풍의눈",        icon:"🌀", l:"태풍의 눈"},
-      {id:"계주",            icon:"🏃", l:"계주"},
-      {id:"청춘아달려라",      icon:"🎯", l:"청춘아달려라 (학생회)"},
-      {id:"피지컬100",       icon:"🏋️", l:"피지컬100"},
-      {id:"골때녀",          icon:"⚽", l:"골때녀 (이벤트)"},
+      {id:"피지컬100",         icon:"🏋️", l:"피지컬100"},
+      {id:"1학년 8자마라톤",   icon:"⏱", l:"1학년 8자마라톤"},
+      {id:"2학년 8자마라톤",   icon:"⏱", l:"2학년 8자마라톤"},
+      {id:"장애물달리기",      icon:"🚧", l:"장애물달리기"},
+      {id:"줄다리기",          icon:"🪢", l:"줄다리기"},
+      {id:"계주",              icon:"🏃", l:"계주"},
+      {id:"태풍의눈",          icon:"🌀", l:"태풍의 눈"},
+      {id:"청춘아달려라",      icon:"🏃", l:"달려라, 청춘아! (학생회)"},
+      {id:"골때녀",            icon:"⚽", l:"골때녀 (이벤트)"},
     ]},
     {section:"안내", items:[
       {id:"roster", icon:"📋", l:"선수 명단"},
@@ -940,7 +942,7 @@ function ViewerPage({state, update, onOpClick, onRefresh, refreshing}) {
           <span className="vt-icon">📅</span><span className="vt-l">일정/순위</span>
         </button>
         <button className={`v-main-tab${sportSheetOpen?" on":""}`}
-          onClick={()=>{setSportSheetOpen(v=>!v);}}>
+          onClick={()=>{setSportSheetOpen(v=>!v); setMainTab(null); setSbTab(null);}}>
           <span className="vt-icon">🏅</span><span className="vt-l">종목</span>
         </button>
         <button className={`v-main-tab${mainTab==="cheer"?" on":""}`} onClick={()=>{pickMainTab("cheer");setSportSheetOpen(false);}}>
@@ -978,15 +980,16 @@ function ViewerPage({state, update, onOpClick, onRefresh, refreshing}) {
             </div>
             {/* 종목 목록 */}
             {[
+              {id:"summary",         icon:"📊", l:"종합 결과 요약"},
+              {id:"피지컬100",       icon:"🏋️", l:"피지컬100"},
               {id:"1학년 8자마라톤", icon:"⏱", l:"1학년 8자마라톤"},
               {id:"2학년 8자마라톤", icon:"⏱", l:"2학년 8자마라톤"},
-              {id:"줄다리기",        icon:"🪢", l:"줄다리기"},
               {id:"장애물달리기",    icon:"🚧", l:"장애물달리기"},
-              {id:"태풍의눈",        icon:"🌀", l:"태풍의 눈"},
+              {id:"줄다리기",        icon:"🪢", l:"줄다리기"},
               {id:"계주",            icon:"🏃", l:"계주"},
-              {id:"피지컬100",       icon:"🏋️", l:"피지컬100"},
+              {id:"태풍의눈",        icon:"🌀", l:"태풍의 눈"},
+              {id:"청춘아달려라",    icon:"🏃", l:"달려라, 청춘아! (학생회)"},
               {id:"골때녀",          icon:"⚽", l:"골때녀 (이벤트)"},
-              {id:"청춘아달려라",      icon:"🎯", l:"청춘아달려라 (학생회)"},
             ].map((sp,i,arr)=>(
               <div key={sp.id}
                 onClick={()=>{pickSbTab(sp.id);setSportSheetOpen(false);}}
@@ -1627,7 +1630,7 @@ function VSportDetail({sel, state, update}) {
     "태풍의눈":        {icon:"🌀",desc:"학년별 2개조 추첨 · 조 내 1~5위 배점 · 학급 → 팀 합산"},
     "계주":            {icon:"🏃",desc:"학년별 2조 예선 → 각 조 1·2위 결승 · 결승 1~4위 차등 · 예선탈락 동일점수"},
     "줄다리기":        {icon:"🪢",desc:"팀 토너먼트 · 학급당 10명 · 팀당 40명 출전"},
-    "청춘아달려라":      {icon:"🎯",desc:"학생회 주관 이벤트 · 종합점수 미반영"},
+    "청춘아달려라":      {icon:"🏃",desc:"학생회 주관 이벤트 · 달려라, 청춘아! · 종합점수 미반영"},
     "골때녀":          {icon:"⚽",desc:"이벤트 경기 · 종합점수 미반영"},
     "피지컬100":       {icon:"🏋️",desc:"개인전 3단계 · 2차진출 +10 · 3차진출 +10 · 우승 +30"},
   };
@@ -2390,7 +2393,7 @@ function LiveBriefing({cur, next, state, pickSbTab, getTab}) {
 
     // ── 미션달리기 ──
     if(t.includes("미션")) {
-      return [{icon:"🎯", txt:"청춘아달려라", sub:"학생회 진행 · 참가 학생 운동장 집결해주세요"}];
+      return [{icon:"🎯", txt:"달려라, 청춘아!", sub:"학생회 진행 · 참가 학생 운동장 집결해주세요"}];
     }
 
     return null;
@@ -2484,7 +2487,7 @@ function VDash({cur, next, ranked, state, pickSbTab}) {
     "장애물달리기":     "장애물달리기",
     "태풍의 눈":        "태풍의 논",
     "계주":             "계주",
-    "청춘아달려라":       "청춘아달려라 (학생회)",
+    "청춘아달려라":       "달려라, 청춘아! (학생회)",
     "피지컬100":        "피지컬100",
     "골때녀":           "골때녀",
     "입장식":           "entry",
