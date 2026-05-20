@@ -7918,8 +7918,24 @@ function ORoster({state, update}) {
       if(!gradeNum || !clsNum) throw new Error("학년/반 정보를 읽을 수 없습니다.\nB2(학년), D2(반) 셀을 확인해주세요.");
 
       const clsKey = `${gradeNum}-${clsNum}`;
-      const row3 = rows[2] || [];
-      const intro = row3.find(v => v && v.trim() && !v.includes('팀 소개 멘트') && !v.includes('📣')) || "";
+
+      // ★ 소개 멘트: 헤더 영역(rows 0~4)에서 30자 이상 긴 텍스트를 자동 감지
+      let intro = "";
+      for(let ri = 0; ri < Math.min(rows.length, 6); ri++) {
+        for(const v of (rows[ri]||[])) {
+          const s = (v||"").trim();
+          if(s.length >= 30
+            && !s.includes('참가신청서')
+            && !s.includes('줄다리기')
+            && !s.includes('장애물')
+            && !s.includes('피지컬')
+            && !s.includes('담임')
+            && !s.includes('학년:')) {
+            intro = s; break;
+          }
+        }
+        if(intro) break;
+      }
 
       const students = [];
       // ★ 헤더 행 수가 가변적이므로 번호(숫자)가 있는 첫 행을 데이터 시작으로 감지
