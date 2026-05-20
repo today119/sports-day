@@ -8363,23 +8363,39 @@ function VRoster({state}) {
     {view==="class" ? (
       // ── 학급별 ──
       <>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}}>
-          {classKeys.map(cls=>{
-            const team = classToTeam(cls);
-            const c = classes[cls];
+        {/* 1학년 / 2학년 좌우 분리 */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+          {["1","2"].map(grade=>{
+            const gradeKeys=classKeys.filter(k=>k.startsWith(grade+"-"));
             return(
-              <button key={cls} onClick={()=>setSelClass(selClass===cls?null:cls)}
-                style={{
-                  padding:"10px 8px",borderRadius:8,
-                  border:`2px solid ${selClass===cls?TEAM_COLORS[team]:"#e7e7e5"}`,
-                  background:selClass===cls?TEAM_BG[team]:"#fff",
-                  cursor:"pointer",fontFamily:"inherit",textAlign:"center"
-                }}>
-                <div style={{fontWeight:800,fontSize:14,color:TEAM_COLORS[team]}}>{cls}반</div>
-                <div style={{fontSize:11,color:"#9b9a97",marginTop:2}}>
-                  {team}팀 · {getStudents(c).length}명
+              <div key={grade}>
+                <div style={{fontWeight:900,fontSize:13,color:grade==="1"?"#2563eb":"#16a34a",
+                  marginBottom:6,paddingBottom:4,borderBottom:`2px solid ${grade==="1"?"#bfdbfe":"#bbf7d0"}`,
+                  textAlign:"center"}}>
+                  {grade}학년
                 </div>
-              </button>
+                <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                  {gradeKeys.map(cls=>{
+                    const team=classToTeam(cls);
+                    const c=classes[cls];
+                    return(
+                      <button key={cls} onClick={()=>setSelClass(selClass===cls?null:cls)}
+                        style={{
+                          padding:"8px 10px",borderRadius:8,
+                          border:`2px solid ${selClass===cls?TEAM_COLORS[team]:"#e7e7e5"}`,
+                          background:selClass===cls?TEAM_BG[team]:"#fff",
+                          cursor:"pointer",fontFamily:"inherit",textAlign:"left",
+                          display:"flex",justifyContent:"space-between",alignItems:"center"
+                        }}>
+                        <div style={{fontWeight:800,fontSize:13,color:TEAM_COLORS[team]}}>{cls}반</div>
+                        <div style={{fontSize:11,color:"#9b9a97"}}>
+                          {team}팀 · {getStudents(c).length}명
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>
