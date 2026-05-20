@@ -7922,7 +7922,13 @@ function ORoster({state, update}) {
       const intro = row3.find(v => v && v.trim() && !v.includes('팀 소개 멘트') && !v.includes('📣')) || "";
 
       const students = [];
-      for(let i = 5; i < rows.length; i++) {
+      // ★ 헤더 행 수가 가변적이므로 번호(숫자)가 있는 첫 행을 데이터 시작으로 감지
+      let dataStart = 5;
+      for(let i = 3; i < Math.min(rows.length, 10); i++) {
+        const idVal = (rows[i][0]||"").trim();
+        if(idVal && !isNaN(Number(idVal))) { dataStart = i; break; }
+      }
+      for(let i = dataStart; i < rows.length; i++) {
         const r = rows[i];
         const name   = (r[1]||"").trim();
         const gender = (r[2]||"").trim();
