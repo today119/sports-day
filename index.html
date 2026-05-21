@@ -1411,31 +1411,18 @@ function VResultSummary({ state, pickSbTab }) {
                 <div key={gk} style={{marginBottom:5}}>
                   <div style={{fontSize:10,color:"#6b7280",fontWeight:700,marginBottom:2}}>
                     {sp.groupName(gk,gi)}
-                    {sp.id==="계주" && <span style={{color:"#9ca3af",fontWeight:500,marginLeft:4}}>예선</span>}
                   </div>
                   <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
                     {sorted.map(([cls,rank])=>{
                       const team=classToTeam(cls);
-                      // 계주는 GRP_PTS가 아니라 실제 점수 체계 표시
-                      // (결승 진출 → 결승에서 점수, 미진출 → 일괄 50점)
-                      let ptsLabel, ptsColor;
-                      if(sp.id==="계주") {
-                        const rf = state.relayFinals||{};
-                        const advanced = !!((rf.grade1||{})[cls] || (rf.grade2||{})[cls]);
-                        ptsLabel = advanced ? "결승 진출" : `+${RELAY_ELIM_PTS}점`;
-                        ptsColor = advanced ? "#dc2626" : "#6b7280";
-                      } else {
-                        ptsLabel = `${sp.pts[rank-1]||0}점`;
-                        ptsColor = TEAM_COLORS[team];
-                      }
                       return(
                         <div key={cls} style={{textAlign:"center",padding:"4px 6px",
                           borderRadius:6,background:TEAM_BG[team],minWidth:46,
                           border:`1px solid ${TEAM_COLORS[team]}44`}}>
                           <div style={{fontSize:9,color:"#6b7280"}}>{rank}위</div>
                           <div style={{fontSize:11,fontWeight:800,color:TEAM_COLORS[team]}}>{cls}반</div>
-                          <div style={{fontSize:9,color:ptsColor,fontWeight:700}}>
-                            {ptsLabel}
+                          <div style={{fontSize:9,color:TEAM_COLORS[team],fontWeight:700}}>
+                            {sp.pts[rank-1]||0}점
                           </div>
                         </div>
                       );
@@ -1444,141 +1431,47 @@ function VResultSummary({ state, pickSbTab }) {
                 </div>
               );
             })}
-            {/* 계주 결승 결과 (예선 데이터 유무와 무관하게 결승 입력되면 표시) */}
-            {sp.id==="계주" && (()=>{
-              const rf = state.relayFinals||{};
-              const gradeBlocks = [
-                {gk:"grade1", label:"1학년 결승"},
-                {gk:"grade2", label:"2학년 결승"},
-              ];
-              const hasAny = gradeBlocks.some(g=>Object.keys(rf[g.gk]||{}).length>0);
-              if(!hasAny) return null;
-              return (
-                <div style={{marginTop:8,paddingTop:8,borderTop:"1px dashed #e5e7eb"}}>
-                  {gradeBlocks.map(({gk,label})=>{
-                    const ranks = rf[gk]||{};
-                    const sorted = Object.entries(ranks).sort((a,b)=>a[1]-b[1]);
-                    if(!sorted.length) return null;
-                    return (
-                      <div key={gk} style={{marginBottom:6}}>
-                        <div style={{fontSize:10,color:"#dc2626",fontWeight:800,marginBottom:3}}>
-                          🏆 {label}
-                        </div>
-                        <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
-                          {sorted.map(([cls,rank])=>{
-                            const team=classToTeam(cls);
-                            return(
-                              <div key={cls} style={{textAlign:"center",padding:"4px 6px",
-                                borderRadius:6,background:TEAM_BG[team],minWidth:50,
-                                border:`1px solid ${TEAM_COLORS[team]}44`}}>
-                                <div style={{fontSize:9,color:"#6b7280"}}>{rank}위</div>
-                                <div style={{fontSize:11,fontWeight:800,color:TEAM_COLORS[team]}}>{cls}반</div>
-                                <div style={{fontSize:9,color:TEAM_COLORS[team],fontWeight:700}}>
-                                  {RELAY_FINAL_PTS[rank-1]||0}점
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div style={{fontSize:9,color:"#9ca3af",marginTop:4}}>
-                    ※ 결승 미진출 반은 일괄 +{RELAY_ELIM_PTS}점 (예선 탈락점)
-                  </div>
-                </div>
-              );
-            })()}
           </div>
         );
       })}
 
       <div style={{borderTop:"1px solid #f3f4f6",margin:"8px 0"}}/>
 
-      {/* 피지컬100 — 단계별 진출자 (시상·점수 검산용) */}
+      {/* 피지컬100 */}
       {(()=>{
         const p=state.p100||{};
         const hasFinal=p.r3?.m?.final||p.r3?.f?.final;
-        // 성별별 1차 통과자 → 각자의 진출 단계와 누적점수 산출
-        const tiers = (gk)=>{
-          const r1   = p.r1?.[gk]||{};
-          const elim = p.r2elim?.[gk]||[];
-          const fin  = p.r3?.[gk]?.final;
-          return Object.entries(r1).filter(([,w])=>w?.cls).map(([hk,w])=>{
-            const isWinner = hk===fin;
-            const isElim   = elim.includes(hk);
-            const total = isWinner ? P100_PTS.r2+P100_PTS.r3+P100_PTS.win  // +50
-                       : isElim   ? P100_PTS.r2                            // +10
-                       :            P100_PTS.r2+P100_PTS.r3;               // +20
-            // 정렬키: 우승(0) → 3R 진출(1) → 2R 탈락(2)
-            const tierKey = isWinner ? 0 : isElim ? 2 : 1;
-            return { hk, ...w, isWinner, isElim, total, tierKey };
-          }).sort((a,b)=>{
-            // 1차: 단계 우선
-            if(a.tierKey!==b.tierKey) return a.tierKey-b.tierKey;
-            // 2차: 학급순 (1-1, 1-2, ..., 1-10, 2-1, ..., 2-10)
-            const [ag,an] = String(a.cls).split("-").map(Number);
-            const [bg,bn] = String(b.cls).split("-").map(Number);
-            return ag!==bg ? ag-bg : an-bn;
-          });
-        };
-        const mList = tiers("m"), fList = tiers("f");
-        const empty = mList.length===0 && fList.length===0;
+        const winners=[];
+        for(const gk of ["m","f"]) {
+          const fk=p.r3?.[gk]?.final;
+          if(fk&&p.r1?.[gk]?.[fk]?.cls)
+            winners.push({gender:gk==="m"?"남":"여",cls:p.r1[gk][fk].cls,name:p.r1[gk][fk].name||""});
+        }
         return(
           <div>
-            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
               <span>🏋️</span>
               <span style={{fontWeight:800,fontSize:12,color:"#1f2937"}}>피지컬100</span>
-              <span style={{fontSize:10,color:"#9ca3af",marginLeft:4}}>1R통과+10 · 3R진출+20 · 우승+50</span>
               <span style={{fontSize:10,marginLeft:"auto",fontWeight:700,
                 color:hasFinal?"#16a34a":"#f59e0b"}}>{hasFinal?"✅ 완료":"미완료"}</span>
             </div>
-            {empty ? (
-              <div style={{fontSize:11,color:"#d1d5db"}}>경기 시작 전</div>
-            ) : (
-              [{k:"m",l:"🏃‍♂️ 남자",list:mList},{k:"f",l:"🏃‍♀️ 여자",list:fList}].map(({k,l,list})=>(
-                list.length>0 && (
-                  <div key={k} style={{marginBottom:6}}>
-                    <div style={{fontSize:10,color:"#6b7280",fontWeight:700,marginBottom:3}}>
-                      {l} <span style={{color:"#9ca3af",fontWeight:500}}>({list.length}명 1R 통과)</span>
+            {winners.length>0 ? (
+              <div style={{display:"flex",gap:6}}>
+                {winners.map(w=>{
+                  const team=classToTeam(w.cls);
+                  return(
+                    <div key={w.gender} style={{padding:"6px 10px",borderRadius:6,
+                      background:TEAM_BG[team],border:`1px solid ${TEAM_COLORS[team]}44`,
+                      textAlign:"center"}}>
+                      <div style={{fontSize:10,color:"#6b7280"}}>{w.gender}자 우승</div>
+                      <div style={{fontSize:12,fontWeight:800,color:TEAM_COLORS[team]}}>{w.cls}반</div>
+                      {w.name&&<div style={{fontSize:10,color:"#374151"}}>{w.name}</div>}
+                      <div style={{fontSize:10,color:TEAM_COLORS[team],fontWeight:700}}>+{P100_PTS.win}점</div>
                     </div>
-                    <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
-                      {list.map(it=>{
-                        const team=classToTeam(it.cls);
-                        const label = it.isWinner ? "🏆 우승" : it.isElim ? "2R 탈락" : "🟢 3R 진출";
-                        return(
-                          <div key={it.hk} style={{padding:"4px 6px",borderRadius:6,
-                            background: it.isWinner ? "linear-gradient(135deg,#fbbf24,#f59e0b)" : TEAM_BG[team],
-                            minWidth:64,
-                            border:`1px solid ${it.isWinner?"#f59e0b":TEAM_COLORS[team]+"44"}`,
-                            textAlign:"center",opacity:it.isElim?0.65:1}}>
-                            <div style={{fontSize:8,color:it.isWinner?"#78350f":"#6b7280",fontWeight:700}}>
-                              {label}
-                            </div>
-                            <div style={{fontSize:10,fontWeight:800,
-                              color:it.isWinner?"#78350f":TEAM_COLORS[team]}}>
-                              {it.cls}반
-                            </div>
-                            {it.name && (
-                              <div style={{fontSize:9,
-                                color:it.isWinner?"#78350f":"#374151",
-                                fontWeight:it.isWinner?700:500,
-                                maxWidth:80,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                                {it.name}
-                              </div>
-                            )}
-                            <div style={{fontSize:9,
-                              color:it.isWinner?"#78350f":TEAM_COLORS[team],fontWeight:700}}>
-                              +{it.total}점
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )
-              ))
-            )}
+                  );
+                })}
+              </div>
+            ) : <div style={{fontSize:11,color:"#d1d5db"}}>결승 미진행</div>}
           </div>
         );
       })()}
@@ -3877,7 +3770,6 @@ function OEntry({ state, update }) {
   const [editIntro, setEditIntro] = useState("");
   const [editAudio, setEditAudio] = useState("");
   const [gradeTab, setGradeTab]   = useState("1");
-  const [viewMode, setViewMode]   = useState("cue"); // "cue" | "list"
   const audioRef = useRef(null);
   const [playing, setPlaying]     = useState(false);
 
@@ -3892,11 +3784,9 @@ function OEntry({ state, update }) {
     }
     const items = { ...(entry.items||{}) };
     let cnt = 0;
-    const INVALID = ["이름","번호","성별","역할","담임","(자동입력)"];
     for(const [cls, data] of Object.entries(rClasses)) {
-      const intro = (data.intro||"").trim();
-      if(intro && intro.length >= 10 && !INVALID.includes(intro)) {
-        items[cls] = { ...(items[cls]||{}), intro };
+      if(data.intro) {
+        items[cls] = { ...(items[cls]||{}), intro: data.intro };
         cnt++;
       }
     }
@@ -3941,90 +3831,11 @@ function OEntry({ state, update }) {
     upd({ items }); setEditClass(null);
   };
 
-  // 전체 학급 목록 (1학년 1~10 → 2학년 1~10 순서)
-  const allClassesFull = [];
-  for(const g of ["1","2"]) {
-    const rc = Object.keys(roster.classes||{}).filter(c=>c.startsWith(g+"-"));
-    const ec = Object.keys(entry.items||{}).filter(c=>c.startsWith(g+"-"));
-    [...new Set([...rc,...ec])].sort((a,b)=>parseInt(a.split("-")[1])-parseInt(b.split("-")[1]))
-      .forEach(c=>allClassesFull.push(c));
-  }
-
-  // 현재 탭 학급 목록
+  // 현재 탭 학급 목록 (roster + entry 합산)
   const rosterClasses = Object.keys(roster.classes||{}).filter(c=>c.startsWith(gradeTab+"-"));
   const entryClasses  = Object.keys(entry.items||{}).filter(c=>c.startsWith(gradeTab+"-"));
   const allClasses    = [...new Set([...rosterClasses, ...entryClasses])]
     .sort((a,b)=>parseInt(a.split("-")[1])-parseInt(b.split("-")[1]));
-
-  // 큐시트: 현재/다음 반
-  const curIdx  = allClassesFull.indexOf(entry.current);
-  const curCls  = entry.current || null;
-  const nextCls = curIdx >= 0 && curIdx < allClassesFull.length-1 ? allClassesFull[curIdx+1] : null;
-  const prevCls = curIdx > 0 ? allClassesFull[curIdx-1] : null;
-
-  const getCls = cls => {
-    if(!cls) return null;
-    const d = entry.items?.[cls] || {};
-    const rIntro = roster.classes?.[cls]?.intro || "";
-    return { intro: d.intro || rIntro, audio: d.audio, team: classToTeam(cls) };
-  };
-
-  // 큐시트 카드 렌더
-  const CueCard = ({cls, label, big}) => {
-    if(!cls) return (
-      <div style={{flex:1,border:"2px dashed #e5e7eb",borderRadius:12,
-        display:"flex",alignItems:"center",justifyContent:"center",
-        color:"#9ca3af",fontSize:13,minHeight:big?200:120}}>
-        {label} 없음
-      </div>
-    );
-    const info = getCls(cls);
-    const isCur = entry.current === cls;
-    const isPlaying = isCur && playing;
-    const hasAudio = !!info.audio;
-    return (
-      <div style={{flex:big?2:1,border:`3px solid ${TEAM_COLORS[info.team]}`,
-        borderRadius:12,padding:big?"16px 14px":"10px 12px",
-        background:isCur?TEAM_BG[info.team]:"#fff",position:"relative"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-          <TeamBadge team={info.team} size={big?36:26}/>
-          <div style={{flex:1}}>
-            <div style={{fontWeight:900,fontSize:big?22:15,color:TEAM_COLORS[info.team]}}>{cls}반</div>
-            <div style={{fontSize:10,color:"#6b7280",fontWeight:600}}>{label}</div>
-          </div>
-          {big && <>
-            <button onClick={()=>startEdit(cls)} className="obtn"
-              style={{fontSize:11,padding:"4px 8px"}}>✏️</button>
-            <button onClick={()=>playClass(cls)}
-              style={{padding:"6px 14px",borderRadius:6,border:"none",cursor:"pointer",
-                fontWeight:700,fontSize:13,fontFamily:"inherit",
-                background:isPlaying?"#ef4444":hasAudio?"#16a34a":"#9ca3af",color:"#fff"}}>
-              {isPlaying?"⏸ 정지":hasAudio?"▶ 재생":"♪ 무음"}
-            </button>
-          </>}
-        </div>
-        <div style={{fontSize:big?13:11,color:"#374151",lineHeight:1.7,
-          background:"#f9fafb",borderRadius:8,padding:"8px 10px",
-          minHeight:big?80:50,whiteSpace:"pre-wrap",
-          fontStyle:info.intro?"normal":"italic",
-          color:info.intro?"#374151":"#9ca3af"}}>
-          {info.intro || "소개 멘트 없음"}
-        </div>
-        {!big && (
-          <div style={{marginTop:6,display:"flex",gap:4,justifyContent:"flex-end"}}>
-            <button onClick={()=>startEdit(cls)} className="obtn"
-              style={{fontSize:10,padding:"3px 8px"}}>✏️</button>
-            <button onClick={()=>{ upd({current:cls}); if(info.audio) playClass(cls); }}
-              style={{padding:"3px 10px",borderRadius:5,border:"none",cursor:"pointer",
-                fontWeight:700,fontSize:11,fontFamily:"inherit",
-                background:hasAudio?"#16a34a":"#9ca3af",color:"#fff"}}>
-              {hasAudio?"▶":"♪"}
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   return (<>
     <div className="page-title">🚶 입장식 진행</div>
@@ -4032,7 +3843,13 @@ function OEntry({ state, update }) {
 
     {/* 명단 연동 */}
     <div className="card" style={{marginBottom:12,background:"#eff6ff",borderColor:"#bfdbfe"}}>
-      <div style={{fontSize:12,fontWeight:700,color:"#1e40af",marginBottom:8}}>📋 참가 신청 명단 연동</div>
+      <div style={{fontSize:12,fontWeight:700,color:"#1e40af",marginBottom:8}}>
+        📋 참가 신청 명단 연동
+      </div>
+      <div style={{fontSize:11,color:"#3b82f6",marginBottom:8,lineHeight:1.6}}>
+        참가 신청서의 팀 소개 멘트를 입장식 소개 멘트로 자동 채웁니다.<br/>
+        음원은 학급별로 직접 입력하세요.
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
         <button onClick={importFromRoster} className="obtn primary" style={{fontSize:12,padding:9}}>
           📥 명단에서 소개 멘트 가져오기
@@ -4043,183 +3860,95 @@ function OEntry({ state, update }) {
       </div>
     </div>
 
-    {/* 보기 전환 */}
+    {/* 학년 탭 */}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}}>
-      <button onClick={()=>setViewMode("cue")}
-        className={`obtn${viewMode==="cue"?" on":""}`} style={{padding:"8px",fontSize:13}}>
-        🎬 큐시트
-      </button>
-      <button onClick={()=>setViewMode("list")}
-        className={`obtn${viewMode==="list"?" on":""}`} style={{padding:"8px",fontSize:13}}>
-        📋 목록
-      </button>
+      {["1","2"].map(g=>(
+        <button key={g} onClick={()=>setGradeTab(g)}
+          className={`obtn${gradeTab===g?" on":""}`} style={{padding:"9px",fontSize:13}}>
+          {g}학년
+        </button>
+      ))}
     </div>
 
-    {/* ══════════ 큐시트 뷰 ══════════ */}
-    {viewMode==="cue" && (<>
-      {/* 현재 / 다음 큐 */}
-      <div style={{display:"flex",gap:10,marginBottom:12,alignItems:"stretch"}}>
-        <CueCard cls={curCls}  label="🔴 현재 진행중" big={true}/>
-        <CueCard cls={nextCls} label="⏭ 다음"         big={false}/>
-      </div>
-
-      {/* 이전/다음 이동 버튼 */}
-      {allClassesFull.length > 0 && (
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}}>
-          <button onClick={()=>{
-              if(prevCls){ upd({current:prevCls}); }
-            }}
-            className="obtn" disabled={!prevCls}
-            style={{fontSize:12,padding:9,opacity:prevCls?1:0.4}}>
-            ◀ 이전: {prevCls||"-"}반
-          </button>
-          <button onClick={()=>{
-              if(nextCls){ upd({current:nextCls}); if(entry.items?.[nextCls]?.audio) playClass(nextCls); }
-            }}
-            className="obtn primary" disabled={!nextCls}
-            style={{fontSize:12,padding:9,opacity:nextCls?1:0.4}}>
-            다음: {nextCls||"-"}반 ▶
-          </button>
-        </div>
-      )}
-
-      {/* 전체 진행 현황 */}
-      <div style={{fontSize:11,color:"#6b7280",marginBottom:6,fontWeight:700}}>전체 순서</div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:12}}>
-        {allClassesFull.map(cls=>{
-          const t=classToTeam(cls);
-          const isCur=entry.current===cls;
-          const done=curIdx>=0 && allClassesFull.indexOf(cls)<curIdx;
-          return(
-            <button key={cls} onClick={()=>upd({current:cls})}
-              style={{padding:"4px 8px",borderRadius:6,fontSize:11,fontWeight:700,
-                border:`2px solid ${isCur?TEAM_COLORS[t]:"#e5e7eb"}`,
-                background:isCur?TEAM_COLORS[t]:done?"#f3f4f6":"#fff",
-                color:isCur?"#fff":done?"#9ca3af":TEAM_COLORS[t],
-                cursor:"pointer",textDecoration:done?"line-through":"none"}}>
-              {cls}반
-            </button>
-          );
-        })}
-      </div>
-    </>)}
-
-    {/* ══════════ 목록 뷰 ══════════ */}
-    {viewMode==="list" && (<>
-      {/* 학년 탭 */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}}>
-        {["1","2"].map(g=>(
-          <button key={g} onClick={()=>setGradeTab(g)}
-            className={`obtn${gradeTab===g?" on":""}`} style={{padding:"9px",fontSize:13}}>
-            {g}학년
-          </button>
-        ))}
-      </div>
-
-      {allClasses.length === 0 && (
-        <div className="card" style={{textAlign:"center",padding:"32px 20px",color:"#9ca3af"}}>
-          <div style={{fontSize:28,marginBottom:8}}>📋</div>
-          <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>명단을 먼저 불러오세요</div>
-          <div style={{fontSize:11}}>참가 신청 명단 메뉴에서 학급 URL을 입력하세요</div>
-        </div>
-      )}
-
-      {allClasses.map(cls=>{
-        const team  = classToTeam(cls);
-        const isCur = entry.current === cls;
-        const d     = entry.items?.[cls] || {};
-        const rIntro= roster.classes?.[cls]?.intro || "";
-        const intro = d.intro || rIntro;
-        const hasAudio = !!d.audio;
-
-        if(editClass === cls) {
-          return(
-            <div key={cls} className="card hl" style={{marginBottom:8,borderColor:TEAM_COLORS[team]}}>
-              <div style={{fontWeight:800,color:TEAM_COLORS[team],marginBottom:8}}>{cls}반 편집</div>
-              <div style={{fontSize:11,color:"#787671",marginBottom:4}}>소개 멘트</div>
-              <textarea value={editIntro} onChange={e=>setEditIntro(e.target.value)}
-                rows={3} className="oinput"
-                style={{marginBottom:8,fontSize:12,resize:"vertical"}}/>
-              <div style={{fontSize:11,color:"#787671",marginBottom:4}}>🎵 음원 URL (구글드라이브 공유링크)</div>
-              <input value={editAudio} onChange={e=>setEditAudio(e.target.value)}
-                placeholder="https://drive.google.com/..." className="oinput"
-                style={{marginBottom:8,fontSize:12,fontFamily:"monospace"}}/>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                <button onClick={()=>setEditClass(null)} className="obtn" style={{fontSize:12}}>취소</button>
-                <button onClick={saveEdit} className="obtn primary" style={{fontSize:12}}>💾 저장</button>
-              </div>
-            </div>
-          );
-        }
-
-        return(
-          <div key={cls} className="card" style={{
-            marginBottom:8,padding:"10px 12px",
-            borderLeft:`4px solid ${TEAM_COLORS[team]}`,
-            background:isCur?"#fffbeb":"#fff"}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-              <TeamBadge team={team} size={26}/>
-              <div style={{flex:1}}>
-                <span style={{fontWeight:800,color:TEAM_COLORS[team]}}>{cls}반</span>
-                {isCur && <span className="blink" style={{marginLeft:6,fontSize:10,
-                  color:"#fff",background:"#eb5757",padding:"2px 7px",borderRadius:8,fontWeight:800}}>ON AIR</span>}
-              </div>
-              <button onClick={()=>startEdit(cls)} className="obtn" style={{fontSize:11,padding:"4px 10px"}}>✏️</button>
-              <button onClick={()=>playClass(cls)}
-                style={{padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",
-                  fontWeight:700,fontSize:12,fontFamily:"inherit",
-                  background:isCur&&playing?"#ef4444":hasAudio?"#16a34a":"#e5e7eb",
-                  color:hasAudio||isCur?"#fff":"#9ca3af"}}>
-                {isCur&&playing?"⏸ 정지":hasAudio?"▶ 재생":"♪ 무음"}
-              </button>
-              <button onClick={()=>upd({current:cls})}
-                style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${isCur?"#f59e0b":"#e5e7eb"}`,
-                  background:isCur?"#fef3c7":"#fff",cursor:"pointer",fontSize:11,fontFamily:"inherit",fontWeight:700}}>
-                {isCur?"✓ 진행중":"진행"}
-              </button>
-            </div>
-            {intro && (
-              <div style={{fontSize:11,color:"#37352f",background:"#fafaf9",
-                padding:"6px 10px",borderRadius:6,lineHeight:1.6,whiteSpace:"pre-wrap"}}>
-                {intro}
-              </div>
-            )}
-            {!intro && (
-              <div style={{fontSize:11,color:"#d1d5db",fontStyle:"italic"}}>
-                소개 멘트 없음 — ✏️ 버튼으로 입력
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </>)}
-
-    {/* 편집 모달 (큐시트 모드) */}
-    {viewMode==="cue" && editClass && (
-      <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,
-        background:"rgba(0,0,0,0.5)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-        <div className="card" style={{width:"100%",maxWidth:400,borderColor:TEAM_COLORS[classToTeam(editClass)]}}>
-          <div style={{fontWeight:800,color:TEAM_COLORS[classToTeam(editClass)],marginBottom:8}}>
-            {editClass}반 편집
-          </div>
-          <div style={{fontSize:11,color:"#787671",marginBottom:4}}>소개 멘트</div>
-          <textarea value={editIntro} onChange={e=>setEditIntro(e.target.value)}
-            rows={4} className="oinput"
-            style={{marginBottom:8,fontSize:12,resize:"vertical"}}/>
-          <div style={{fontSize:11,color:"#787671",marginBottom:4}}>🎵 음원 URL</div>
-          <input value={editAudio} onChange={e=>setEditAudio(e.target.value)}
-            placeholder="https://drive.google.com/..." className="oinput"
-            style={{marginBottom:8,fontSize:12,fontFamily:"monospace"}}/>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-            <button onClick={()=>setEditClass(null)} className="obtn" style={{fontSize:12}}>취소</button>
-            <button onClick={saveEdit} className="obtn primary" style={{fontSize:12}}>💾 저장</button>
-          </div>
-        </div>
+    {/* 학급 카드 목록 */}
+    {allClasses.length === 0 && (
+      <div className="card" style={{textAlign:"center",padding:"32px 20px",color:"#9ca3af"}}>
+        <div style={{fontSize:28,marginBottom:8}}>📋</div>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>명단을 먼저 불러오세요</div>
+        <div style={{fontSize:11}}>참가 신청 명단 메뉴에서 학급 URL을 입력하세요</div>
       </div>
     )}
+
+    {allClasses.map(cls=>{
+      const team  = classToTeam(cls);
+      const isCur = entry.current === cls;
+      const d     = entry.items?.[cls] || {};
+      const rIntro= roster.classes?.[cls]?.intro || "";
+      const intro = d.intro || rIntro;
+      const hasAudio = !!d.audio;
+
+      if(editClass === cls) {
+        return(
+          <div key={cls} className="card hl" style={{marginBottom:8,borderColor:TEAM_COLORS[team]}}>
+            <div style={{fontWeight:800,color:TEAM_COLORS[team],marginBottom:8}}>{cls}반 편집</div>
+            <div style={{fontSize:11,color:"#787671",marginBottom:4}}>소개 멘트</div>
+            <textarea value={editIntro} onChange={e=>setEditIntro(e.target.value)}
+              rows={3} className="oinput"
+              style={{marginBottom:8,fontSize:12,resize:"vertical"}}/>
+            <div style={{fontSize:11,color:"#787671",marginBottom:4}}>🎵 음원 URL (구글드라이브 공유링크)</div>
+            <input value={editAudio} onChange={e=>setEditAudio(e.target.value)}
+              placeholder="https://drive.google.com/..." className="oinput"
+              style={{marginBottom:8,fontSize:12,fontFamily:"monospace"}}/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+              <button onClick={()=>setEditClass(null)} className="obtn" style={{fontSize:12}}>취소</button>
+              <button onClick={saveEdit} className="obtn primary" style={{fontSize:12}}>💾 저장</button>
+            </div>
+          </div>
+        );
+      }
+
+      return(
+        <div key={cls} className="card" style={{
+          marginBottom:8,padding:"10px 12px",
+          borderLeft:`4px solid ${TEAM_COLORS[team]}`,
+          background:isCur?"#fffbeb":"#fff"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <TeamBadge team={team} size={26}/>
+            <div style={{flex:1}}>
+              <span style={{fontWeight:800,color:TEAM_COLORS[team]}}>{cls}반</span>
+              {isCur && <span className="blink" style={{marginLeft:6,fontSize:10,
+                color:"#fff",background:"#eb5757",padding:"2px 7px",borderRadius:8,fontWeight:800}}>ON AIR</span>}
+            </div>
+            <button onClick={()=>startEdit(cls)} className="obtn" style={{fontSize:11,padding:"4px 10px"}}>✏️</button>
+            <button onClick={()=>playClass(cls)}
+              style={{padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",
+                fontWeight:700,fontSize:12,fontFamily:"inherit",
+                background:isCur&&playing?"#ef4444":hasAudio?"#16a34a":"#e5e7eb",
+                color:hasAudio||isCur?"#fff":"#9ca3af"}}>
+              {isCur&&playing?"⏸ 정지":hasAudio?"▶ 재생":"♪ 무음"}
+            </button>
+            <button onClick={()=>upd({current:cls})}
+              style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${isCur?"#f59e0b":"#e5e7eb"}`,
+                background:isCur?"#fef3c7":"#fff",cursor:"pointer",fontSize:11,fontFamily:"inherit",fontWeight:700}}>
+              {isCur?"✓ 진행중":"진행"}
+            </button>
+          </div>
+          {intro && (
+            <div style={{fontSize:11,color:"#37352f",background:"#fafaf9",
+              padding:"6px 10px",borderRadius:6,lineHeight:1.6,whiteSpace:"pre-wrap"}}>
+              {intro}
+            </div>
+          )}
+          {!intro && (
+            <div style={{fontSize:11,color:"#d1d5db",fontStyle:"italic"}}>
+              소개 멘트 없음 — ✏️ 버튼으로 입력
+            </div>
+          )}
+        </div>
+      );
+    })}
   </>);
 }
-
 function OCheerShow({ state, update }) {
   const cs     = state.cheerShow || { items:{}, order:[], currentIdx:-1 };
   const roster = state.roster    || { classes:{} };
@@ -8082,33 +7811,11 @@ function ORoster({state, update}) {
       if(!gradeNum || !clsNum) throw new Error("학년/반 정보를 읽을 수 없습니다.\nB2(학년), D2(반) 셀을 확인해주세요.");
 
       const clsKey = `${gradeNum}-${clsNum}`;
-
-      // ★ 소개 멘트: 헤더 영역(rows 0~4)에서 30자 이상 긴 텍스트를 자동 감지
-      let intro = "";
-      for(let ri = 0; ri < Math.min(rows.length, 6); ri++) {
-        for(const v of (rows[ri]||[])) {
-          const s = (v||"").trim();
-          if(s.length >= 30
-            && !s.includes('참가신청서')
-            && !s.includes('줄다리기')
-            && !s.includes('장애물')
-            && !s.includes('피지컬')
-            && !s.includes('담임')
-            && !s.includes('학년:')) {
-            intro = s; break;
-          }
-        }
-        if(intro) break;
-      }
+      const row3 = rows[2] || [];
+      const intro = row3.find(v => v && v.trim() && !v.includes('팀 소개 멘트') && !v.includes('📣')) || "";
 
       const students = [];
-      // ★ 헤더 행 수가 가변적이므로 번호(숫자)가 있는 첫 행을 데이터 시작으로 감지
-      let dataStart = 5;
-      for(let i = 3; i < Math.min(rows.length, 10); i++) {
-        const idVal = (rows[i][0]||"").trim();
-        if(idVal && !isNaN(Number(idVal))) { dataStart = i; break; }
-      }
-      for(let i = dataStart; i < rows.length; i++) {
+      for(let i = 5; i < rows.length; i++) {
         const r = rows[i];
         const name   = (r[1]||"").trim();
         const gender = (r[2]||"").trim();
@@ -8543,39 +8250,23 @@ function VRoster({state}) {
     {view==="class" ? (
       // ── 학급별 ──
       <>
-        {/* 1학년 / 2학년 좌우 분리 */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-          {["1","2"].map(grade=>{
-            const gradeKeys=classKeys.filter(k=>k.startsWith(grade+"-"));
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}}>
+          {classKeys.map(cls=>{
+            const team = classToTeam(cls);
+            const c = classes[cls];
             return(
-              <div key={grade}>
-                <div style={{fontWeight:900,fontSize:13,color:grade==="1"?"#2563eb":"#16a34a",
-                  marginBottom:6,paddingBottom:4,borderBottom:`2px solid ${grade==="1"?"#bfdbfe":"#bbf7d0"}`,
-                  textAlign:"center"}}>
-                  {grade}학년
+              <button key={cls} onClick={()=>setSelClass(selClass===cls?null:cls)}
+                style={{
+                  padding:"10px 8px",borderRadius:8,
+                  border:`2px solid ${selClass===cls?TEAM_COLORS[team]:"#e7e7e5"}`,
+                  background:selClass===cls?TEAM_BG[team]:"#fff",
+                  cursor:"pointer",fontFamily:"inherit",textAlign:"center"
+                }}>
+                <div style={{fontWeight:800,fontSize:14,color:TEAM_COLORS[team]}}>{cls}반</div>
+                <div style={{fontSize:11,color:"#9b9a97",marginTop:2}}>
+                  {team}팀 · {getStudents(c).length}명
                 </div>
-                <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                  {gradeKeys.map(cls=>{
-                    const team=classToTeam(cls);
-                    const c=classes[cls];
-                    return(
-                      <button key={cls} onClick={()=>setSelClass(selClass===cls?null:cls)}
-                        style={{
-                          padding:"8px 10px",borderRadius:8,
-                          border:`2px solid ${selClass===cls?TEAM_COLORS[team]:"#e7e7e5"}`,
-                          background:selClass===cls?TEAM_BG[team]:"#fff",
-                          cursor:"pointer",fontFamily:"inherit",textAlign:"left",
-                          display:"flex",justifyContent:"space-between",alignItems:"center"
-                        }}>
-                        <div style={{fontWeight:800,fontSize:13,color:TEAM_COLORS[team]}}>{cls}반</div>
-                        <div style={{fontSize:11,color:"#9b9a97"}}>
-                          {team}팀 · {getStudents(c).length}명
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -8687,6 +8378,38 @@ function ORoleSetup({state, update}) {
     setTimeout(()=>setSaved(false), 2000);
   };
 
+  // 종목별 데이터 초기화
+  const RESET_ITEMS = [
+    { label:"⏱ 8자마라톤 전체",    key:"timeTrial",    val:{} },
+    { label:"🚧 장애물달리기",      key:"groupScores",  subKey:"장애물달리기" },
+    { label:"🌀 태풍의눈",          key:"groupScores",  subKey:"태풍의눈" },
+    { label:"🏃 계주 예선",         key:"groupScores",  subKey:"계주" },
+    { label:"🏆 계주 결승",         key:"relayFinals",  val:{} },
+    { label:"🪢 줄다리기",          key:"brackets",     subKey:"줄다리기" },
+    { label:"🏋️ 피지컬100 전체",  key:"p100",         val:{r1:{m:{},f:{}},r2elim:{m:[],f:[]},r3:{m:{},f:{}}} },
+    { label:"📣 응원전 채점",        key:"cheer",        val:{} },
+  ];
+
+  const doReset = (item) => {
+    const msg = `"${item.label}" 데이터를 초기화합니다. 이 작업은 되돌릴 수 없습니다.`;
+    if(!confirm(msg)) return;
+    if(item.subKey) {
+      update(s=>({...s, [item.key]:{...(s[item.key]||{}), [item.subKey]:{}}}));
+    } else {
+      update(s=>({...s, [item.key]: item.val}));
+    }
+  };
+
+  const resetAllScores = () => {
+    if(!confirm("⚠️ 모든 종목 점수·결과를 초기화합니다.\n대진표, 추첨 결과도 모두 삭제됩니다.\n정말 진행하시겠습니까?")) return;
+    update(s=>({...s,
+      timeTrial:{}, groupScores:{}, relayFinals:{},
+      brackets:{}, p100:{r1:{m:{},f:{}},r2elim:{m:[],f:[]},r3:{m:{},f:{}}},
+      cheer:{}, scores:{},
+    }));
+    alert("✅ 초기화 완료");
+  };
+
   return(<>
     <div className="page-title">🔑 역할 비밀번호 설정</div>
     <div className="page-desc">역할별 비밀번호를 설정하세요. 총괄 운영자 비번(1234)은 변경 불가.</div>
@@ -8721,6 +8444,32 @@ function ORoleSetup({state, update}) {
       fontSize:12,color:"#787671",lineHeight:1.6}}>
       💡 비밀번호가 설정되면 해당 역할 담당자가 로그인 가능합니다.<br/>
       비어 있으면 해당 역할은 비활성화됩니다.
+    </div>
+
+    {/* 종목별 데이터 초기화 */}
+    <div className="card" style={{marginTop:20,borderColor:"#fca5a5",background:"#fff5f5"}}>
+      <div style={{fontSize:13,fontWeight:800,color:"#b91c1c",marginBottom:4}}>
+        🗑 종목별 데이터 초기화
+      </div>
+      <div style={{fontSize:11,color:"#ef4444",marginBottom:12,lineHeight:1.6}}>
+        테스트 입력 데이터를 지울 때 사용하세요. 되돌릴 수 없습니다.
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}}>
+        {RESET_ITEMS.map(item=>(
+          <button key={item.label} onClick={()=>doReset(item)}
+            style={{padding:"8px 6px",borderRadius:6,border:"1px solid #fca5a5",
+              background:"#fff",cursor:"pointer",fontSize:11,fontWeight:600,
+              color:"#b91c1c",fontFamily:"inherit",textAlign:"left",lineHeight:1.4}}>
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <button onClick={resetAllScores}
+        style={{width:"100%",padding:"10px 0",borderRadius:6,border:"none",
+          background:"#ef4444",color:"#fff",cursor:"pointer",fontSize:13,
+          fontWeight:800,fontFamily:"inherit"}}>
+        ⚠️ 전체 종목 점수 초기화
+      </button>
     </div>
   </>);
 }
