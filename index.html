@@ -3784,12 +3784,19 @@ function OEntry({ state, update }) {
       return;
     }
     const items = { ...(entry.items||{}) };
+    const INVALID = ["이름","번호","성별","역할","담임","팀 소개 멘트","(자동입력)"];
     let cnt = 0;
-    const INVALID = ["이름","번호","성별","역할","담임","(자동입력)"];
     for(const [cls, data] of Object.entries(rClasses)) {
-      const intro = (data.intro||"").trim();
-      if(intro && intro.length >= 10 && !INVALID.includes(intro)) {
-        items[cls] = { ...(items[cls]||{}), intro };
+      // 잘못된 짧은 intro 무시
+      const rawIntro = (data.intro||"").trim();
+      const intro = (rawIntro.length>=10 && !INVALID.includes(rawIntro)) ? rawIntro : "";
+      const parts = [];
+      if(data.teacher) parts.push(`담임: ${data.teacher}`);
+      if(data.slogan)  parts.push(`슬로건: ${data.slogan}`);
+      const header = parts.join(' | ');
+      const full   = [header, intro].filter(Boolean).join('\n');
+      if(full.trim()) {
+        items[cls] = { ...(items[cls]||{}), intro: full };
         cnt++;
       }
     }
@@ -7990,14 +7997,17 @@ function ORoster({state, update}) {
       const teacherName = teacherCell.replace(/담임\s*선생님\s*[:：]?\s*/,'').replace(/담임\s*[:：]?\s*/,'').trim();
       const slogan      = sloganCell.replace(/슬로건\s*[:：]?\s*/,'').replace(/🎯\s*/,'').trim();
 
-      // 행3: 팀 소개 멘트 (전체 병합 → A열 = index0)
+      // 행3: 팀 소개 멘트 (전체 병합 → A열 = index0만 사용)
       const row3 = rows[2] || [];
-      const introRaw = row3[0] || row3.find(v => v && v.trim()) || "";
-      const intro = introRaw
+      const introRaw = (row3[0] || "").trim();
+      let intro = introRaw
         .replace(/📣\s*팀\s*소개\s*멘트[^가-힣]*/,'')
         .replace(/여기에\s*입장식용\s*멘트를?\s*입력하세요[^가-힣]*/,'')
         .replace(/Alt\+Enter[^\n]*/g,'')
         .trim();
+      // 헤더 값이 잘못 들어온 경우 제거 ("이름", "번호" 등)
+      const INVALID_INTROS = ["이름","번호","성별","역할","담임","팀 소개 멘트","(자동입력)"];
+      if(intro.length < 10 || INVALID_INTROS.includes(intro)) intro = "";
 
       const students = [];
       for(let i = 5; i < rows.length; i++) {
