@@ -3785,23 +3785,42 @@ function OEntry({ state, update }) {
     }
     const items = { ...(entry.items||{}) };
     const INVALID = ["이름","번호","성별","역할","담임","팀 소개 멘트","(자동입력)"];
-    let cnt = 0;
-    for(const [cls, data] of Object.entries(rClasses)) {
-      // 잘못된 짧은 intro 무시
+
+    let importCnt = 0, cleanCnt = 0, emptyCnt = 0;
+    let teacherCnt = 0, sloganCnt = 0, introCnt = 0;
+
+    // 모든 학급 점검
+    for(const cls of [...[1,2,3,4,5,6,7,8,9,10].map(n=>`1-${n}`), ...[1,2,3,4,5,6,7,8,9,10].map(n=>`2-${n}`)]) {
+      const data = rClasses[cls];
+      const existingIntro = (items[cls]?.intro||"").trim();
+
+      // 기존 잘못된 데이터 정리
+      if(existingIntro && INVALID.includes(existingIntro)) {
+        delete items[cls];
+        cleanCnt++;
+      }
+
+      if(!data) continue;
+
       const rawIntro = (data.intro||"").trim();
-      const intro = (rawIntro.length>=10 && !INVALID.includes(rawIntro)) ? rawIntro : "";
+      const validIntro = (rawIntro.length>=10 && !INVALID.includes(rawIntro)) ? rawIntro : "";
       const parts = [];
-      if(data.teacher) parts.push(`담임: ${data.teacher}`);
-      if(data.slogan)  parts.push(`슬로건: ${data.slogan}`);
-      const header = parts.join(' | ');
-      const full   = [header, intro].filter(Boolean).join('\n');
+      if(data.teacher) { parts.push(`담임: ${data.teacher}`); teacherCnt++; }
+      if(data.slogan)  { parts.push(`슬로건: ${data.slogan}`); sloganCnt++; }
+      if(validIntro)   introCnt++;
+
+      const full = [parts.join(' | '), validIntro].filter(Boolean).join('\n');
       if(full.trim()) {
         items[cls] = { ...(items[cls]||{}), intro: full };
-        cnt++;
+        importCnt++;
+      } else {
+        // 빈 경우 잘못된 데이터 제거
+        if(items[cls]?.intro) delete items[cls];
+        emptyCnt++;
       }
     }
     upd({ items });
-    alert(`✅ ${cnt}개 학급 소개 멘트를 명단에서 가져왔습니다`);
+    alert(`✅ 가져오기 완료!\n\n📥 ${importCnt}개 학급 멘트 적용\n🧹 ${cleanCnt}개 잘못된 데이터 정리\n📋 ${emptyCnt}개 학급 정보 없음\n\n[명단 데이터]\n• 담임: ${teacherCnt}/20\n• 슬로건: ${sloganCnt}/20\n• 소개멘트: ${introCnt}/20\n\n${importCnt===0?'⚠️ 참가 신청 명단을 다시 불러와주세요!\n명단 메뉴에서 각 반 📥 버튼을 누르면 새 파싱이 적용됩니다.':''}`);
   };
 
   // 음원 재생/정지
@@ -3903,12 +3922,16 @@ function OEntry({ state, update }) {
             </button>
           </>}
         </div>
-        <div style={{fontSize:big?13:11,color:"#374151",lineHeight:1.7,
-          background:"#f9fafb",borderRadius:8,padding:"8px 10px",
-          minHeight:big?80:50,whiteSpace:"pre-wrap",
+        <div style={{fontSize:big?18:12,
+          lineHeight:1.6,
+          background:"#fff",borderRadius:8,padding:big?"14px 16px":"8px 10px",
+          minHeight:big?120:60,whiteSpace:"pre-wrap",
+          fontWeight:big?600:400,
+          letterSpacing:big?"-0.01em":"normal",
           fontStyle:info.intro?"normal":"italic",
-          color:info.intro?"#374151":"#9ca3af"}}>
-          {info.intro || "소개 멘트 없음"}
+          color:info.intro?"#1f2937":"#9ca3af",
+          border:big?"2px solid "+TEAM_COLORS[info.team]+"33":"1px solid #e5e7eb"}}>
+          {info.intro || "소개 멘트 없음 — ✏️ 버튼으로 입력"}
         </div>
         {!big && (
           <div style={{marginTop:6,display:"flex",gap:4,justifyContent:"flex-end"}}>
@@ -7990,16 +8013,25 @@ function ORoster({state, update}) {
 
       const clsKey = `${gradeNum}-${clsNum}`;
 
-      // 행2: 담임 (E열=index4), 슬로건 (J열=index9)
-      const teacherCell = (row2[4]||"").trim();
-      const sloganCell  = (row2[9]||"").trim();
-      // "담임 선생님: 홍길동" → "홍길동" 추출
-      const teacherName = teacherCell.replace(/담임\s*선생님\s*[:：]?\s*/,'').replace(/담임\s*[:：]?\s*/,'').trim();
-      const slogan      = sloganCell.replace(/슬로건\s*[:：]?\s*/,'').replace(/🎯\s*/,'').trim();
+      // 행2 전체에서 담임/슬로건 키워드로 검색 (위치 무관)
+      let teacherName = "", slogan = "";
+      for(const cell of row2) {
+        const v = (cell||"").trim();
+        if(!v) continue;
+        if(v.includes("담임") && !teacherName) {
+          teacherName = v.replace(/담임\s*선생님\s*[:：]?\s*/,'').replace(/담임\s*[:：]?\s*/,'').trim();
+        } else if(v.includes("슬로건") && !slogan) {
+          slogan = v.replace(/슬로건\s*[:：]?\s*/,'').replace(/🎯\s*/,'').trim();
+        }
+      }
 
-      // 행3: 팀 소개 멘트 (전체 병합 → A열 = index0만 사용)
+      // 행3에서 가장 긴 텍스트를 소개멘트로 추출 (보통 병합셀의 첫 셀)
       const row3 = rows[2] || [];
-      const introRaw = (row3[0] || "").trim();
+      let introRaw = "";
+      for(const cell of row3) {
+        const v = (cell||"").trim();
+        if(v.length > introRaw.length) introRaw = v;
+      }
       let intro = introRaw
         .replace(/📣\s*팀\s*소개\s*멘트[^가-힣]*/,'')
         .replace(/여기에\s*입장식용\s*멘트를?\s*입력하세요[^가-힣]*/,'')
