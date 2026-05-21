@@ -4273,6 +4273,78 @@ function OCheerShow({ state, update }) {
         </button>
       </div>
     </div>
+
+    {/* 채점자별 완료 현황 */}
+    {(()=>{
+      const cheer = state.cheer || {};
+      const allJudges = CHEER_JUDGES.flatMap(j=>j.names.map(n=>({name:n,dept:j.dept})));
+      const completedG1 = [];
+      const completedG2 = [];
+      const pendingG1 = [];
+      const pendingG2 = [];
+      for(const judge of allJudges) {
+        // judge.name으로 누가 채점했는지 확인
+        // state.cheer 구조: { judgeId: { "1": {ranks:..., scores:...}, "2": {...} } }
+        // judgeId = "부서_이름" 형식 추정
+        let g1Done = false, g2Done = false;
+        for(const [judgeId, data] of Object.entries(cheer)) {
+          if(judgeId.includes(judge.name) || data?.judgeName === judge.name) {
+            if(data?.["1"] || data?.g1 || data?.grade1) g1Done = true;
+            if(data?.["2"] || data?.g2 || data?.grade2) g2Done = true;
+          }
+        }
+        if(g1Done) completedG1.push(judge); else pendingG1.push(judge);
+        if(g2Done) completedG2.push(judge); else pendingG2.push(judge);
+      }
+      const total = allJudges.length;
+      return(
+        <div className="card" style={{marginBottom:12}}>
+          <div style={{fontSize:12,fontWeight:800,color:"#37352f",marginBottom:10,
+            display:"flex",alignItems:"center",gap:6}}>
+            👨‍⚖️ 채점자별 완료 현황
+          </div>
+          {[
+            {grade:"1",label:"1학년 응원전",done:completedG1,pending:pendingG1},
+            {grade:"2",label:"2학년 응원전",done:completedG2,pending:pendingG2},
+          ].map(({grade,label,done,pending})=>(
+            <div key={grade} style={{marginBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
+                <span style={{fontSize:11,fontWeight:700,color:"#374151"}}>{label}</span>
+                <span style={{fontSize:10,fontWeight:700,color:done.length===total?"#16a34a":"#f59e0b",
+                  padding:"2px 8px",borderRadius:8,
+                  background:done.length===total?"#dcfce7":"#fef3c7"}}>
+                  {done.length}/{total}명 완료
+                </span>
+              </div>
+              {/* 완료된 심판 */}
+              {done.length>0 && (
+                <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:4}}>
+                  {done.map(j=>(
+                    <span key={j.name} style={{fontSize:10,padding:"3px 8px",
+                      borderRadius:6,background:"#dcfce7",border:"1px solid #86efac",
+                      color:"#15803d",fontWeight:600}}>
+                      ✓ {j.name}<span style={{color:"#16a34a",fontSize:9}}> ({j.dept})</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {/* 미완료 심판 */}
+              {pending.length>0 && (
+                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                  {pending.map(j=>(
+                    <span key={j.name} style={{fontSize:10,padding:"3px 8px",
+                      borderRadius:6,background:"#fef2f2",border:"1px solid #fecaca",
+                      color:"#b91c1c",fontWeight:600}}>
+                      ✗ {j.name}<span style={{color:"#ef4444",fontSize:9}}> ({j.dept})</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    })()}
     <div className="card" style={{marginBottom:12,background:"#eff6ff",borderColor:"#bfdbfe"}}>
       <div style={{fontSize:12,fontWeight:700,color:"#1e40af",marginBottom:8}}>
         📋 참가 신청 명단 연동
