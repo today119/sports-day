@@ -3785,8 +3785,17 @@ function OEntry({ state, update }) {
     const items = { ...(entry.items||{}) };
     let cnt = 0;
     for(const [cls, data] of Object.entries(rClasses)) {
-      if(data.intro) {
-        items[cls] = { ...(items[cls]||{}), intro: data.intro };
+      // 담임·슬로건·소개멘트 조합
+      const parts = [];
+      if(data.teacher)  parts.push(`담임: ${data.teacher}`);
+      if(data.slogan)   parts.push(`슬로건: ${data.slogan}`);
+      const fullIntro = [
+        parts.join(' | '),
+        data.intro || ""
+      ].filter(Boolean).join('\n');
+
+      if(fullIntro.trim()) {
+        items[cls] = { ...(items[cls]||{}), intro: fullIntro };
         cnt++;
       }
     }
@@ -3971,7 +3980,14 @@ function OCheerShow({ state, update }) {
     const items = { ...(cs.items||{}) };
     let cnt = 0;
     for(const [cls, data] of Object.entries(rClasses)) {
-      items[cls] = { ...(items[cls]||{}), intro: data.intro || "" };
+      const parts = [];
+      if(data.teacher) parts.push(`담임: ${data.teacher}`);
+      if(data.slogan)  parts.push(`슬로건: ${data.slogan}`);
+      const fullIntro = [
+        parts.join(' | '),
+        data.intro || ""
+      ].filter(Boolean).join('\n');
+      items[cls] = { ...(items[cls]||{}), intro: fullIntro || "" };
       cnt++;
     }
     // 순서: 기존 유지하되 없는 반 추가
@@ -7811,8 +7827,22 @@ function ORoster({state, update}) {
       if(!gradeNum || !clsNum) throw new Error("학년/반 정보를 읽을 수 없습니다.\nB2(학년), D2(반) 셀을 확인해주세요.");
 
       const clsKey = `${gradeNum}-${clsNum}`;
+
+      // 행2: 담임 (E열=index4), 슬로건 (J열=index9)
+      const teacherCell = (row2[4]||"").trim();
+      const sloganCell  = (row2[9]||"").trim();
+      // "담임 선생님: 홍길동" → "홍길동" 추출
+      const teacherName = teacherCell.replace(/담임\s*선생님\s*[:：]?\s*/,'').replace(/담임\s*[:：]?\s*/,'').trim();
+      const slogan      = sloganCell.replace(/슬로건\s*[:：]?\s*/,'').replace(/🎯\s*/,'').trim();
+
+      // 행3: 팀 소개 멘트 (전체 병합 → A열 = index0)
       const row3 = rows[2] || [];
-      const intro = row3.find(v => v && v.trim() && !v.includes('팀 소개 멘트') && !v.includes('📣')) || "";
+      const introRaw = row3[0] || row3.find(v => v && v.trim()) || "";
+      const intro = introRaw
+        .replace(/📣\s*팀\s*소개\s*멘트[^가-힣]*/,'')
+        .replace(/여기에\s*입장식용\s*멘트를?\s*입력하세요[^가-힣]*/,'')
+        .replace(/Alt\+Enter[^\n]*/g,'')
+        .trim();
 
       const students = [];
       for(let i = 5; i < rows.length; i++) {
@@ -7838,10 +7868,10 @@ function ORoster({state, update}) {
 
       const classes = {
         ...(roster.classes||{}),
-        [clsKey]: { teacher, leader, vleader, sportLead, intro, students }
+        [clsKey]: { teacher: teacherName||teacher, leader, vleader, sportLead, slogan, intro, students }
       };
       update(s => ({...s, roster:{ sheetUrl, classes }}));
-      alert(`✅ ${clsKey}반 완료! 👥 ${students.length}명`);
+      alert(`✅ ${clsKey}반 완료! 👥 ${students.length}명${slogan?" · 슬로건 ✓":""}${intro?" · 멘트 ✓":""}`);
     } catch(e) {
       alert(`${cls}반 불러오기 실패:\n${e.message}`);
     }
